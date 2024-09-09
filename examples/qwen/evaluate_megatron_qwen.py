@@ -23,7 +23,7 @@ from megatron.initialize import initialize_megatron
 from megatron.utils import unwrap_model
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.arguments import core_transformer_config_from_args
-from megatron.checkpointing import load_checkpoint
+from megatron_patch.checkpointing import load_checkpoint
 
 from megatron_patch.data import build_evaluation_dataset
 from megatron_patch.finetune_utils import build_data_loader

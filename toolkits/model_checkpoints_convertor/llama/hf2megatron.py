@@ -390,6 +390,7 @@ def convert_checkpoint_from_transformers_to_megatron(args):
             state_dict = merge_transformers_sharded_states_13b(args.load_path, num_checkpoints)
         elif args.model_name == "llama-7b" or args.model_name == "llama-65b" or\
                 args.model_name == "llama2-70b" or args.model_name == "llama2-7b" or args.model_name == "llama2-13b":
+            print(sorted(sub_dirs))
             num_checkpoints = len(sub_dirs) - 1
             state_dict = merge_transformers_sharded_states_7b(args.load_path, num_checkpoints)
     else:

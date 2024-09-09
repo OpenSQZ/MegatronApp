@@ -456,4 +456,17 @@ def get_patch_args(parser):
         default=0,
         help="The num of layers to be moved to CPU",
     )
+
+    group.add_argument('--no-save-weight', action='store_true', default=None,
+                       help='Do not save the weight.')
+    
+    group.add_argument('--only-serialization', action='store_true', default=False,
+                       help='Only use pickle to serialize optimizer.')
+    group.add_argument('--only-memcopy', action='store_true', default=False,
+                       help='Only use memory copy on optimizer.')
+    group.add_argument('--pickle-protocol', type=int, default=0, help='Pickle protocol')
+    group.add_argument('--optim-no-allgather', action='store_true', default=False,
+                       help='Disable allgather for optimizer saving.')
+    group.add_argument('--async-saving', action='store_true', default=False,
+                       help='Asynchronized saving.')
     return parser

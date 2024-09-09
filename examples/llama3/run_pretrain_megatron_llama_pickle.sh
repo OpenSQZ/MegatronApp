@@ -7,7 +7,7 @@ export PYTHONPATH=${MEGATRON_PATH}:${MEGATRON_PATCH_PATH}:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 if [ $ENV = dsw ]; then
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-MASTER_ADDR=10.3.0.18
+MASTER_ADDR=10.3.0.2
 MASTER_PORT=31231
 NNODES=2
 NODE_RANK=${RANK}
@@ -200,9 +200,17 @@ megatron_options="  \
         --norm-epsilon 1e-05 \
         "
 
+
+OUTPUT_ARGS="
+    $OUTPUT_ARGS \
+    --pickle-protocol $PICKLE \
+"
+
 run_cmd="torchrun $DISTRIBUTED_ARGS ../llama2/pretrain_megatron_llama.py
- ${megatron_options} ${pr_options} ${load_options} ${te_options} ${activation_checkpoint_options} ${do_options} ${flash_options} ${sp_options} ${gqa_options}"
+ ${megatron_options} ${pr_options} ${load_options} ${te_options} ${activation_checkpoint_options} ${do_options} ${flash_options} ${sp_options} ${gqa_options} ${OUTPUT_ARGS}"
 
 echo ${run_cmd}
 eval ${run_cmd}
 set +x
+
+touch local/finish${RANK}

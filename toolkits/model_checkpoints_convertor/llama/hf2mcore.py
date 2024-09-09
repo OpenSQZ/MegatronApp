@@ -17,7 +17,7 @@ from transformers.modeling_utils import WEIGHTS_INDEX_NAME, WEIGHTS_NAME, shard_
 from megatron.initialize import initialize_megatron
 from megatron import get_args
 from megatron.utils import get_ltor_masks_and_position_ids
-from megatron.checkpointing import get_checkpoint_name, get_checkpoint_tracker_filename, read_metadata
+from megatron_patch.checkpointing import get_checkpoint_name, get_checkpoint_tracker_filename, read_metadata
 
 import sys
 

@@ -26,7 +26,7 @@ from megatron.model import Float16Module
 from megatron.utils import unwrap_model
 from megatron.arguments import core_transformer_config_from_args
 from megatron.core.enums import ModelType
-from megatron.checkpointing import load_checkpoint
+from megatron_patch.checkpointing import load_checkpoint
 
 from megatron_patch.data.evaluate_dataset import build_evaluation_dataset
 from megatron_patch.finetune_utils import build_data_loader
