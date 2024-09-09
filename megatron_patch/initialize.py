@@ -8,7 +8,7 @@ from datetime import timedelta
 from megatron import get_args
 from megatron.core import mpu, tensor_parallel
 from megatron.arguments import parse_args, validate_args
-from megatron.checkpointing import load_args_from_checkpoint
+from megatron_patch.checkpointing import load_args_from_checkpoint
 from megatron.global_vars import set_global_variables
 from megatron.initialize import _set_random_seed, _init_autoresume
 from megatron.initialize import _compile_dependencies
@@ -61,6 +61,7 @@ def initialize_megatron(
         _set_random_seed(args.seed, args.data_parallel_random_init)
 
     args = get_args()
+
     if args.lazy_mpu_init:
         # TODO is this still a necessary option?
         args.use_cpu_initialization = True

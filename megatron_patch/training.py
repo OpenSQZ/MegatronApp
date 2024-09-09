@@ -42,7 +42,9 @@ except:
     from megatron.model import DistributedDataParallel as DDP
 
 from megatron.model.vision.knn_monitor import compute_feature_bank
-from megatron.checkpointing import load_checkpoint, save_checkpoint
+from megatron_patch.checkpointing import load_checkpoint, save_checkpoint
+
+from megatron.async_checkpoint import kill_thread, init_checkpoint_handler
 
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
@@ -107,6 +109,8 @@ def pretrain(train_valid_test_dataset_provider,
 
     args = get_args()
     timers = get_timers()
+
+    init_checkpoint_handler(args)
 
     # Model, optimizer, and learning rate.
     timers('model-and-optimizer-setup', log_level=0).start(barrier=True)
@@ -180,6 +184,7 @@ def pretrain(train_valid_test_dataset_provider,
                                    test_data_iterator, model,
                                    iteration, process_non_loss_data_func, config,
                                    verbose=True, write_to_tensorboard=not args.skip_train)
+    kill_thread()
 
 def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap_with_ddp=True):
     """Build the model."""

@@ -6,12 +6,10 @@ MEGATRON_PATH=${MEGATRON_PATCH_PATH}/Megatron-LM-231007
 export PYTHONPATH=${MEGATRON_PATH}:${MEGATRON_PATCH_PATH}:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 if [ $ENV = dsw ]; then
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-MASTER_ADDR=10.3.0.18
-MASTER_PORT=31231
-NNODES=2
-NODE_RANK=${RANK}
-GPUS_PER_NODE=4
+export CUDA_VISIBLE_DEVICES=0,1
+NNODES=4:4
+GPUS_PER_NODE=2
+MAX_RESTART=5
 
 elif [ $ENV = dlc ]; then
 
@@ -21,7 +19,7 @@ GPUS_PER_NODE=${KUBERNETES_CONTAINER_RESOURCE_GPU}
 
 fi
 
-DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
+DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --max_restarts=$MAX_RESTART --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=n22:13333"
 
 MODEL_SIZE=$3
 BATCH_SIZE=$4
@@ -64,7 +62,7 @@ fi
 if [ $AC = full ]; then
     activation_checkpoint_options=" \
 		    --recompute-method uniform \
-		    --recompute-granularity full \
+            --recompute-granularity full \
             --recompute-num-layers 1"
 elif [ $AC = sel ]; then
     activation_checkpoint_options=" \
@@ -192,7 +190,6 @@ megatron_options="  \
         --use-rotary-position-embeddings \
         --position-embedding-type rope \
         --untie-embeddings-and-output-weights \
-        --use-llama2-rotary-position-embeddings \
         --rotary-base 500000 \
         --attention-dropout 0.0 \
         --hidden-dropout 0.0 \

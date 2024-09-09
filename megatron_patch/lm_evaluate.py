@@ -21,7 +21,7 @@ import transformers
 from tqdm import tqdm
 
 from megatron import get_args
-from megatron.checkpointing import load_checkpoint
+from megatron_patch.checkpointing import load_checkpoint
 from megatron.core.enums import ModelType
 from megatron.core import mpu
 from megatron.core.tensor_parallel.mappings import gather_from_tensor_model_parallel_region

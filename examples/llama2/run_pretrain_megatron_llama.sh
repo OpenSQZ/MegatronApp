@@ -6,12 +6,12 @@ MEGATRON_PATH=${MEGATRON_PATCH_PATH}/Megatron-LM-231007
 export PYTHONPATH=${MEGATRON_PATH}:${MEGATRON_PATCH_PATH}:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 if [ $ENV = dsw ]; then
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-MASTER_ADDR=localhost
-MASTER_PORT=$(shuf -n 1 -i 10000-65535)
-NNODES=1
-NODE_RANK=0
-GPUS_PER_NODE=8
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+MASTER_ADDR=10.3.0.2
+MASTER_PORT=32364
+NNODES=2
+#NODE_RANK=
+GPUS_PER_NODE=4
 
 elif [ $ENV = dlc ]; then
 
@@ -84,7 +84,8 @@ fi
 if [ $AC = full ]; then
     activation_checkpoint_options=" \
 		    --recompute-method uniform \
-		    --recompute-granularity full"
+		    --recompute-granularity full \
+            --recompute-num-layers 1"
 elif [ $AC = sel ]; then
     activation_checkpoint_options=" \
         --recompute-activations"

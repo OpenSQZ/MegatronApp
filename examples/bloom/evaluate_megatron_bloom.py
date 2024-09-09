@@ -26,7 +26,7 @@ from megatron.model import DistributedDataParallel as LocalDDP
 from megatron.model import Float16Module
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import unwrap_model
-from megatron.checkpointing import load_checkpoint
+from megatron_patch.checkpointing import load_checkpoint
 
 from megatron_patch.data.evaluate_dataset import build_evaluation_dataset
 from megatron_patch.finetune_utils import build_data_loader

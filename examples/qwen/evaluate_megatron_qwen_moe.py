@@ -27,7 +27,7 @@ from megatron.utils import (
     average_losses_across_data_parallel_group
 )
 
-from megatron.checkpointing import load_checkpoint
+from megatron_patch.checkpointing import load_checkpoint
 from megatron.training import get_model
 from megatron.initialize import initialize_megatron
 
