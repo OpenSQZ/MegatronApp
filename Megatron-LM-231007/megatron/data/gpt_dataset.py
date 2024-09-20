@@ -360,7 +360,8 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
     data_cache_success = True
 
     # Build the indexed mapping if not exist.
-    if build_indices and dist.get_rank() == 0:
+    # if build_indices and dist.get_rank() == 0:
+    if build_indices and int(os.getenv("LOCAL_RANK", "0")) == 0:
         print_rank_0(' > WARNING: could not find index map files, building '
                      'the indices on rank 0 ...')
 

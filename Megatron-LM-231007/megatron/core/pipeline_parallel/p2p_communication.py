@@ -6,6 +6,7 @@ from typing import Callable, List, Optional, Tuple, Union
 
 import torch
 import inc.torch as dist
+import torch.distributed
 
 from megatron import core
 from megatron.core import ModelParallelConfig
@@ -124,7 +125,7 @@ def _batched_p2p_ops(
     tensor_recv_prev: Optional[torch.Tensor],
     tensor_send_next: Optional[torch.Tensor],
     tensor_recv_next: Optional[torch.Tensor],
-    group: dist.ProcessGroup
+    group: torch.distributed.ProcessGroup
 ):
     ops = []
     if tensor_send_prev is not None:
@@ -172,7 +173,7 @@ def _p2p_ops(
     tensor_recv_prev: Optional[torch.Tensor],
     tensor_send_next: Optional[torch.Tensor],
     tensor_recv_next: Optional[torch.Tensor],
-    group: dist.ProcessGroup
+    group: torch.distributed.ProcessGroup
 ):
     reqs = []
     rank = get_pipeline_model_parallel_rank()

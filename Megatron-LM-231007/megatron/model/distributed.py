@@ -7,6 +7,7 @@ from typing import Dict, List
 
 import torch
 import inc.torch as dist
+import torch.distributed
 
 from megatron.core import mpu
 
@@ -52,7 +53,7 @@ class Bucket:
         params: List[torch.nn.Parameter],
         data: torch.Tensor,
         offset: int,
-        data_parallel_group: dist.ProcessGroup,
+        data_parallel_group: torch.distributed.ProcessGroup,
         overlap_grad_reduce: bool,
         use_distributed_optimizer: bool,
     ):
@@ -136,7 +137,7 @@ class GradBuffer(MemoryBuffer):
         numel_padded: int,
         dtype: torch.dtype,
         params: List[torch.nn.Parameter],
-        data_parallel_group: dist.ProcessGroup,
+        data_parallel_group: torch.distributed.ProcessGroup,
         bucket_size: int,
         param_to_name: Dict[torch.nn.Parameter, str],
         overlap_grad_reduce: bool,
@@ -312,7 +313,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
     def __init__(
         self,
         module: torch.nn.Module,
-        data_parallel_group: dist.ProcessGroup,
+        data_parallel_group: torch.distributed.ProcessGroup,
         accumulate_allreduce_grads_in_fp32: bool,
         overlap_grad_reduce: bool,
         use_distributed_optimizer: bool,
