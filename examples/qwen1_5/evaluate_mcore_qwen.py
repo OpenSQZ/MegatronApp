@@ -36,8 +36,7 @@ from megatron_patch.model.qwen1_5.model import GPTModel
 from megatron_patch.tokenizer import get_tokenizer, build_tokenizer
 from megatron_patch.arguments import get_patch_args
 from megatron_patch.data.utils import get_batch_on_this_tp_rank_original
-import torch
-import inc.torch as dist._dynamo
+import torch._dynamo
 torch._dynamo.config.suppress_errors = True
 
 

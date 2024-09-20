@@ -11,8 +11,7 @@ from transformers import set_seed, AutoTokenizer
 import json
 import deepspeed
 from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
-import torch
-import inc.torch as dist.nn as nn
+import torch.nn as nn
 
 
 def print_rank_0(msg, rank=0):

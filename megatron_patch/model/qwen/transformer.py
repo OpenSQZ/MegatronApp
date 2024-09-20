@@ -17,8 +17,7 @@ import math
 import numpy as np
 import torch
 import inc.torch as dist
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 from typing import Optional
 
 from megatron import get_timers, get_args, get_retro_args, core, get_num_microbatches

@@ -6,8 +6,7 @@ from commons import print_separator
 from commons import initialize_distributed
 from mpu.cross_entropy import vocab_parallel_cross_entropy
 import mpu
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 import torch
 import inc.torch as dist
 import random

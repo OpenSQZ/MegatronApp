@@ -10,8 +10,7 @@ import torch
 import inc.torch as dist
 import types
 
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 from megatron.global_vars import set_retro_args, get_retro_args
 from tools.retro.utils import get_args_path as get_retro_args_path
 

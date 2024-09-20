@@ -1,5 +1,4 @@
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 import torch
 import inc.torch as dist
 from megatron import print_rank_0, get_args

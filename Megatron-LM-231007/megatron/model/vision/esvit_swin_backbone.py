@@ -11,10 +11,8 @@ import os
 import logging
 import torch
 import inc.torch as dist
-import torch
-import inc.torch as dist.nn as nn
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn as nn
+import torch.nn.functional as F
 from functools import partial
 
 from torch.nn.init import trunc_normal_
