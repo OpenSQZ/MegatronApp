@@ -15,6 +15,7 @@
 from functools import partial
 import torch
 import os
+import inc.torch as dist
 
 from megatron.core.enums import ModelType
 from megatron.utils import get_ltor_masks_and_position_ids
@@ -126,3 +127,5 @@ if __name__ == "__main__":
              ModelType.encoder_or_decoder,
              forward_step,
              extra_args_provider=get_patch_args)
+
+    dist.print_summary()

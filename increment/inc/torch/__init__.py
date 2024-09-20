@@ -11,7 +11,7 @@ from datetime import timedelta
 import torch, inc.torch
 import torch.optim as optim
 from torch.optim.optimizer import required
-import inc.torch.sequence
+# import torch.sequence
 import torch.distributed
 from torch.distributed.constants import default_pg_timeout
 import time
@@ -646,6 +646,12 @@ def irecv(tensor, src = None, group = None, tag = 0):
     increment_statistics(sizeof_tensor(tensor), "p2p")
     return torch.distributed.irecv(tensor, src, group, tag)
 
+def gather(tensor, gather_list=None, dst=0, group=None, async_op=False):
+    increment_statistics(sizeof_tensor(tensor), "gather")
+    if async_op:
+        return torch.distributed.gather(tensor, gather_list, dst, group, async_op)
+    else:
+        torch.distributed.gather(tensor, gather_list, dst, group, async_op)
 
 class P2POp(torch.distributed.P2POp):
     def __init__(self, op, tensor, peer, group=None, tag=0):

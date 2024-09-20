@@ -133,3 +133,5 @@ if __name__ == "__main__":
              ModelType.encoder_or_decoder,
              forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+
+    dist.print_summary()
