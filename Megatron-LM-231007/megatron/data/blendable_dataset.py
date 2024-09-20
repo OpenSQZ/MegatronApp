@@ -8,6 +8,7 @@ import time
 
 import numpy as np
 import torch
+import inc.torch as dist
 
 from megatron import print_rank_0
 from megatron.core import mpu
@@ -43,7 +44,7 @@ class BlendableDataset(torch.utils.data.Dataset):
             from megatron.data import helpers
             helpers.build_blending_indices(dataset_index, dataset_sample_index,
                                            weights, num_datasets, self.size,
-                                           torch.distributed.get_rank() == 0)
+                                           dist.get_rank() == 0)
             print_rank_0('> elapsed time for building blendable dataset indices: '
                          '{:.2f} (sec)'.format(time.time() - start_time))
             return dataset_index, dataset_sample_index
@@ -63,7 +64,7 @@ class BlendableDataset(torch.utils.data.Dataset):
             sample_index_path = os.path.join(data_cache_path, desc_hash + "_sample_index.npy")
             cache_hit = os.path.isfile(index_path) and os.path.isfile(sample_index_path)
             cache_success = True
-            if torch.distributed.get_rank() == 0 and not cache_hit:
+            if dist.get_rank() == 0 and not cache_hit:
                 print(' > WARNING: could not find index map files for blendable'
                       ' dataset, building indices on rank 0 ...', flush=True)
                 dataset_index, dataset_sample_index = _build_indices()
@@ -83,11 +84,11 @@ class BlendableDataset(torch.utils.data.Dataset):
 
 
             counts = torch.cuda.LongTensor([cache_success])
-            torch.distributed.all_reduce(counts, group=mpu.get_data_parallel_group())
-            torch.distributed.all_reduce(counts, group=mpu.get_pipeline_model_parallel_group())
+            dist.all_reduce(counts, group=mpu.get_data_parallel_group())
+            dist.all_reduce(counts, group=mpu.get_pipeline_model_parallel_group())
             if counts[0].item() != (
-                torch.distributed.get_world_size() //
-                torch.distributed.get_world_size(group=mpu.get_tensor_model_parallel_group())):
+                dist.get_world_size() //
+                dist.get_world_size(group=mpu.get_tensor_model_parallel_group())):
                 print_rank_0("Data index creation unsuccessful, exiting.")
                 exit()
 

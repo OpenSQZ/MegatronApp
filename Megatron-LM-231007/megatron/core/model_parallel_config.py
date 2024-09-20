@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 import torch
+import inc.torch as dist
 
 
 @dataclass
@@ -93,7 +94,7 @@ class ModelParallelConfig:
         around a bug in older version of PyTorch.
 
     use_ring_exchange_p2p (bool, default=False): Use custom ring_exchange kernel instead of
-        torch.distributed.batch_isend_irecv(). Requires custom built torch with torch.distributed.ring_exchange.
+        dist.batch_isend_irecv(). Requires custom built torch with dist.ring_exchange.
 
     deallocate_pipeline_outputs (optional, default=False): If True, output data is deallocated after the tensor is sent
         to the next pipeline stage.  Helps with saving memory, does nothing when pipeline parallel is not used.

@@ -4,6 +4,7 @@ import numpy as np
 import os
 import shutil
 import torch
+import inc.torch as dist
 from tqdm import tqdm
 
 from megatron import get_retro_args, print_rank_0
@@ -45,7 +46,7 @@ def get_block_nload(block_path, load_fraction):
 
 def merge_embedding_blocks():
 
-    if torch.distributed.get_rank() != 0:
+    if dist.get_rank() != 0:
         return
 
     args = get_retro_args()
@@ -114,8 +115,8 @@ def train_on_embeddings():
 
 def remove_embeddings():
     '''Remove embeddings after training.'''
-    torch.distributed.barrier()
-    if torch.distributed.get_rank() != 0:
+    dist.barrier()
+    if dist.get_rank() != 0:
         return
     empty_index_path = get_empty_index_path()
     assert os.path.isfile(empty_index_path)
@@ -137,7 +138,7 @@ def train_index():
         train_on_embeddings()
 
     # Wait for (single-process) training to complete.
-    torch.distributed.barrier()
+    dist.barrier()
 
     # Remove embeddings.
     if args.retro_index_delete_training_embeddings:

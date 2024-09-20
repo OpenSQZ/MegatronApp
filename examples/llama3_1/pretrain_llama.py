@@ -6,7 +6,9 @@ from functools import partial
 from typing import Union
 
 import torch
-import torch._dynamo
+import inc.torch as dist
+import torch
+import inc.torch as dist._dynamo
 from megatron.core import mpu
 from megatron.core.datasets.blended_megatron_dataset_builder import (
     BlendedMegatronDatasetBuilder,
@@ -128,14 +130,14 @@ def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
         loss = torch.cat(
             [torch.sum(losses.view(-1) * loss_mask).view(1), loss_mask.sum().view(1)]
         )
-        torch.distributed.all_reduce(loss, group=mpu.get_context_parallel_group())
+        dist.all_reduce(loss, group=mpu.get_context_parallel_group())
         loss = loss[0] / loss[1]
     else:
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
 
     # Check individual rank losses are not NaN prior to DP all-reduce.
     if args.check_for_nan_in_loss_and_grad:
-        global_rank = torch.distributed.get_rank()
+        global_rank = dist.get_rank()
         assert not loss.isnan(), (
             f"Rank {global_rank}: found NaN in local forward loss calculation. "
             f"Device: {torch.cuda.current_device()}, node: {os.uname()[1]}"

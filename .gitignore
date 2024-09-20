@@ -4,3 +4,8 @@ Bigcode-Evaluation-Harness*
 __pycache__
 .hypothesis
 local
+increment/build
+increment/dist
+increment.todo
+*.egg-info
+*.egg

@@ -6,8 +6,10 @@ from commons import print_separator
 from commons import initialize_distributed
 from mpu.cross_entropy import vocab_parallel_cross_entropy
 import mpu
-import torch.nn.functional as F
 import torch
+import inc.torch as dist.nn.functional as F
+import torch
+import inc.torch as dist
 import random
 import sys
 sys.path.append("../..")
@@ -44,7 +46,7 @@ def mpu_cross_entropy(batch_size, seq_length, vocab_size,
 
 def test_cross_entropy(tensor_model_parallel_size):
 
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         print('> testing cross entropy with model parallel size {} ...'.
               format(tensor_model_parallel_size))
 
@@ -67,26 +69,26 @@ def test_cross_entropy(tensor_model_parallel_size):
 
     error = loss_torch.sub_(loss_mpu).abs().max()
     print('   max error in loss on global rank {}: {}'.format(
-        torch.distributed.get_rank(), error))
+        dist.get_rank(), error))
     assert error < 1.0e-6
 
     error = grad_torch.sub_(grad_mpu).abs().max()
     print('   max error in grad on global rank {}: {}'.format(
-        torch.distributed.get_rank(), error))
+        dist.get_rank(), error))
     assert error < 1.0e-6
 
     # Reset groups
     mpu.destroy_tensor_model_parallel()
 
-    torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
+    dist.barrier()
+    if dist.get_rank() == 0:
         print('>> passed the test :-)')
 
 
 if __name__ == '__main__':
 
     initialize_distributed()
-    world_size = torch.distributed.get_world_size()
+    world_size = dist.get_world_size()
 
     tensor_model_parallel_size = 1
     while tensor_model_parallel_size <= world_size:

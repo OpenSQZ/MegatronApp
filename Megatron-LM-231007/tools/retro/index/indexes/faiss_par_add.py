@@ -13,6 +13,7 @@ import os
 import psutil
 import shutil
 import torch
+import inc.torch as dist
 from tqdm import tqdm
 
 from megatron import get_retro_args, print_rank_0
@@ -94,11 +95,11 @@ class FaissParallelAddIndex(FaissBaseIndex):
 
             # Synchronize progress across all ranks. (for easier observation)
             print_rank_0(" > waiting for other ranks to finish block.")
-            torch.distributed.barrier()
+            dist.barrier()
 
     def add_codes(self):
 
-        if torch.distributed.get_rank() != 0:
+        if dist.get_rank() != 0:
             return
 
         added_index_path = self.get_added_index_path()
@@ -138,7 +139,7 @@ class FaissParallelAddIndex(FaissBaseIndex):
 
     def remove_codes(self):
         '''Remove added codes after adding to index.'''
-        if torch.distributed.get_rank() != 0:
+        if dist.get_rank() != 0:
             return
         assert os.path.isfile(self.get_added_index_path())
 
@@ -156,7 +157,7 @@ class FaissParallelAddIndex(FaissBaseIndex):
         self.add_codes()
 
         # Wait for (single-process) adding to complete.
-        torch.distributed.barrier()
+        dist.barrier()
 
         # Remove codes.
         self.remove_codes()

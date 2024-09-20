@@ -11,6 +11,7 @@ Stages (see argument '--retro-tasks'):
 import json
 import os
 import torch
+import inc.torch as dist
 
 from megatron import get_args, initialize_megatron, print_rank_0
 from megatron.global_vars import set_retro_args
@@ -180,12 +181,12 @@ def save_args(args):
         else:
             raise Exception("specialize for <%s>." % type(obj).__name__)
 
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         args_path = get_args_path(args.retro_workdir)
         with open(args_path, "w") as f:
             json.dump(vars(args), f, indent=4, default=default_dump)
 
-    torch.distributed.barrier()
+    dist.barrier()
 
 
 if __name__ == "__main__":
@@ -210,9 +211,9 @@ if __name__ == "__main__":
         # Run all stages.
         if task == "build":
             build_db()
-            torch.distributed.barrier()
+            dist.barrier()
             build_index()
-            torch.distributed.barrier()
+            dist.barrier()
             query_pretraining_neighbors()
 
         # DB (i.e., chunk db).
@@ -234,6 +235,6 @@ if __name__ == "__main__":
         else:
             raise Exception("specialize for task '%s'." % task)
 
-        torch.distributed.barrier()
+        dist.barrier()
 
         print_rank_0("end '%s'." % task)

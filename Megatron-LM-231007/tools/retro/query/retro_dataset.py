@@ -3,6 +3,7 @@
 import numpy as np
 import os
 import torch
+import inc.torch as dist
 
 from megatron import get_args, get_retro_args
 from tools.bert_embedding.utils import BlockPathMap
@@ -131,24 +132,24 @@ def get_retro_datasets(verify_sizes=True):
         n_neighbor_chunks = neighbor_path_map.max_idx
 
         if not os.path.isdir(neighbor_dir):
-            if torch.distributed.get_rank() == 0:
+            if dist.get_rank() == 0:
                 raise Exception("neighbor directory '%s' not found; please "
                                 "compare --train-samples, --seq-length, --seed, "
                                 "--eval-iters, and --eval-interval, with "
                                 "retro preprocessing args." %
                                 neighbor_dir)
-            torch.distributed.barrier()
+            dist.barrier()
             exit()
 
         if verify_sizes and n_sample_chunks != n_neighbor_chunks:
-            if torch.distributed.get_rank() == 0:
+            if dist.get_rank() == 0:
                 print("neighbor_dir : %s" % neighbor_dir)
                 print("neighbor_path_map : %s" % neighbor_path_map)
                 raise Exception("num sampled chunks (%d) != num neighbor chunks "
                                 "(%d); did you complete querying the entire "
                                 "pretraining dataset?"
                                 % (n_sample_chunks, n_neighbor_chunks))
-            torch.distributed.barrier()
+            dist.barrier()
             exit()
 
         # Retro dataset.

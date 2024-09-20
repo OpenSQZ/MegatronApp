@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from typing import Dict, List
 
 import torch
+import inc.torch as dist
 
 from megatron.core import mpu
 
@@ -51,7 +52,7 @@ class Bucket:
         params: List[torch.nn.Parameter],
         data: torch.Tensor,
         offset: int,
-        data_parallel_group: torch.distributed.ProcessGroup,
+        data_parallel_group: dist.ProcessGroup,
         overlap_grad_reduce: bool,
         use_distributed_optimizer: bool,
     ):
@@ -68,8 +69,8 @@ class Bucket:
         self.overlap_grad_reduce = overlap_grad_reduce
         self.use_distributed_optimizer = use_distributed_optimizer
 
-        self.data_parallel_world_size = torch.distributed.get_world_size(group=data_parallel_group)
-        self.data_parallel_rank = torch.distributed.get_rank(group=data_parallel_group)
+        self.data_parallel_world_size = dist.get_world_size(group=data_parallel_group)
+        self.data_parallel_rank = dist.get_rank(group=data_parallel_group)
 
         self.reset()
 
@@ -90,14 +91,14 @@ class Bucket:
             # Import is here for now because of circular import errors.
             from megatron.optimizer.utils import shard_buffer
             local_data_view = shard_buffer(self.data)[self.data_parallel_rank]
-            self.communication_handle = torch.distributed._reduce_scatter_base(
+            self.communication_handle = dist._reduce_scatter_base(
                 local_data_view,
                 self.data,
                 group=self.data_parallel_group,
                 async_op=self.overlap_grad_reduce,
             )
         else:
-            self.communication_handle = torch.distributed.all_reduce(
+            self.communication_handle = dist.all_reduce(
                 self.data, group=self.data_parallel_group, async_op=self.overlap_grad_reduce
             )
         self.communication_issued = True
@@ -135,7 +136,7 @@ class GradBuffer(MemoryBuffer):
         numel_padded: int,
         dtype: torch.dtype,
         params: List[torch.nn.Parameter],
-        data_parallel_group: torch.distributed.ProcessGroup,
+        data_parallel_group: dist.ProcessGroup,
         bucket_size: int,
         param_to_name: Dict[torch.nn.Parameter, str],
         overlap_grad_reduce: bool,
@@ -217,7 +218,7 @@ class GradBuffer(MemoryBuffer):
             ), 'All params should be in one bucket when overlap_grad_reduce is False'
 
         # Print buckets.
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             print('> buckets for gradient all-reduce / reduce-scatter:')
             for index, bucket in enumerate(self.buckets):
                 print(f'    params for bucket {index+1}')
@@ -311,7 +312,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
     def __init__(
         self,
         module: torch.nn.Module,
-        data_parallel_group: torch.distributed.ProcessGroup,
+        data_parallel_group: dist.ProcessGroup,
         accumulate_allreduce_grads_in_fp32: bool,
         overlap_grad_reduce: bool,
         use_distributed_optimizer: bool,
@@ -355,7 +356,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
         # Allocate the grad buffers and map the grads.
         # The grad buffer under the hood creates buckets as appropriate, depending on
         # whether overlap_grad_reduce is True or not.
-        data_parallel_world_size = torch.distributed.get_world_size(group=data_parallel_group)
+        data_parallel_world_size = dist.get_world_size(group=data_parallel_group)
         for dtype, params in grad_dtype_to_params.items():
             # Pad so size is divisible by the data parallel size.
             numel = grad_dtype_to_numel[dtype]
@@ -464,7 +465,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
     def broadcast_params(self):
         """Sync params across all DP ranks."""
         for param in self.module.parameters():
-            torch.distributed.broadcast(
+            dist.broadcast(
                 param.data,
                 src=mpu.get_data_parallel_src_rank(),
                 group=mpu.get_data_parallel_group(),

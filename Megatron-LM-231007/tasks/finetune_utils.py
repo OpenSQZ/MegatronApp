@@ -5,6 +5,7 @@
 from functools import partial
 import sys
 import torch
+import inc.torch as dist
 
 from megatron import get_args, get_num_microbatches
 from megatron import print_rank_0
@@ -222,7 +223,7 @@ def _train(model, optimizer, opt_param_scheduler, forward_step,
             if args.exit_interval and iteration % args.exit_interval == 0:
                 if not saved_checkpoint:
                     save_checkpoint(iteration, model, optimizer, opt_param_scheduler)
-                torch.distributed.barrier()
+                dist.barrier()
                 print_rank_0('exiting program at iteration {}'.format(iteration))
                 sys.exit()
 

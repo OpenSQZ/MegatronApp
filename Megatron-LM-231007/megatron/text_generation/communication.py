@@ -4,6 +4,7 @@
 
 
 import torch
+import inc.torch as dist
 
 from megatron.core import mpu
 
@@ -15,10 +16,10 @@ def recv_from_prev_pipeline_rank_(recv_buffer=None):
     input buffer inplace."""
     if not mpu.is_pipeline_first_stage():
         assert recv_buffer is not None
-        recv_prev_op = torch.distributed.P2POp(
-            torch.distributed.irecv, recv_buffer,
+        recv_prev_op = dist.P2POp(
+            dist.irecv, recv_buffer,
             mpu.get_pipeline_model_parallel_prev_rank())
-        reqs = torch.distributed.batch_isend_irecv([recv_prev_op])
+        reqs = dist.batch_isend_irecv([recv_prev_op])
         for req in reqs:
             req.wait()
         # To protect against race condition when using batch_isend_irecv().
@@ -31,10 +32,10 @@ def send_to_next_pipeline_rank(tensor=None):
     """Send output to the next pipeline stage."""
     if not mpu.is_pipeline_last_stage():
         assert tensor is not None
-        send_next_op = torch.distributed.P2POp(
-            torch.distributed.isend, tensor,
+        send_next_op = dist.P2POp(
+            dist.isend, tensor,
             mpu.get_pipeline_model_parallel_next_rank())
-        reqs = torch.distributed.batch_isend_irecv([send_next_op])
+        reqs = dist.batch_isend_irecv([send_next_op])
         for req in reqs:
             req.wait()
         # To protect against race condition when using batch_isend_irecv().
@@ -74,7 +75,7 @@ def broadcast_from_last_pipeline_stage(size, dtype, tensor=None):
     # Get the group and corresponding source rank.
     src = mpu.get_pipeline_model_parallel_last_rank()
     group = mpu.get_pipeline_model_parallel_group()
-    torch.distributed.broadcast(tensor, src, group)
+    dist.broadcast(tensor, src, group)
 
     return tensor
 
@@ -100,7 +101,7 @@ def broadcast_from_last_to_first_pipeline_stage(size, dtype, tensor=None):
         src = mpu.get_pipeline_model_parallel_last_rank()
         group = mpu.get_embedding_group()
         # Broadcast from last stage into the first stage.
-        torch.distributed.broadcast(tensor, src, group)
+        dist.broadcast(tensor, src, group)
     else:
         tensor = None
 
@@ -134,7 +135,7 @@ def copy_from_last_to_first_pipeline_stage(size, dtype, tensor=None):
                                       dtype=dtype,
                                       device=torch.cuda.current_device())
         # Broadcast from last stage into the first stage.
-        torch.distributed.broadcast(tensor_, src, group)
+        dist.broadcast(tensor_, src, group)
         # Update the first stage tensor
         if is_first_stage and not is_contiguous:
             tensor[...] = tensor_
@@ -146,14 +147,14 @@ def broadcast_tensor(size, dtype, tensor=None, rank=0):
         only on a specific rank, broadcast from that rank to all other ranks.
     """
 
-    if torch.distributed.get_rank() == rank:
+    if dist.get_rank() == rank:
         _is_cuda_contiguous(tensor)
     else:
         tensor = torch.empty(size,
                              dtype=dtype,
                              device=torch.cuda.current_device())
 
-    torch.distributed.broadcast(tensor, rank)
+    dist.broadcast(tensor, rank)
 
     return tensor
 
@@ -163,7 +164,7 @@ def broadcast_list(size, dtype, list_values=None, rank=0):
     """Broadcast a list of values with a given type."""
 
     tensor = None
-    if torch.distributed.get_rank() == rank:
+    if dist.get_rank() == rank:
         tensor = torch.tensor(list_values, dtype=dtype,
                               device=torch.cuda.current_device())
 

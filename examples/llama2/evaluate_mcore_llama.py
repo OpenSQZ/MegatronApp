@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import inc.torch as dist
 from typing import Union
 from megatron.core.enums import ModelType
 import megatron.model
@@ -35,7 +36,8 @@ from megatron_patch.training import get_model
 from megatron_patch.model.mixtral.layer_specs import get_gpt_layer_with_transformer_engine_spec
 from megatron.core.models.gpt import GPTModel
 
-import torch._dynamo
+import torch
+import inc.torch as dist._dynamo
 
 torch._dynamo.config.suppress_errors = True
 
@@ -141,7 +143,7 @@ def evaluate(data_loader, model):
 
             # Reduce across processes.
             if parallel_state.is_pipeline_last_stage():
-                torch.distributed.all_reduce(
+                dist.all_reduce(
                     output, group=parallel_state.get_data_parallel_group())
 
                 total_output += output

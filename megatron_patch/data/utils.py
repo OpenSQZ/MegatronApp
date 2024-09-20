@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import inc.torch as dist
 from megatron.core import mpu
 try:
     from megatron import get_args
@@ -30,7 +31,7 @@ def get_batch_on_this_tp_rank_original(data_iterator):
     args = get_args()
     tokenizer = get_tokenizer()
     def _broadcast(item):
-        torch.distributed.broadcast(item, mpu.get_tensor_model_parallel_src_rank(),
+        dist.broadcast(item, mpu.get_tensor_model_parallel_src_rank(),
                                     group=mpu.get_tensor_model_parallel_group())
 
     if mpu.get_tensor_model_parallel_rank() == 0:
@@ -130,7 +131,7 @@ def get_batch_on_this_tp_rank_idxmap_sft(data_iterator):
     args = get_args()
     tokenizer = get_tokenizer()
     def _broadcast(item):
-        torch.distributed.broadcast(item, mpu.get_tensor_model_parallel_src_rank(),
+        dist.broadcast(item, mpu.get_tensor_model_parallel_src_rank(),
                                     group=mpu.get_tensor_model_parallel_group())
 
     if mpu.get_tensor_model_parallel_rank() == 0:

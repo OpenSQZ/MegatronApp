@@ -10,10 +10,13 @@
 import os
 import logging
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import inc.torch as dist
+import torch
+import inc.torch as dist.nn as nn
+import torch
+import inc.torch as dist.nn.functional as F
 from functools import partial
-import torch.distributed as dist
+
 from torch.nn.init import trunc_normal_
 from megatron.model.transformer import DropPath
 from megatron import get_args

@@ -1,6 +1,7 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 import datetime
 import torch
+import inc.torch as dist
 import json
 import threading
 from flask import Flask, request, jsonify, current_app
@@ -21,12 +22,12 @@ class MegatronGenerate(Resource):
     @staticmethod
     def send_do_generate():
         choice = torch.cuda.LongTensor([GENERATE_NUM])
-        torch.distributed.broadcast(choice, 0)
+        dist.broadcast(choice, 0)
      
     @staticmethod
     def send_do_beam_search():
         choice = torch.cuda.LongTensor([BEAM_NUM])
-        torch.distributed.broadcast(choice, 0)
+        dist.broadcast(choice, 0)
     
     def put(self):
         args = get_args()

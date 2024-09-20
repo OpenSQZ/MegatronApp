@@ -3,6 +3,7 @@
 """Megatron initialization."""
 
 import torch
+import inc.torch as dist
 from datetime import timedelta
 
 from megatron import get_args
@@ -49,7 +50,7 @@ def initialize_megatron(
     # tensorboard-writer, and timers.
     set_global_variables(args)
 
-    # torch.distributed initialization
+    # dist initialization
     def finish_mpu_init():
         args = get_args()
         # Pytorch distributed.
@@ -86,11 +87,11 @@ def initialize_megatron(
         return None
 
 def _initialize_distributed():
-    """Initialize torch.distributed and core model parallel."""
+    """Initialize dist and core model parallel."""
     args = get_args()
 
     device_count = torch.cuda.device_count()
-    if torch.distributed.is_initialized():
+    if dist.is_initialized():
 
         if args.rank == 0:
             print(
@@ -98,8 +99,8 @@ def _initialize_distributed():
                 "skipping initialization ...",
                 flush=True,
             )
-        args.rank = torch.distributed.get_rank()
-        args.world_size = torch.distributed.get_world_size()
+        args.rank = dist.get_rank()
+        args.world_size = dist.get_world_size()
 
     else:
 
@@ -116,7 +117,7 @@ def _initialize_distributed():
                 args.local_rank = device
             torch.cuda.set_device(device)
         # Call the init process
-        torch.distributed.init_process_group(
+        dist.init_process_group(
             backend=args.distributed_backend,
             world_size=args.world_size,
             rank=args.rank,

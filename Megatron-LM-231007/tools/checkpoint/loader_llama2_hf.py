@@ -225,7 +225,7 @@ def _load_checkpoint(queue, args):
     assert args.model_type == 'GPT', 'Llama-2 is a GPT model.'
     margs.model_type = ModelType.encoder_or_decoder
 
-    # Suppress warning about torch.distributed not being initialized.
+    # Suppress warning about dist not being initialized.
     module.MegatronModule.embedding_warning_printed = True
 
     set_global_variables(margs, build_tokenizer=False)

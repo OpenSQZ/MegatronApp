@@ -18,6 +18,7 @@ from importlib.metadata import version
 from typing import Union
 
 import torch
+import inc.torch as dist
 from pkg_resources import packaging
 
 from megatron.core import parallel_state, tensor_parallel
@@ -420,7 +421,7 @@ class SelfAttention(Attention):
             )
             dp_list = [torch.empty_like(inputs) for _ in range(get_data_parallel_world_size())]
             dp_list[rank] = inputs
-            torch.distributed.all_gather(dp_list, inputs, group=get_data_parallel_group())
+            dist.all_gather(dp_list, inputs, group=get_data_parallel_group())
 
             def _compare(srcs, tgts, names, parallelism):
                 assert len(srcs) == len(tgts) == len(names)
@@ -448,7 +449,7 @@ class SelfAttention(Attention):
                 torch.empty_like(inputs) for _ in range(get_tensor_model_parallel_world_size())
             ]
             tp_list[rank] = inputs
-            torch.distributed.all_gather(tp_list, inputs, group=get_tensor_model_parallel_group())
+            dist.all_gather(tp_list, inputs, group=get_tensor_model_parallel_group())
 
             for i, tp in enumerate(tp_list):
                 q_w, q_b, k_w, k_b = torch.unbind(tp)

@@ -3,7 +3,8 @@ from queue import Queue
 import time
 import pickle
 import torch
-import torch.distributed as dist
+import inc.torch as dist
+
 
 from megatron import print_rank_0
 

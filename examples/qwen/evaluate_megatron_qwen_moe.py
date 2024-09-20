@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import inc.torch as dist
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.pipeline_parallel.p2p_communication import recv_forward
 from megatron.core.pipeline_parallel.p2p_communication import send_forward
@@ -143,7 +144,7 @@ def evaluate(data_loader, model):
 
             # Reduce across processes.
             if parallel_state.is_pipeline_last_stage():
-                torch.distributed.all_reduce(
+                dist.all_reduce(
                     output, group=parallel_state.get_data_parallel_group())
 
                 total_output += output

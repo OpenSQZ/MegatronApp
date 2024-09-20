@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import torch
-import torch.nn.functional as F
+import inc.torch as dist
+import torch
+import inc.torch as dist.nn.functional as F
 
 from megatron import get_args
 from megatron.core import mpu
@@ -458,7 +460,7 @@ def beam_search_and_return_on_first_stage(model,
                 scores = scores.new([item[1]
                                      for item in next_beams]).unsqueeze(1)
 
-            # torch.distributed.barrier()
+            # dist.barrier()
             done = broadcast_from_last_pipeline_stage(1, torch.uint8, done)
             if done:
                 break

@@ -5,6 +5,7 @@ import glob
 import numpy as np
 import os
 import torch
+import inc.torch as dist
 from tqdm import tqdm
 
 from megatron import print_rank_0
@@ -92,7 +93,7 @@ def get_missing_blocks(workdir, n_samples, block_size,
     all_block_path_set = set(block["path"] for block in all_blocks)
 
     # Delete corrupt files.
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         existing_block_paths = [block["path"]
                                 for block in all_blocks
                                 if os.path.exists(block["path"])]
@@ -117,7 +118,7 @@ def get_missing_blocks(workdir, n_samples, block_size,
                 f.close()
 
     # Wait for files to be deleted.
-    torch.distributed.barrier()
+    dist.barrier()
 
     # Filter missing files.
     missing_blocks = [block
@@ -148,8 +149,8 @@ def get_missing_blocks_by_rank(workdir, n_samples, block_size,
     # Extend rank's missing blocks (with None) such that all ranks have equal
     # length lists. This allows for easier tracking of global progress.
     n_missing_tensor = torch.cuda.LongTensor([len(rank_missing_blocks)])
-    torch.distributed.all_reduce(n_missing_tensor,
-                                 op=torch.distributed.ReduceOp.MAX)
+    dist.all_reduce(n_missing_tensor,
+                                 op=dist.ReduceOp.MAX)
     max_n_missing = n_missing_tensor.item()
     rank_missing_blocks += [None] * (max_n_missing - len(rank_missing_blocks))
 

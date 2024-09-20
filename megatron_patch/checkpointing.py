@@ -9,7 +9,8 @@ import numpy as np
 
 import pickle
 import torch
-import torch.distributed as dist
+import inc.torch as dist
+
 
 from megatron import update_num_microbatches
 from megatron.core import mpu, tensor_parallel
@@ -258,7 +259,7 @@ def save_optimizer_state(optimizer, opt_param_scheduler, checkpoint_name, args=N
         ensure_directory_exists(optim_checkpoint_name)
         optimizer.save_parameter_state(optim_checkpoint_name)
     
-    if not torch.distributed.is_initialized() \
+    if not dist.is_initialized() \
        or mpu.get_data_parallel_rank() == 0 \
        or args.expert_parallel:
         optim_checkpoint_name = \
@@ -278,7 +279,7 @@ def save_model_weights(iteration, model, checkpoint_name, args=None):
     if args is None:
         args = get_args()
 
-    if not torch.distributed.is_initialized() \
+    if not dist.is_initialized() \
        or mpu.get_data_parallel_rank() == 0 \
        or args.expert_parallel:
 

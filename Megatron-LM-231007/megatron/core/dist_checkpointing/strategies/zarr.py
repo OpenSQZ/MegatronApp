@@ -8,6 +8,7 @@ from typing import List
 
 import numpy as np
 import torch
+import inc.torch as dist
 import zarr
 
 from ..core import CheckpointingException
@@ -49,7 +50,7 @@ class ZarrSaveShardedStrategy(SaveShardedStrategy):
         arrays = _create_or_open_zarr_arrays(sharded_tensors, checkpoint_dir)
         for ten, arr in zip(sharded_tensors, arrays):
             _save_to_existing_array(ten, arr)
-        torch.distributed.barrier()
+        dist.barrier()
 
 
 def _create_or_open_zarr_arrays(
@@ -61,7 +62,7 @@ def _create_or_open_zarr_arrays(
             _create_zarr_array(ten, checkpoint_dir)
             # TODO: maybe reuse the opened arrays
 
-    torch.distributed.barrier()
+    dist.barrier()
     for ten in sharded_tensors:
         # if is_main_replica(ten.replica_id) and set(ten.global_offset) == {0}:
         #     continue

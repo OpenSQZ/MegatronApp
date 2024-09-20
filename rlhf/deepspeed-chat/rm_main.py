@@ -10,6 +10,7 @@ import sys
 from torch.utils.tensorboard import SummaryWriter
 
 import torch
+import inc.torch as dist
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
@@ -184,10 +185,10 @@ def main():
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
         # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        # torch.distributed.init_process_group(backend='nccl')
+        # dist.init_process_group(backend='nccl')
         deepspeed.init_distributed()
 
-    args.global_rank = torch.distributed.get_rank()
+    args.global_rank = dist.get_rank()
     tensorboard = SummaryWriter(log_dir=os.path.join(args.output_dir, 'log'))
 
     assert not args.offload, "zero-offload is not currently supported but coming soon!"
@@ -197,12 +198,12 @@ def main():
     ds_config[
         'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
     ds_config[
-        'train_batch_size'] = args.per_device_train_batch_size * torch.distributed.get_world_size(
+        'train_batch_size'] = args.per_device_train_batch_size * dist.get_world_size(
         ) * args.gradient_accumulation_steps
 
     # If passed along, set the training seed now.
     set_random_seed(args.seed)
-    torch.distributed.barrier()
+    dist.barrier()
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path,
                                               fast_tokenizer=True)

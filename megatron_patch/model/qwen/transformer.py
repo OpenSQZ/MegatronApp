@@ -16,7 +16,9 @@ from contextlib import nullcontext
 import math
 import numpy as np
 import torch
-import torch.nn.functional as F
+import inc.torch as dist
+import torch
+import inc.torch as dist.nn.functional as F
 from typing import Optional
 
 from megatron import get_timers, get_args, get_retro_args, core, get_num_microbatches
@@ -207,7 +209,7 @@ class SwitchMLP(MegatronModule):
             group = get_tensor_and_data_parallel_group()
         else:
             group = get_tensor_model_parallel_group()
-        world_size = torch.distributed.get_world_size(group=group)
+        world_size = dist.get_world_size(group=group)
         # Bypass the function if we are using only 1 GPU.
         if world_size == 1:
             return local_indices
@@ -218,7 +220,7 @@ class SwitchMLP(MegatronModule):
         # TODO pre allocate memory
         output = torch.empty(dim_size, dtype=local_indices.dtype,
                              device=torch.cuda.current_device())
-        torch.distributed._all_gather_base(
+        dist._all_gather_base(
             output, local_indices.contiguous(), group=group
         )
         return output

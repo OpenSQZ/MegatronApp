@@ -1,6 +1,7 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
 
 import torch
+import inc.torch as dist
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from megatron.core import mpu
@@ -36,7 +37,7 @@ def _allreduce_word_embedding_grads(model, config):
         if model_module.share_embeddings_and_output_weights:
             weight = model_module.shared_embedding_or_output_weight()
             grad = weight.main_grad
-            torch.distributed.all_reduce(grad, group=mpu.get_embedding_group())
+            dist.all_reduce(grad, group=mpu.get_embedding_group())
 
 
 def _allreduce_position_embedding_grads(model, config):
@@ -55,7 +56,7 @@ def _allreduce_position_embedding_grads(model, config):
         grad = get_attr_wrapped_model(
             model_module, 'language_model.embedding.position_embeddings.weight.main_grad'
         )
-        torch.distributed.all_reduce(grad, group=mpu.get_position_embedding_group())
+        dist.all_reduce(grad, group=mpu.get_position_embedding_group())
 
 
 def _allreduce_embedding_grads(model, config):
@@ -77,7 +78,7 @@ def _allreduce_layernorm_grads(model, config):
                     grad = param.main_grad
                     grads.append(grad.data)
         coalesced = _flatten_dense_tensors(grads)
-        torch.distributed.all_reduce(coalesced, group=mpu.get_tensor_model_parallel_group())
+        dist.all_reduce(coalesced, group=mpu.get_tensor_model_parallel_group())
         for buf, synced in zip(grads, _unflatten_dense_tensors(coalesced, grads)):
             buf.copy_(synced)
 

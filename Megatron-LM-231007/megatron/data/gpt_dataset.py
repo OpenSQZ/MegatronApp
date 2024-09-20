@@ -8,6 +8,7 @@ import time
 
 import numpy as np
 import torch
+import inc.torch as dist
 
 from megatron import print_rank_0
 from megatron.core import mpu
@@ -359,7 +360,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
     data_cache_success = True
 
     # Build the indexed mapping if not exist.
-    if build_indices and torch.distributed.get_rank() == 0:
+    if build_indices and dist.get_rank() == 0:
         print_rank_0(' > WARNING: could not find index map files, building '
                      'the indices on rank 0 ...')
 
@@ -450,11 +451,11 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
             data_cache_success = False
 
     counts = torch.cuda.LongTensor([data_cache_success])
-    torch.distributed.all_reduce(counts, group=mpu.get_data_parallel_group())
-    torch.distributed.all_reduce(counts, group=mpu.get_pipeline_model_parallel_group())
+    dist.all_reduce(counts, group=mpu.get_data_parallel_group())
+    dist.all_reduce(counts, group=mpu.get_pipeline_model_parallel_group())
     if counts[0].item() != (
-        torch.distributed.get_world_size() //
-        torch.distributed.get_world_size(group=mpu.get_tensor_model_parallel_group())):
+        dist.get_world_size() //
+        dist.get_world_size(group=mpu.get_tensor_model_parallel_group())):
         print_rank_0("Data index creation unsuccessful, exiting.")
         exit()
 

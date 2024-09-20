@@ -15,6 +15,7 @@
 import math
 from transformers import AutoModelForCausalLM
 import torch
+import inc.torch as dist
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 
 from megatron import get_args
@@ -92,7 +93,7 @@ def evaluate(data_loader, model):
 
             # Reduce across processes.
             if parallel_state.is_pipeline_last_stage():
-                torch.distributed.all_reduce(
+                dist.all_reduce(
                     output, group=parallel_state.get_data_parallel_group())
 
                 total_output += output
