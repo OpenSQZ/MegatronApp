@@ -10,10 +10,8 @@ from typing import Callable, Optional
 
 import torch
 import inc.torch as dist
-import torch
-import inc.torch as dist.nn.functional as F
-import torch
-import inc.torch as dist.nn.init as init
+import torch.nn.functional as F
+import torch.nn.init as init
 from torch.cuda.amp import custom_bwd, custom_fwd
 from torch.nn.parameter import Parameter
 

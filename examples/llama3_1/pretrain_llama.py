@@ -7,8 +7,7 @@ from typing import Union
 
 import torch
 import inc.torch as dist
-import torch
-import inc.torch as dist._dynamo
+import torch._dynamo
 from megatron.core import mpu
 from megatron.core.datasets.blended_megatron_dataset_builder import (
     BlendedMegatronDatasetBuilder,

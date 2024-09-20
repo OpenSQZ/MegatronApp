@@ -43,8 +43,7 @@ from megatron_patch.arguments import get_patch_args
 from megatron_patch.model.mixtral.transformer_config import TransformerConfig
 from megatron_patch.model.mixtral.layer_specs import get_gpt_layer_with_transformer_engine_spec
 
-import torch
-import inc.torch as dist._dynamo
+import torch._dynamo
 torch._dynamo.config.suppress_errors = True
 
 def model_provider(

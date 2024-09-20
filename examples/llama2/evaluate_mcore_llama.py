@@ -36,8 +36,7 @@ from megatron_patch.training import get_model
 from megatron_patch.model.mixtral.layer_specs import get_gpt_layer_with_transformer_engine_spec
 from megatron.core.models.gpt import GPTModel
 
-import torch
-import inc.torch as dist._dynamo
+import torch._dynamo
 
 torch._dynamo.config.suppress_errors = True
 

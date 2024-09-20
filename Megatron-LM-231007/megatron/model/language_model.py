@@ -4,8 +4,7 @@
 
 import torch
 import inc.torch as dist
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 
 from megatron import get_args
 from megatron.core import mpu, tensor_parallel

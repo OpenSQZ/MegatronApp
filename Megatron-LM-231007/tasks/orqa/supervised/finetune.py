@@ -8,8 +8,7 @@ import sys
 import math
 import torch
 import inc.torch as dist
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 
 from megatron import get_args, get_timers, get_tokenizer, print_rank_0
 from megatron.core import mpu

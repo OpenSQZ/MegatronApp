@@ -6,8 +6,7 @@ from commons import print_separator
 from commons import initialize_distributed
 import mpu
 from torch.nn.parameter import Parameter
-import torch
-import inc.torch as dist.nn.init as init
+import torch.nn.init as init
 import torch
 import inc.torch as dist
 import random

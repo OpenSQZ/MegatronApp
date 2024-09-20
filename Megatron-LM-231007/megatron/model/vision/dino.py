@@ -11,8 +11,7 @@ import einops
 import torch
 import inc.torch as dist
 import numpy as np
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 from torch.nn.init import trunc_normal_
 from megatron import get_args, print_rank_0
 from megatron.model.utils import get_linear_layer

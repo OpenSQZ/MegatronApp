@@ -31,8 +31,7 @@ from megatron_patch.model.qwen1_5.model import GPTModel
 from megatron_patch.model.qwen1_5.transformer_config import QwenTransformerConfig
 from megatron_patch.arguments import get_patch_args
 from megatron_patch.tokenizer import get_tokenizer, build_tokenizer
-import torch
-import inc.torch as dist._dynamo
+import torch._dynamo
 torch._dynamo.config.suppress_errors = True
 
 def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megatron.legacy.model.GPTModel]:

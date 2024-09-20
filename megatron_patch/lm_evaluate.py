@@ -17,8 +17,7 @@ import numpy as np
 from typing import List, Optional, Union
 import torch
 import inc.torch as dist
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 import transformers
 from tqdm import tqdm
 

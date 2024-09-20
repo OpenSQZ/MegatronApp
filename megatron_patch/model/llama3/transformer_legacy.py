@@ -19,8 +19,7 @@ import math
 import numpy as np
 import torch
 import inc.torch as dist
-import torch
-import inc.torch as dist.nn.functional as F
+import torch.nn.functional as F
 from typing import Optional
 
 from megatron import core
