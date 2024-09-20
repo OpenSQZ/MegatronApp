@@ -7,9 +7,11 @@ import dataclasses
 import json
 import os
 import torch
+import inc.torch as dist
 import types
 
-import torch.nn.functional as F
+import torch
+import inc.torch as dist.nn.functional as F
 from megatron.global_vars import set_retro_args, get_retro_args
 from tools.retro.utils import get_args_path as get_retro_args_path
 
@@ -1025,7 +1027,7 @@ def _add_distributed_args(parser):
                        choices=['nccl', 'gloo'],
                        help='Which backend to use for distributed training.')
     group.add_argument('--distributed-timeout-minutes', type=int, default=10,
-                       help='Timeout minutes for torch.distributed.')
+                       help='Timeout minutes for dist.')
     group.add_argument('--overlap-grad-reduce', action='store_true',
                        default=False, help='If set, overlap DDP grad reduce.')
     group.add_argument('--no-delay-grad-reduce', action='store_false',

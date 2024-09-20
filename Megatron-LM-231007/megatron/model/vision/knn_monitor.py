@@ -1,5 +1,7 @@
-import torch.nn.functional as F
 import torch
+import inc.torch as dist.nn.functional as F
+import torch
+import inc.torch as dist
 from megatron import print_rank_0, get_args
 from megatron.core import mpu
 from megatron.data.vit_dataset import ClassificationTransform
@@ -69,7 +71,7 @@ def compute_feature_bank(model):
 
     feature_banks = [torch.zeros_like(feature_bank)
                      for i in range(mpu.get_data_parallel_world_size())]
-    torch.distributed.all_gather(feature_banks,
+    dist.all_gather(feature_banks,
                                  feature_bank,
                                  group=mpu.get_data_parallel_group())
 
@@ -78,7 +80,7 @@ def compute_feature_bank(model):
 
     feature_labels = [torch.zeros_like(feature_label)
                       for i in range(mpu.get_data_parallel_world_size())]
-    torch.distributed.all_gather(feature_labels,
+    dist.all_gather(feature_labels,
                                  feature_label,
                                  group=mpu.get_data_parallel_group())
 

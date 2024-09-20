@@ -6,6 +6,7 @@
 from apex.optimizers import FusedAdam as Adam
 import math
 import torch
+import inc.torch as dist
 import pickle
 
 from megatron import get_args
@@ -669,7 +670,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                                                 for _ in range(data_parallel_world_size)]
                             else:
                                 recv_tensors = None
-                            torch.distributed.gather(
+                            dist.gather(
                                 send_tensor,
                                 recv_tensors,
                                 data_parallel_global_ranks[0],
@@ -749,7 +750,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                             send_tensors = None
 
                         # Scatter.
-                        torch.distributed.scatter(
+                        dist.scatter(
                             recv_tensor,
                             send_tensors,
                             data_parallel_global_ranks[0],
@@ -855,7 +856,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         #   parallel ranks.
         pbuf_view_items = self.get_model_param_buffer_dp_views()
         for (_, _, _, pbuf, pbuf_views) in pbuf_view_items:
-            torch.distributed._all_gather_base(
+            dist._all_gather_base(
                 pbuf,
                 pbuf_views[data_parallel_rank],
                 group = data_parallel_group,

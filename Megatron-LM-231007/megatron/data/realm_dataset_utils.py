@@ -3,6 +3,7 @@ import time
 
 import numpy as np
 import torch
+import inc.torch as dist
 
 from megatron import print_rank_0
 from megatron.core import mpu, tensor_parallel
@@ -148,7 +149,7 @@ def get_block_samples_mapping(block_dataset, title_dataset, data_prefix, num_epo
         assert block_dataset.sizes.dtype == np.int32
 
         # Build samples mapping
-        verbose = torch.distributed.get_rank() == 0
+        verbose = dist.get_rank() == 0
         start_time = time.time()
         print_rank_0(' > building samples index mapping for {} ...'.format(
             name))
@@ -179,8 +180,8 @@ def get_block_samples_mapping(block_dataset, title_dataset, data_prefix, num_epo
     # device_index=rank which is not the case for model
     # parallel case
     counts = torch.cuda.LongTensor([1])
-    torch.distributed.all_reduce(counts, group=mpu.get_data_parallel_group())
-    assert counts[0].item() == torch.distributed.get_world_size(
+    dist.all_reduce(counts, group=mpu.get_data_parallel_group())
+    assert counts[0].item() == dist.get_world_size(
         group=mpu.get_data_parallel_group())
 
     # Load indexed dataset.

@@ -16,7 +16,9 @@ import types
 import numpy as np
 from typing import List, Optional, Union
 import torch
-import torch.nn.functional as F
+import inc.torch as dist
+import torch
+import inc.torch as dist.nn.functional as F
 import transformers
 from tqdm import tqdm
 
@@ -50,7 +52,7 @@ class EvalHarnessAdaptor(HFLM):
         self.args = get_args()
         build_tokenizer(self.args)
         self.tokenizer = get_tokenizer()
-        self.is_main = torch.distributed.get_rank() == 0
+        self.is_main = dist.get_rank() == 0
         self.adaptive_seq_len = self.args.adaptive_seq_len
         self.model_provider = kwargs['model_provider']
 

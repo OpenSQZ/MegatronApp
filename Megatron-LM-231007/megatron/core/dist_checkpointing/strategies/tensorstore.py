@@ -8,6 +8,7 @@ from pathlib import Path
 
 import tensorstore as ts
 import torch
+import inc.torch as dist
 
 from ..core import CheckpointingException
 from ..dict_utils import dict_list_map_inplace
@@ -24,7 +25,7 @@ class TensorStoreLoadShardedStrategy(LoadShardedStrategy):
         self.load_directly_on_device = load_directly_on_device
 
     def load(self, sharded_state_dict: ShardedStateDict, checkpoint_dir: Path):
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             print(f'Loading distributed checkpoint with {self.__class__.__name__}')
             if self.load_directly_on_device:
                 print(f'Loading distributed checkpoint directly on the GPU')

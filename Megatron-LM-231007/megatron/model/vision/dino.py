@@ -9,8 +9,10 @@ import math
 import apex
 import einops
 import torch
+import inc.torch as dist
 import numpy as np
-import torch.nn.functional as F
+import torch
+import inc.torch as dist.nn.functional as F
 from torch.nn.init import trunc_normal_
 from megatron import get_args, print_rank_0
 from megatron.model.utils import get_linear_layer
@@ -75,8 +77,8 @@ class DINOLoss(torch.nn.Module):
         Update center used for teacher output.
         """
         batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
-        torch.distributed.all_reduce(batch_center)
-        batch_center = batch_center / (len(teacher_output) * torch.distributed.get_world_size())
+        dist.all_reduce(batch_center)
+        batch_center = batch_center / (len(teacher_output) * dist.get_world_size())
         self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
 
 class DINOHead(torch.nn.Module):

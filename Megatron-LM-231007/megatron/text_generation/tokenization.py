@@ -4,6 +4,7 @@
 
 
 import torch
+import inc.torch as dist
 
 
 from megatron import get_tokenizer, get_args
@@ -61,7 +62,7 @@ def tokenize_prompts(prompts=None, tokens_to_generate=None,
     prompts_length_cuda_long_tensor = None
 
     # On the specified rank, build the above.
-    if torch.distributed.get_rank() == rank:
+    if dist.get_rank() == rank:
         assert prompts is not None
         assert tokens_to_generate is not None
         # Tensor of tokens padded and their unpadded length.

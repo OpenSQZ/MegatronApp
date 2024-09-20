@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import inc.torch as dist
 
 from megatron import get_args
 from megatron.core import tensor_parallel
@@ -49,8 +50,8 @@ def post_language_model_processing(lm_output, labels, logit_weights,
         z_loss_weight = args.z_loss_weight if 'z_loss_weight' in args else 0.0
         if z_loss_weight:
             logits_max = torch.max(output, dim=-1)[0]
-            torch.distributed.all_reduce(
-                logits_max, op=torch.distributed.ReduceOp.MAX, group=get_tensor_model_parallel_group()
+            dist.all_reduce(
+                logits_max, op=dist.ReduceOp.MAX, group=get_tensor_model_parallel_group()
             )
             softmax_normalizer = logits_max ** 2
             z_loss = z_loss_weight * softmax_normalizer.mean()

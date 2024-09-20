@@ -3,7 +3,9 @@
 """Vision-classification finetuning/evaluation."""
 
 import torch
-import torch.nn.functional as F
+import inc.torch as dist
+import torch
+import inc.torch as dist.nn.functional as F
 from functools import partial
 from megatron import get_args, get_timers
 from megatron import print_rank_0, print_rank_last
@@ -152,7 +154,7 @@ def segmentation():
             m.train()
         # Reduce.
         if mpu.is_pipeline_last_stage():
-            torch.distributed.all_reduce(performs,
+            dist.all_reduce(performs,
                                          group=mpu.get_data_parallel_group())
             # Print on screen.
             # performs[int(ch), :] = [nb_tp, nb_fp, nb_tn, nb_fn]

@@ -4,7 +4,9 @@
 
 import numpy as np
 import torch
-import torch.nn.functional as F
+import inc.torch as dist
+import torch
+import inc.torch as dist.nn.functional as F
 from functools import partial
 from megatron import get_args, get_timers
 from megatron import print_rank_0, print_rank_last
@@ -183,7 +185,7 @@ def segmentation():
         # Reduce.
         if mpu.is_pipeline_last_stage():
             performs_tensor = torch.cuda.FloatTensor(performs)
-            torch.distributed.all_reduce(performs_tensor,
+            dist.all_reduce(performs_tensor,
                                          group=mpu.get_data_parallel_group())
             hist = performs_tensor.cpu().numpy()
             iu, acc, acc_cls = calculate_iou(hist)

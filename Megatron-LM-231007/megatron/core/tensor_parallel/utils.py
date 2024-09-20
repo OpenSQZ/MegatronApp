@@ -3,6 +3,7 @@
 from typing import List, Sequence
 
 import torch
+import inc.torch as dist
 
 from megatron.core import parallel_state
 from megatron.core.utils import divide
@@ -79,10 +80,10 @@ def gather_split_1d_tensor(tensor):
     )
     # TODO: This API is experimental in pytorch (as of Feb 2022) and
     # this might break in future pytorch releases. We chose this API
-    # as opposed to torch.distributed.all_gather for efficiency reasons.
+    # as opposed to dist.all_gather for efficiency reasons.
     # This API calls directly NCCL all-gather versus the former does
     # internal copies and can potentially cause slow down.
-    torch.distributed._all_gather_base(
+    dist._all_gather_base(
         gathered, tensor, group=parallel_state.get_tensor_model_parallel_group()
     )
     return gathered

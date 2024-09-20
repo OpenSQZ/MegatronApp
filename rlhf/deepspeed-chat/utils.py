@@ -4,13 +4,15 @@
 # DeepSpeed Team
 import os
 import torch
+import inc.torch as dist
 import random
 import numpy as np
 from transformers import set_seed, AutoTokenizer
 import json
 import deepspeed
 from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
-import torch.nn as nn
+import torch
+import inc.torch as dist.nn as nn
 
 
 def print_rank_0(msg, rank=0):
@@ -108,8 +110,8 @@ def set_random_seed(seed):
 
 
 def get_all_reduce_mean(tensor):
-    torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
-    tensor = tensor / torch.distributed.get_world_size()
+    dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+    tensor = tensor / dist.get_world_size()
     return tensor
 
 
@@ -153,7 +155,7 @@ def load_state_dict_into_model(model_to_load=None,
                     # the state dict and then re-partitions them again
                     with deepspeed.zero.GatheredParameters(params_to_gather,
                                                            modifier_rank=0):
-                        if torch.distributed.get_rank() == 0:
+                        if dist.get_rank() == 0:
                             module._load_from_state_dict(*args)
             else:
                 module._load_from_state_dict(*args)

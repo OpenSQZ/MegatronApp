@@ -5,6 +5,7 @@ import os
 import psutil
 import time
 import torch
+import inc.torch as dist
 from tqdm import tqdm
 
 from megatron import get_retro_args, print_rank_0
@@ -213,7 +214,7 @@ def query_dataset_neighbors(db_dataset, query_dataset,
 
         # Synchronize progress across all ranks. (for easier observation)
         print_rank_0(" > waiting for other ranks to finish block.")
-        torch.distributed.barrier()
+        dist.barrier()
 
 
 def query_pretraining_neighbors():

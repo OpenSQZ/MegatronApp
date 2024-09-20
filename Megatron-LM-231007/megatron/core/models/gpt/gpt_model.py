@@ -4,6 +4,7 @@ import logging
 from typing import Literal, Optional
 
 import torch
+import inc.torch as dist
 from torch import Tensor
 
 from megatron.core import parallel_state, tensor_parallel
@@ -241,10 +242,10 @@ class GPTModel(MegatronModule):
 
         # Ensure that first and last stages have the same initial parameter
         # values.
-        if torch.distributed.is_initialized():
+        if dist.is_initialized():
             if parallel_state.is_rank_in_embedding_group():
                 weight = self.shared_embedding_or_output_weight()
-                torch.distributed.all_reduce(
+                dist.all_reduce(
                     weight.data, group=parallel_state.get_embedding_group()
                 )
 

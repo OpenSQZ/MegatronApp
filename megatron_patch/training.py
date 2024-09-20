@@ -17,6 +17,7 @@ import sys
 import time
 
 import torch
+import inc.torch as dist
 from megatron import (get_args, get_num_microbatches, get_signal_handler,
                       get_tensorboard_writer, get_timers, is_last_rank,
                       print_rank_0, print_rank_last, update_num_microbatches)
@@ -100,8 +101,8 @@ def pretrain(train_valid_test_dataset_provider,
     # image ... launches.
     global _TRAIN_START_TIME
     start_time_tensor = torch.cuda.DoubleTensor([_TRAIN_START_TIME])
-    torch.distributed.all_reduce(start_time_tensor,
-                                 op=torch.distributed.ReduceOp.MIN)
+    dist.all_reduce(start_time_tensor,
+                                 op=dist.ReduceOp.MIN)
     _TRAIN_START_TIME = start_time_tensor.item()
     print_rank_0('time to initialize megatron (seconds): {:.3f}'.format(
         time.time() - _TRAIN_START_TIME))
@@ -611,7 +612,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     while iteration < args.train_iters:
         if args.profile and \
            iteration == args.profile_step_start and \
-           torch.distributed.get_rank() in args.profile_ranks:
+           dist.get_rank() in args.profile_ranks:
             torch.cuda.cudart().cudaProfilerStart()
             torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
@@ -676,8 +677,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             train_time = (time.time() - _TRAIN_START_TIME) / 60.0
             done_cuda = torch.cuda.IntTensor(
                 [train_time > args.exit_duration_in_mins])
-            torch.distributed.all_reduce(
-                done_cuda, op=torch.distributed.ReduceOp.MAX)
+            dist.all_reduce(
+                done_cuda, op=dist.ReduceOp.MAX)
             done = done_cuda.item()
             if done:
                 if not saved_checkpoint:
@@ -691,13 +692,13 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             if args.save and not saved_checkpoint:
                 save_checkpoint_and_time(iteration, model, optimizer,
                                          opt_param_scheduler)
-            torch.distributed.barrier()
+            dist.barrier()
             print_datetime('exiting program at iteration {}'.format(iteration))
             sys.exit()
 
         if args.profile and \
            iteration == args.profile_step_end and \
-           torch.distributed.get_rank() in args.profile_ranks:
+           dist.get_rank() in args.profile_ranks:
             torch.cuda.cudart().cudaProfilerStop()
 
     return iteration

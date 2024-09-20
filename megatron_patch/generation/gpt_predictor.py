@@ -14,6 +14,7 @@
 
 import json
 import torch
+import inc.torch as dist
 
 from megatron.core.enums import ModelType
 from megatron import get_args
@@ -46,7 +47,7 @@ class GPTPredictor():
         if args.load is not None and args.no_load_optim:
             load_checkpoint(model, None, None)
         timers('model-and-optimizer-setup').stop()
-        torch.distributed.barrier()
+        dist.barrier()
 
         timers = get_timers()
         timers('load-checkpoint', log_level=0).start(barrier=True)

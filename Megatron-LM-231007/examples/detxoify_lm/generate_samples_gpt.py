@@ -9,6 +9,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir, os.path.pardir)))
 import torch
+import inc.torch as dist
 from megatron import get_args
 from megatron import get_tokenizer
 from megatron import print_rank_0
@@ -58,14 +59,14 @@ def add_text_generate_args(parser):
 def generate_samples_unconditional(model):
     args = get_args()
 
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         cnt = 0
         num_samples = args.num_samples
         from tqdm import tqdm
         pbar = tqdm(total=num_samples)
 
     while True:
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             sentences = [''] * args.global_batch_size
             print("global batch size", args.global_batch_size)
             max_len = args.out_seq_length
@@ -95,7 +96,7 @@ def generate_samples_unconditional(model):
 def generate_samples_conditional(model):
     args = get_args()
 
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         num_samples = args.num_samples
         cnt = 0
         from tqdm import tqdm
@@ -108,8 +109,8 @@ def generate_samples_conditional(model):
         input_pos = 0
 
     while True:
-        torch.distributed.barrier()
-        if torch.distributed.get_rank() == 0:
+        dist.barrier()
+        if dist.get_rank() == 0:
             sentences = []
             print("global batch size", args.global_batch_size)
             for _ in range(args.global_batch_size):
@@ -150,7 +151,7 @@ def generate_and_write_samples_unconditional(model):
     assert args.genfile is not None
     with open(args.genfile, 'w') as f:
         for datum in generate_samples_unconditional(model):
-            if torch.distributed.get_rank() == 0:
+            if dist.get_rank() == 0:
                 f.write(json.dumps(datum) + '\n')
 
 
@@ -164,7 +165,7 @@ def generate_and_write_samples_conditional(model):
         sample_output_file = args.sample_output_file
     with open(sample_output_file, 'w') as f:
         for datum in generate_samples_conditional(model):
-            if torch.distributed.get_rank() == 0:
+            if dist.get_rank() == 0:
                 f.write(json.dumps(datum) + '\n')
 
 

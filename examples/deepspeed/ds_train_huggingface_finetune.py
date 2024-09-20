@@ -19,6 +19,7 @@ import os
 import sys
 import copy
 import torch
+import inc.torch as dist
 import logging
 import datasets
 import argparse
@@ -457,7 +458,7 @@ def main():
     trainer.train()
 
     if args.save is not None:
-        args.global_rank = torch.distributed.get_rank()
+        args.global_rank = dist.get_rank()
         print('saving the final model ...', args.global_rank)
 
         if args.global_rank == 0:

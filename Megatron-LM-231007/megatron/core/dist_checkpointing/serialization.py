@@ -9,6 +9,7 @@ from typing import Iterable, List, Tuple, Union
 
 import numpy as np
 import torch
+import inc.torch as dist
 
 from .core import CheckpointingConfig, maybe_load_config, save_config
 from .dict_utils import (
@@ -137,7 +138,7 @@ def save(
     """
     checkpoint_dir = Path(checkpoint_dir)
 
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         if not checkpoint_dir.exists():
             raise CheckpointingException(
                 f'Checkpoint destination directory does not exist: {checkpoint_dir}'
@@ -174,13 +175,13 @@ def _save_common_dict(
     common_state_dict = _extract_and_save_sharded_objects(
         state_dict, checkpoint_dir, validate_consistency
     )
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         torch.save(common_state_dict, checkpoint_dir / COMMON_STATE_FNAME)
     if validate_consistency:
         # TODO: implement checking consistency with rank 0 common dict on other ranks
         pass
-        # torch.distributed.barrier()
-        # if not torch.distributed.get_rank() == 0:
+        # dist.barrier()
+        # if not dist.get_rank() == 0:
         #     rank_0_state_dict = torch.load(checkpoint_dir / COMMON_STATE_FNAME)
         #     print(diff(common_state_dict, rank_0_state_dict))
 
@@ -204,9 +205,9 @@ def _extract_and_save_sharded_objects(
 
 def validate_sharding_integrity(sharded_tensors: Iterable[ShardedTensor]):
     sharding = [ten.without_data() for ten in sharded_tensors]
-    all_sharding = [None] * torch.distributed.get_world_size()
-    torch.distributed.all_gather_object(all_sharding, sharding)
-    if torch.distributed.get_rank() != 0:
+    all_sharding = [None] * dist.get_world_size()
+    dist.all_gather_object(all_sharding, sharding)
+    if dist.get_rank() != 0:
         return
 
     key_shardings = defaultdict(list)
@@ -299,9 +300,9 @@ def _validate_sharding_for_key_flattened(tensors_by_shard):
 def validate_objects_sharding_integrity(sharded_objects: List[ShardedObject]):
     """ Ensure uniqueness of saved objects. """
     local_sh_objs = [sh_obj.without_data() for sh_obj in sharded_objects]
-    all_sh_objs = [None] * torch.distributed.get_world_size()
-    torch.distributed.all_gather_object(all_sh_objs, local_sh_objs)
-    if torch.distributed.get_rank() != 0:
+    all_sh_objs = [None] * dist.get_world_size()
+    dist.all_gather_object(all_sh_objs, local_sh_objs)
+    if dist.get_rank() != 0:
         return
     unique_keys = [
         sh_obj.unique_key

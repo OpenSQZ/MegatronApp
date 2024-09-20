@@ -100,7 +100,7 @@ def _load_checkpoint(queue, args):
     else:
         raise Exception(f'unrecognized model type: {args.model_type}')
 
-    # supress warning about torch.distributed not being initialized
+    # supress warning about dist not being initialized
     module.MegatronModule.embedding_warning_printed = True
 
     consumed_train_samples = None

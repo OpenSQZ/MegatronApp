@@ -3,7 +3,9 @@
 """Generation utilities."""
 
 import torch
-import torch.nn.functional as F
+import inc.torch as dist
+import torch
+import inc.torch as dist.nn.functional as F
 
 from megatron import get_args, get_tokenizer
 from megatron.core import mpu
@@ -371,7 +373,7 @@ def beam_search_and_return_on_first_stage(model, tokens, lengths, beam_size, sto
                 tokens[:, context_length] = tokens.new([item[0] for item in next_beams])
                 scores = scores.new([item[1] for item in next_beams]).unsqueeze(1)
           
-            # torch.distributed.barrier()
+            # dist.barrier()
             done = broadcast_from_last_pipeline_stage(1, torch.uint8, done)
             if done:
                 break

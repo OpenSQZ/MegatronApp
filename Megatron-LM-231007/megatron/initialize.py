@@ -8,6 +8,7 @@ import time
 
 import numpy as np
 import torch
+import inc.torch as dist
 from datetime import timedelta
 
 from megatron import fused_kernels
@@ -53,7 +54,7 @@ def initialize_megatron(
     # tensorboard-writer, and timers.
     set_global_variables(args)
 
-    # torch.distributed initialization
+    # dist initialization
     def finish_mpu_init():
         args = get_args()
         # Pytorch distributed.
@@ -97,7 +98,7 @@ def _compile_dependencies():
     # Compile dataset C++ code.
     # =========================
     # TODO: move this to ninja
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         start_time = time.time()
         print("> compiling dataset index builder ...")
         from megatron.data.dataset_utils import compile_helper
@@ -141,20 +142,20 @@ def _compile_dependencies():
             )
 
     # Always build on rank zero first.
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         start_time = time.time()
         print("> compiling and loading fused kernels ...", flush=True)
         fused_kernels.load(args)
-        torch.distributed.barrier()
+        dist.barrier()
     else:
-        torch.distributed.barrier()
+        dist.barrier()
         fused_kernels.load(args)
     # Simple barrier to make sure all ranks have passed the
     # compilation phase successfully before moving on to the
     # rest of the program. We think this might ensure that
     # the lock is released.
-    torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
+    dist.barrier()
+    if dist.get_rank() == 0:
         print(
             ">>> done with compiling and loading fused kernels. "
             "Compilation time: {:.3f} seconds".format(time.time() - start_time),
@@ -163,11 +164,11 @@ def _compile_dependencies():
 
 
 def _initialize_distributed():
-    """Initialize torch.distributed and core model parallel."""
+    """Initialize dist and core model parallel."""
     args = get_args()
 
     device_count = torch.cuda.device_count()
-    if torch.distributed.is_initialized():
+    if dist.is_initialized():
 
         if args.rank == 0:
             print(
@@ -175,8 +176,8 @@ def _initialize_distributed():
                 "skipping initialization ...",
                 flush=True,
             )
-        args.rank = torch.distributed.get_rank()
-        args.world_size = torch.distributed.get_world_size()
+        args.rank = dist.get_rank()
+        args.world_size = dist.get_world_size()
 
     else:
 
@@ -193,7 +194,7 @@ def _initialize_distributed():
                 args.local_rank = device
             torch.cuda.set_device(device)
         # Call the init process
-        torch.distributed.init_process_group(
+        dist.init_process_group(
             backend=args.distributed_backend,
             world_size=args.world_size,
             rank=args.rank,
@@ -227,9 +228,9 @@ def _init_autoresume():
     """Set autoresume start time."""
     autoresume = get_adlr_autoresume()
     if autoresume:
-        torch.distributed.barrier()
+        dist.barrier()
         autoresume.init()
-        torch.distributed.barrier()
+        dist.barrier()
 
 
 def _set_random_seed(seed_, data_parallel_random_init=False):

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import inc.torch as dist
 from megatron.core.enums import ModelType
 from megatron import get_args
 from megatron import print_rank_0
@@ -126,7 +127,7 @@ def evaluate(data_loader, model):
 
             # Reduce across processes.
             if parallel_state.is_pipeline_last_stage():
-                torch.distributed.all_reduce(
+                dist.all_reduce(
                     output, group=parallel_state.get_data_parallel_group())
 
                 total_output += output

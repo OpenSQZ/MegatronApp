@@ -7,6 +7,7 @@ from abc import abstractmethod
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 import torch
+import inc.torch as dist
 
 from megatron import get_timers
 from megatron import print_rank_0
@@ -284,8 +285,8 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
             main_grads, self.found_inf, self.grad_scaler.inv_scale)
 
         # Update across all model parallel instances.
-        torch.distributed.all_reduce(self.found_inf,
-                                     op=torch.distributed.ReduceOp.MAX,
+        dist.all_reduce(self.found_inf,
+                                     op=dist.ReduceOp.MAX,
                                      group=self.get_model_parallel_group())
 
         # Check for nan.

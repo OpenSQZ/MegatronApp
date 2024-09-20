@@ -5,6 +5,7 @@
 import os
 
 import torch
+import inc.torch as dist
 from torch import inf
 
 from apex.multi_tensor_apply import multi_tensor_applier
@@ -62,8 +63,8 @@ def clip_grad_norm_fp32(parameters, grads_for_norm,
         total_norm = max(grad.abs().max() for grad in grads_for_norm)
         total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
         # Take max across all model-parallel GPUs.
-        torch.distributed.all_reduce(total_norm_cuda,
-                                     op=torch.distributed.ReduceOp.MAX,
+        dist.all_reduce(total_norm_cuda,
+                                     op=dist.ReduceOp.MAX,
                                      group=model_parallel_group)
         total_norm = total_norm_cuda[0].item()
 
@@ -94,7 +95,7 @@ def clip_grad_norm_fp32(parameters, grads_for_norm,
         # Check individual rank grad norms are not NaN
         # prior to model-parallel all-reduce.
         if check_for_nan_in_grad:
-            global_rank = torch.distributed.get_rank()
+            global_rank = dist.get_rank()
             assert not total_norm.isnan(), (
                 f'Rank {global_rank}: found NaN in local grad norm in '
                 f'backwards pass. Device: {torch.cuda.current_device()}, '
@@ -102,8 +103,8 @@ def clip_grad_norm_fp32(parameters, grads_for_norm,
             )
 
         # Sum across all model-parallel GPUs.
-        torch.distributed.all_reduce(total_norm,
-                                     op=torch.distributed.ReduceOp.SUM,
+        dist.all_reduce(total_norm,
+                                     op=dist.ReduceOp.SUM,
                                      group=model_parallel_group)
         total_norm = total_norm.item() ** (1.0 / norm_type)
 
@@ -139,8 +140,8 @@ def count_zeros_fp32(parameters, model_parallel_group):
             total_num_zeros = num_zeros + total_num_zeros
 
     # Sum across all model-parallel GPUs.
-    torch.distributed.all_reduce(total_num_zeros,
-                                 op=torch.distributed.ReduceOp.SUM,
+    dist.all_reduce(total_num_zeros,
+                                 op=dist.ReduceOp.SUM,
                                  group=model_parallel_group)
 
     total_num_zeros = total_num_zeros.item()

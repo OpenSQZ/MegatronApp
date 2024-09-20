@@ -1,6 +1,7 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 import torch
+import inc.torch as dist
 
 from megatron.core.parallel_state import (
     get_tensor_and_data_parallel_group,
@@ -20,7 +21,7 @@ def _reduce(input_):
         return input_
 
     # All-reduce.
-    torch.distributed.all_reduce(input_, group=get_tensor_model_parallel_group())
+    dist.all_reduce(input_, group=get_tensor_model_parallel_group())
 
     return input_
 
@@ -81,7 +82,7 @@ def _gather_along_last_dim(input_):
 
     tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
     tensor_list[rank] = input_
-    torch.distributed.all_gather(tensor_list, input_, group=get_tensor_model_parallel_group())
+    dist.all_gather(tensor_list, input_, group=get_tensor_model_parallel_group())
 
     # Note: torch.cat already creates a contiguous tensor.
     output = torch.cat(tensor_list, dim=last_dim).contiguous()
@@ -101,7 +102,7 @@ def _gather_along_first_dim(input_):
     dim_size[0] = dim_size[0] * world_size
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed._all_gather_base(
+    dist._all_gather_base(
         output, input_.contiguous(), group=get_tensor_model_parallel_group()
     )
 
@@ -123,7 +124,7 @@ def _reduce_scatter_along_first_dim(input_):
     dim_size[0] = dim_size[0] // world_size
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed._reduce_scatter_base(
+    dist._reduce_scatter_base(
         output, input_.contiguous(), group=get_tensor_model_parallel_group()
     )
     return output
@@ -135,7 +136,7 @@ def _gather_along_first_dim_moe(input_, expert_parallel):
         group = get_tensor_and_data_parallel_group()
     else:
         group = get_tensor_model_parallel_group()
-    world_size = torch.distributed.get_world_size(group=group)
+    world_size = dist.get_world_size(group=group)
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -144,7 +145,7 @@ def _gather_along_first_dim_moe(input_, expert_parallel):
     dim_size[0] = dim_size[0] * world_size
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed._all_gather_base(output, input_.contiguous(), group=group)
+    dist._all_gather_base(output, input_.contiguous(), group=group)
 
     return output
 
@@ -155,7 +156,7 @@ def _reduce_scatter_along_first_dim_moe(input_, expert_parallel):
         group = get_tensor_and_data_parallel_group()
     else:
         group = get_tensor_model_parallel_group()
-    world_size = torch.distributed.get_world_size(group=group)
+    world_size = dist.get_world_size(group=group)
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -165,7 +166,7 @@ def _reduce_scatter_along_first_dim_moe(input_, expert_parallel):
     dim_size[0] = dim_size[0] // world_size
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed._reduce_scatter_base(output, input_.contiguous(), group=group)
+    dist._reduce_scatter_base(output, input_.contiguous(), group=group)
     return output
 
 

@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import numpy as np
-import torch.distributed as dist
+
 from functools import partial
 from megatron import get_args, get_timers, print_rank_0
 from megatron.core.enums import ModelType

@@ -7,7 +7,9 @@ import sys
 
 import math
 import torch
-import torch.nn.functional as F
+import inc.torch as dist
+import torch
+import inc.torch as dist.nn.functional as F
 
 from megatron import get_args, get_timers, get_tokenizer, print_rank_0
 from megatron.core import mpu
@@ -29,7 +31,7 @@ def check_and_append_tensor_for_gather(group, rank, world_size, input_):
         device=torch.cuda.current_device())
     input_list = [torch.empty_like(first_dim) for _ in range(world_size)]
     input_list[rank].copy_(first_dim)
-    torch.distributed.all_gather(input_list, first_dim, group=group)
+    dist.all_gather(input_list, first_dim, group=group)
     all_input_list = torch.cat(input_list, dim=0).contiguous()
     max_length = torch.max(all_input_list)
 
@@ -107,7 +109,7 @@ def orqa(Dataset):
                 context_logits).detach_()
             tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
             tensor_list[rank].copy_(input_)
-            torch.distributed.all_gather(tensor_list, input_, group=group)
+            dist.all_gather(tensor_list, input_, group=group)
 
             # Check if all-gather happens in order
             assert tensor_list[rank].sum().item() == \
@@ -122,7 +124,7 @@ def orqa(Dataset):
                 query_logits).detach_()
             tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
             tensor_list[rank].copy_(input_)
-            torch.distributed.all_gather(tensor_list, input_, group=group)
+            dist.all_gather(tensor_list, input_, group=group)
 
             # Check if all-gather happens in order
             assert tensor_list[rank].sum().item() == query_logits.sum().item()

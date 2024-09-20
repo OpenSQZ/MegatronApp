@@ -16,6 +16,7 @@ from abc import abstractmethod
 from typing import List
 
 import torch
+import inc.torch as dist
 
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.parallel_state import get_tensor_and_expert_parallel_group
@@ -104,7 +105,7 @@ class MoEDroplessTokenDispatcher(MoETokenDispatcher):
             torch.Tensor: Tensor containing the concatenated indices from all devices.
         """
         group = get_tensor_and_expert_parallel_group()
-        world_size = torch.distributed.get_world_size(group=group)
+        world_size = dist.get_world_size(group=group)
         # Bypass the function if we are using only 1 GPU.
         if world_size == 1:
             return local_indices
@@ -116,7 +117,7 @@ class MoEDroplessTokenDispatcher(MoETokenDispatcher):
         output = torch.empty(
             dim_size, dtype=local_indices.dtype, device=torch.cuda.current_device()
         )
-        torch.distributed._all_gather_base(output, local_indices.contiguous(), group=group)
+        dist._all_gather_base(output, local_indices.contiguous(), group=group)
         return output
 
     def token_permutation(
