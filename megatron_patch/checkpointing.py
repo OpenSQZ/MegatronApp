@@ -346,6 +346,32 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler):
     if dist.is_initialized():
         dist.barrier()
 
+def save_checkpoint_experiment(iteration, model, optimizer, opt_param_scheduler):
+    """Save a model checkpoint."""
+    args = get_args()
+
+    # Only rank zero of the data parallel writes to the disk.
+    model = unwrap_model(model)
+
+    print_rank_0('saving checkpoint at iteration {:7d} to {}'.format(
+        iteration, args.save))
+
+    # Collect rng state across data parallel ranks.
+    
+    # Checkpoint name.
+    checkpoint_name = get_checkpoint_name(args.save, iteration)
+
+    # Save distributed optimizer's custom parameter state.
+    if not args.no_save_optim:
+        save_optimizer_state(optimizer, opt_param_scheduler, checkpoint_name, args=args)
+
+    # Collect args, model, RNG.
+    if not args.no_save_weight:
+        save_model_weights(iteration, model, checkpoint_name, args=args)
+
+    print_rank_0('  successfully saved checkpoint at iteration {:7d} to {}' \
+                 .format(iteration, args.save))
+
 
 def _transpose_first_dim(t, num_splits, num_splits_first, model):
     input_shape = t.size()

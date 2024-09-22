@@ -45,7 +45,7 @@ except:
 from megatron.model.vision.knn_monitor import compute_feature_bank
 from megatron_patch.checkpointing import load_checkpoint, save_checkpoint
 
-from megatron.async_checkpoint import kill_thread, init_checkpoint_handler
+from megatron.async_checkpoint import kill_thread, init_checkpoint_handler, start_experiment_thread, start_injection
 
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
@@ -158,6 +158,8 @@ def pretrain(train_valid_test_dataset_provider,
 
         iteration = 0
         if args.do_train and args.train_iters > 0:
+            if args.alltime_saving:
+                start_experiment_thread(model, optimizer, opt_param_scheduler)
             iteration = train(forward_step_func,
                               model, optimizer, opt_param_scheduler,
                               train_data_iterator, valid_data_iterator,
@@ -666,6 +668,9 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                 print_datetime('exiting program after receiving SIGTERM.')
                 sys.exit()
 
+        if iteration == 21:
+            start_injection()
+            
         if args.save and args.save_interval and \
            iteration % args.save_interval == 0:
             save_checkpoint_and_time(iteration, model, optimizer,
