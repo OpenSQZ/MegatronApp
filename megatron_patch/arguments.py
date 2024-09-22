@@ -469,4 +469,6 @@ def get_patch_args(parser):
                        help='Disable allgather for optimizer saving.')
     group.add_argument('--async-saving', action='store_true', default=False,
                        help='Asynchronized saving.')
+    group.add_argument('--alltime-saving', action='store_true', default=False,
+                       help='(For experiment) Save checkpoints all the time.')
     return parser

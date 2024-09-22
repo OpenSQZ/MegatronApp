@@ -1,4 +1,4 @@
-export OUTPUT_ARGS=" " # --only-serialization"
+export OUTPUT_ARGS=" --optim-no-allgather" # --only-serialization"
 export PICKLE="5"
 cd ./examples/llama3
 rm -rf /scratch/Meta-Llama-outputs
@@ -23,7 +23,7 @@ true   \
 false  \
 false   \
 false   \
-100  \
+300  \
 /gfshome/llama3-datasets/wudao_llama3bpe_content_document  \
 /gfshome/Meta-Llama-3-8B-to-megatron-tp4-pp2  \
 409600   \
