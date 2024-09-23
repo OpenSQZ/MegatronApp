@@ -1,4 +1,4 @@
-export OUTPUT_ARGS=" --optim-no-allgather" # --only-serialization"
+export OUTPUT_ARGS=" " # --only-serialization"
 export PICKLE="5"
 cd ./examples/llama3
 rm -rf /scratch/Meta-Llama-outputs

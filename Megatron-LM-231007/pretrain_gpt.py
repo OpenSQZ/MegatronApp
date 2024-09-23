@@ -18,6 +18,7 @@ from megatron.training import pretrain
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import average_losses_across_data_parallel_group
 from megatron.arguments import core_transformer_config_from_args
+from inc.torch import increment_statistics, sizeof_tensor
 
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
@@ -64,6 +65,12 @@ def get_batch(data_iterator):
         args.reset_position_ids,
         args.reset_attention_mask,
         args.eod_mask_loss)
+    
+    increment_statistics(sizeof_tensor(tokens), 'consume')
+    increment_statistics(sizeof_tensor(labels), 'consume')
+    increment_statistics(sizeof_tensor(loss_mask), 'consume')
+    increment_statistics(sizeof_tensor(attention_mask), 'consume')
+    increment_statistics(sizeof_tensor(position_ids), 'consume')
 
     return tokens, labels, loss_mask, attention_mask, position_ids
 

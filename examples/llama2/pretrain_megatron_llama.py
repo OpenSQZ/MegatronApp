@@ -31,6 +31,7 @@ from megatron_patch.model.llama2.gpt_model import GPTModel
 from megatron_patch.tokenizer import get_tokenizer, build_tokenizer
 from megatron_patch.training import pretrain
 from megatron_patch.arguments import get_patch_args
+from inc.torch import increment_statistics, sizeof_tensor
 
 def model_provider(pre_process=True, post_process=True):
     args = get_args()
@@ -69,6 +70,12 @@ def get_batch(data_iterator):
         args.reset_position_ids,
         args.reset_attention_mask,
         True)
+    
+    increment_statistics(sizeof_tensor(tokens), 'consume')
+    increment_statistics(sizeof_tensor(labels), 'consume')
+    increment_statistics(sizeof_tensor(loss_mask), 'consume')
+    increment_statistics(sizeof_tensor(attention_mask), 'consume')
+    increment_statistics(sizeof_tensor(position_ids), 'consume')
 
     return tokens, labels, loss_mask, attention_mask, position_ids
 
