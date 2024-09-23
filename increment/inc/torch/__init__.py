@@ -672,7 +672,8 @@ summary = {
     "p2p": 0,
     "reduce": 0,
     "gather": 0,
-    "broadcast": 0
+    "broadcast": 0,
+    "consume": 0
 }
 
 def sizeof_tensor(tensor):
@@ -688,3 +689,4 @@ def print_summary():
     print(f'Reduce: {summary["reduce"]}')
     print(f'Gather: {summary["gather"]}')
     print(f'Broadcast: {summary["broadcast"]}')
+    print(f'Consumed: {summary["consume"]}')
