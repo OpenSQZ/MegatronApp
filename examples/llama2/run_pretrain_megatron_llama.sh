@@ -6,11 +6,11 @@ MEGATRON_PATH=${MEGATRON_PATCH_PATH}/Megatron-LM-231007
 export PYTHONPATH=${MEGATRON_PATH}:${MEGATRON_PATCH_PATH}:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 if [ $ENV = dsw ]; then
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-MASTER_ADDR=10.3.0.2
+export CUDA_VISIBLE_DEVICES=0,1,2,3,
+MASTER_ADDR=10.3.0.26
 MASTER_PORT=32364
 NNODES=2
-#NODE_RANK=
+NODE_RANK=${RANK}
 GPUS_PER_NODE=4
 
 elif [ $ENV = dlc ]; then
@@ -211,7 +211,8 @@ megatron_options="  \
         --use-llama2-rotary-position-embeddings \
         --position-embedding-type rope \
         --untie-embeddings-and-output-weights \
-        --disable-bias-linear
+        --disable-bias-linear \
+        --forward-backward-disaggregating
         "
 
 run_cmd="torchrun $DISTRIBUTED_ARGS pretrain_megatron_llama.py

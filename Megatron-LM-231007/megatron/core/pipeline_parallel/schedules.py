@@ -4,8 +4,10 @@ import contextlib
 from typing import Callable, Iterator, List, Optional, Union
 
 import torch
+import inc.torch as dist
 from torch.autograd.variable import Variable
 
+from megatron import get_args
 from megatron.core import parallel_state
 from megatron.core.enums import ModelType
 from megatron.core.pipeline_parallel import distrib_grad, p2p_communication
@@ -97,6 +99,9 @@ def get_forward_backward_func():
             forward_backward_func = forward_backward_pipelining_without_interleaving
     else:
         forward_backward_func = forward_backward_no_pipelining
+    args = get_args()
+    if args.forward_backward_disaggregating:
+        forward_backward_func = forward_or_backward_pipelining_without_interleaving
     return forward_backward_func
 
 
@@ -186,6 +191,11 @@ def forward_step(
                 data_iterator, model, checkpoint_activations_microbatch
             )
 
+    # if dist.get_rank() == 6:
+    #     print('waaaaaaaaiting of rank',dist.get_rank())
+    #     if config.batch_p2p_comm and config.batch_p2p_sync:
+    #         torch.cuda.synchronize()
+    #     print('finish waiting of rank',dist.get_rank())
     if parallel_state.is_pipeline_last_stage():
         if not collect_non_loss_data:
             output_tensor = loss_func(output_tensor)
@@ -196,6 +206,12 @@ def forward_step(
             data = loss_func(output_tensor, non_loss_data=True)
             forward_data_store.append(data)
 
+    # if dist.get_rank() == 6:
+    #     print('waaaaaaaaiting of rank',dist.get_rank())
+    #     if config.batch_p2p_comm and config.batch_p2p_sync:
+    #         torch.cuda.synchronize()
+    #     print('finish waiting of rank',dist.get_rank())
+    
     if config.timers is not None:
         config.timers('forward-compute').stop()
 
@@ -231,6 +247,7 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
 
     # Retain the grad on the input_tensor.
     unwrap_input_tensor_grad = False
+    # print(input_tensor)
     if not isinstance(input_tensor, list):
         input_tensor = [input_tensor]
         unwrap_input_tensor_grad = True
@@ -252,8 +269,10 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     else:
         torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
 
+    print(output_tensor[0].grad_fn)
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]
+    assert input_tensor[0] is not None
     if input_tensor is not None:
         input_tensor_grad = []
         for x in input_tensor:
@@ -261,7 +280,8 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
                 input_tensor_grad.append(None)
             else:
                 input_tensor_grad.append(x.grad)
-
+    # print(input_tensor_grad)
+    assert input_tensor_grad[0] is not None
     # Handle single skip connection if it exists (encoder_hidden_state in
     # model with encoder and decoder).
     if (
@@ -971,6 +991,14 @@ def recv_forward(tensor_shapes, config):
             input_tensors.append(p2p_communication.recv_forward(tensor_shape, config))
     return input_tensors
 
+def recv_corresponding_forward(tensor_shapes, config):
+    input_tensors = []
+    for tensor_shape in tensor_shapes:
+        if tensor_shape is None:
+            input_tensors.append(None)
+        else:
+            input_tensors.append(p2p_communication.recv_corresponding_forward(tensor_shape, config))
+    return input_tensors
 
 def recv_backward(tensor_shapes, config):
     output_tensor_grads = []
@@ -981,6 +1009,14 @@ def recv_backward(tensor_shapes, config):
             output_tensor_grads.append(p2p_communication.recv_backward(tensor_shape, config))
     return output_tensor_grads
 
+# def recv_backward_prev(tensor_shapes, config):
+#     output_tensor_grads = []
+#     for tensor_shape in tensor_shapes:
+#         if tensor_shape is None:
+#             output_tensor_grads.append(None)
+#         else:
+#             output_tensor_grads.append(p2p_communication.recv_backward_prev(tensor_shape, config))
+#     return output_tensor_grads
 
 def send_forward(output_tensors, tensor_shapes, config):
     if not isinstance(output_tensors, list):
@@ -990,15 +1026,31 @@ def send_forward(output_tensors, tensor_shapes, config):
             continue
         p2p_communication.send_forward(output_tensor, config)
 
+def send_corresponding_forward(output_tensors, tensor_shapes, config):
+    if not isinstance(output_tensors, list):
+        output_tensors = [output_tensors]
+    for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
+        if tensor_shape is None:
+            continue
+        p2p_communication.send_corresponding_forward(output_tensor, config)
 
 def send_backward(input_tensor_grads, tensor_shapes, config):
+    # assert input_tensor_grads is not None
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
+    # assert input_tensor_grads[0] is not None
     for (input_tensor_grad, tensor_shape) in zip(input_tensor_grads, tensor_shapes):
         if tensor_shape is None:
             continue
         p2p_communication.send_backward(input_tensor_grad, config)
 
+# def send_backward_next(input_tensor_grads, tensor_shapes, config):
+#     if not isinstance(input_tensor_grads, list):
+#         input_tensor_grads = [input_tensor_grads]
+#     for (input_tensor_grad, tensor_shape) in zip(input_tensor_grads, tensor_shapes):
+#         if tensor_shape is None:
+#             continue
+#         p2p_communication.send_backward_next(input_tensor_grad, config)
 
 def send_forward_recv_backward(output_tensors, tensor_shapes, config):
     if not isinstance(output_tensors, list):
@@ -1275,5 +1327,250 @@ def forward_backward_pipelining_without_interleaving(
         # data parallelism, layernorm all-reduce for sequence parallelism, and
         # embedding all-reduce for pipeline parallelism).
         distrib_grad.finalize_model_grads([model])
+
+    return forward_data_store
+
+def forward_or_backward_pipelining_without_interleaving(
+    *,
+    forward_step_func,
+    data_iterator: Union[Iterator, List[Iterator]],
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    num_microbatches: int,
+    seq_length: int,
+    micro_batch_size: int,
+    decoder_seq_length: int = None,
+    forward_only: bool = False,
+    backward_only: bool = False,
+    collect_non_loss_data: bool = False,
+):
+    """Run non-interleaved 1F1B schedule, with communication between pipeline
+    stages.
+
+    Returns dictionary with losses if the last stage, empty dict otherwise."""
+
+    if isinstance(model, list):
+        assert (
+            len(model) == 1
+        ), "non-interleaved pipeline parallelism does not support model chunking"
+        model = model[0]
+    if isinstance(data_iterator, list):
+        assert (
+            len(data_iterator) == 1
+        ), "non-pipeline-parallel schedule does not support model chunking"
+        data_iterator = data_iterator[0]
+
+    config = get_model_config(model)
+
+    if config.overlap_p2p_comm:
+        raise ValueError(
+            "Non-interleaved pipeline parallelism does not support overlapping p2p communication"
+        )
+
+    if config.timers is not None:
+        config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
+
+    # Disable async grad reductions
+    no_sync_func = config.no_sync_func
+    if no_sync_func is None:
+        no_sync_func = contextlib.nullcontext
+    no_sync_context = None
+
+    def disable_grad_sync():
+        """Disable asynchronous grad reductions"""
+        nonlocal no_sync_context
+        if no_sync_context is None:
+            no_sync_context = no_sync_func()
+            no_sync_context.__enter__()
+
+    def enable_grad_sync():
+        """Enable asynchronous grad reductions"""
+        nonlocal no_sync_context
+        if no_sync_context is not None:
+            no_sync_context.__exit__(None, None, None)
+            no_sync_context = None
+
+    disable_grad_sync()
+
+    # Checkpoint the activations of partial Transformer layers in a number of micro-batches
+    # within the maximum outstanding micro-batch backpropagations.
+    # Micro-batches with the ids less than 'num_microbatches_with_partial_activation_checkpoints'
+    # checkpoint partial Transformer layers (or skip checkpointing) and
+    # the rest of micro-batches within a window of micro-batches checkpoint
+    # all Transformer layers. The window of micro-batches is set by the maximum
+    # outstanding backpropagations and becomes smaller at later pipeline stages.
+    # Please refer the appendix C in https://arxiv.org/pdf/2205.05198.pdf
+    max_outstanding_backprops = None
+    # if config.num_microbatches_with_partial_activation_checkpoints is not None:
+    #     max_outstanding_backprops = num_warmup_microbatches + 1
+
+    model_type = get_model_type(model)
+
+    rank = parallel_state.get_pipeline_model_parallel_rank()
+    if parallel_state.is_forward_stage():
+        forward_only = True
+    else:
+        backward_only = True
+    recv_tensor_shapes = get_tensor_shapes(
+        rank=rank - 1,
+        model_type=model_type,
+        seq_length=seq_length,
+        micro_batch_size=micro_batch_size,
+        decoder_seq_length=decoder_seq_length,
+        config=config,
+    )
+    send_tensor_shapes = get_tensor_shapes(
+        rank=rank,
+        model_type=model_type,
+        seq_length=seq_length,
+        micro_batch_size=micro_batch_size,
+        decoder_seq_length=decoder_seq_length,
+        config=config,
+    )
+
+    # print(rank,forward_only,backward_only,num_microbatches)
+
+    # Input, output tensors only need to be saved when doing backward passes
+    input_tensors = None
+    output_tensors = None
+    if not forward_only:
+        input_tensors = []
+        output_tensors = []
+    forward_data_store = []
+
+    # Run warmup forward passes.
+    if forward_only:
+
+        # Run 1F1B in steady state.
+        for i in range(num_microbatches):
+            print(rank,' forward: ',i)
+            print(rank,'reveiving input tensor at',i)
+            # if dist.get_rank() == 6:
+            #     print('waiting of rank',dist.get_rank(),'at',i)
+            #     if config.batch_p2p_comm and config.batch_p2p_sync:
+            #         torch.cuda.synchronize()
+            #     print('finish waiting of rank',dist.get_rank())
+            input_tensor = recv_forward(recv_tensor_shapes, config)
+            # if dist.get_rank() == 6:
+            #     print('waiting of rank',dist.get_rank(),'at',i)
+            #     if config.batch_p2p_comm and config.batch_p2p_sync:
+            #         torch.cuda.synchronize()
+            #     print('finish waiting of rank',dist.get_rank())
+            # Decide to checkpoint all layers' activations of the current micro-batch
+            if max_outstanding_backprops is not None:
+                checkpoint_activations_microbatch = (
+                    i % max_outstanding_backprops
+                ) >= config.num_microbatches_with_partial_activation_checkpoints
+            else:
+                checkpoint_activations_microbatch = None
+
+            # if dist.get_rank() == 6:
+            #     print('wakting of rank',dist.get_rank(),'at',i)
+            #     if config.batch_p2p_comm and config.batch_p2p_sync:
+            #         torch.cuda.synchronize()
+            #     print('finish waiting of rank',dist.get_rank())
+
+            output_tensor = forward_step(
+                forward_step_func,
+                data_iterator,
+                model,
+                num_microbatches,
+                input_tensor,
+                forward_data_store,
+                config,
+                collect_non_loss_data,
+                checkpoint_activations_microbatch,
+            )
+            print(output_tensor[0].grad_fn)
+            # if dist.get_rank() == 6:
+            #     print('wajting of rank',dist.get_rank(),'at',i)
+            #     if config.batch_p2p_comm and config.batch_p2p_sync:
+            #         torch.cuda.synchronize()
+            #     print('finish waiting of rank',dist.get_rank())
+
+            print(rank,'sending output tensor at',i)
+            send_forward(output_tensor, send_tensor_shapes, config)
+            print(rank,'sending input/output tensor at',i)
+            # if dist.get_rank() == 6:
+            #     print('waiting of rank',dist.get_rank(),'at',i)
+            #     if config.batch_p2p_comm and config.batch_p2p_sync:
+            #         torch.cuda.synchronize()
+            #     print('finish waiting of rank',dist.get_rank())
+            send_corresponding_forward(output_tensor, send_tensor_shapes, config)
+            if not parallel_state.is_pipeline_first_stage():
+                send_corresponding_forward(input_tensor, recv_tensor_shapes, config)
+
+    if backward_only:
+        for i in range(num_microbatches):
+            print(rank,' backward: ',i)
+            # Enable async grad reduction in the last backward pass
+            # Note: If grad sync function is provided, only enable
+            # async grad reduction in first pipeline stage. Other
+            # pipeline stages do grad reduction during pipeline
+            # bubble.
+            if i == num_microbatches - 1:
+                if config.grad_sync_func is None or rank == 0:
+                    enable_grad_sync()
+            # Decide to checkpoint all layers' activations of the current micro-batch
+            if max_outstanding_backprops is not None:
+                checkpoint_activations_microbatch = (
+                    (i + num_warmup_microbatches) % max_outstanding_backprops
+                ) >= config.num_microbatches_with_partial_activation_checkpoints
+            else:
+                checkpoint_activations_microbatch = None
+            print(rank,'receiving input/output tensor')
+            output_tensor = recv_corresponding_forward(send_tensor_shapes, config)
+            input_tensor = None
+            if not parallel_state.is_pipeline_first_stage():
+                input_tensor = recv_corresponding_forward(recv_tensor_shapes, config)
+            print(rank,'receiving input/output tensor successfully')
+
+            # if dist.get_rank() == 5:
+            #     print('waiting of rank',dist.get_rank(),'at',i)
+            #     if config.batch_p2p_comm and config.batch_p2p_sync:
+            #         torch.cuda.synchronize()
+            #     print('finish waiting of rank',dist.get_rank())
+
+            print(rank,'receiving grad')
+            output_tensor_grad = recv_backward(
+                send_tensor_shapes, config
+            )
+            print(rank,'receiving grad successfully')
+
+            # Add input_tensor and output_tensor to end of list.
+            assert input_tensor is not None
+            input_tensors.append(input_tensor)
+            output_tensors.append(output_tensor)
+            deallocate_output_tensor(output_tensor[0], config.deallocate_pipeline_outputs)
+
+            # Pop input_tensor and output_tensor from the start of the list for
+            # the backward pass.
+            input_tensor = input_tensors.pop(0)
+            output_tensor = output_tensors.pop(0)
+
+            assert input_tensor is not None
+            print(rank,'calculating backward')
+
+            input_tensor_grad = backward_step(
+                input_tensor, output_tensor, output_tensor_grad, model_type, config
+            )
+            print(rank,'sending grad')
+            assert input_tensor_grad is not None
+            send_backward(input_tensor_grad, recv_tensor_shapes, config)
+
+
+    # Launch any remaining grad reductions
+    if no_sync_context is not None:
+        enable_grad_sync()
+        if config.grad_sync_func is not None:
+            config.grad_sync_func(model.parameters())
+
+    if config.timers is not None:
+        config.timers('forward-backward').stop()
+
+    # if backward_only:
+        # Finalize model grads (perform full grad all-reduce / reduce-scatter for
+        # data parallelism, layernorm all-reduce for sequence parallelism, and
+        # embedding all-reduce for pipeline parallelism).
+    distrib_grad.finalize_model_grads([model])
 
     return forward_data_store

@@ -1062,6 +1062,8 @@ def _add_distributed_args(parser):
                        'affects the encoder embedding.)')
     group.add_argument('--use-distributed-optimizer', action='store_true',
                        help='Use distributed optimizer.')
+    group.add_argument('--forward-backward-disaggregating', action='store_true',
+                        help='If ranks should be forward or backward only')
 
     return parser
 

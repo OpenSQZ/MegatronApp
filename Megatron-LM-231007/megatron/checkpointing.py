@@ -95,6 +95,7 @@ def get_checkpoint_name(checkpoints_path, iteration, release=False,
         tensor_rank = mpu.get_tensor_model_parallel_rank()
     if pipeline_rank is None:
         pipeline_rank = mpu.get_pipeline_model_parallel_rank()
+    print("Rank level:",tensor_rank, pipeline_rank)
     if expert_parallel is None:
         args = get_args()
         expert_parallel = args.expert_parallel

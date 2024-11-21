@@ -458,7 +458,7 @@ def train_step(forward_step_func, data_iterator,
     if args.empty_unused_memory_level >= 2:
         torch.cuda.empty_cache()
 
-    if mpu.is_pipeline_last_stage(ignore_virtual=True):
+    if mpu.is_pipeline_last_stage(ignore_virtual=True) and mpu.is_forward_stage():
         # Average loss across microbatches.
         loss_reduced = {}
         for key in losses_reduced[0]:
