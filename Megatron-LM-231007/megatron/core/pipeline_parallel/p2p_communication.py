@@ -163,10 +163,10 @@ def _batched_p2p_ops(
             group,
         )
         ops.append(recv_next_op)
-    if tensor_send_prev is not None and tensor_send_next is None:
-        print('sneding to', get_pipeline_model_parallel_prev_rank())
-    if tensor_recv_next is not None and tensor_recv_prev is None:
-        print('receiving from', get_pipeline_model_parallel_next_rank())
+    # if tensor_send_prev is not None and tensor_send_next is None:
+    #     print('sneding to', get_pipeline_model_parallel_prev_rank())
+    # if tensor_recv_next is not None and tensor_recv_prev is None:
+    #     print('receiving from', get_pipeline_model_parallel_next_rank())
     if len(ops) > 0:
         reqs = dist.batch_isend_irecv(ops)
     else:
@@ -323,8 +323,8 @@ def _communicate(
     #     torch.cuda.synchronize()
     # print('finjsh waiting of rank',dist.get_rank())
 
-    if recv_next and not recv_prev:
-        print('receiving')
+    # if recv_next and not recv_prev:
+    #     print('receiving')
     
     if not config.variable_seq_lengths:
         recv_prev_shape = tensor_shape
@@ -333,10 +333,10 @@ def _communicate(
         recv_prev_shape, recv_next_shape = _communicate_shapes(
             tensor_send_next, tensor_send_prev, recv_prev, recv_next, config
         )
-    if tensor_send_next is None and tensor_send_prev is not None:
-        print('sending')
-    if recv_next and not recv_prev:
-        print('receiving')
+    # if tensor_send_next is None and tensor_send_prev is not None:
+    #     print('sending')
+    # if recv_next and not recv_prev:
+    #     print('receiving')
 
     if recv_prev:
         if config.pipeline_dtype is None:
@@ -381,8 +381,8 @@ def _communicate(
     else:
         p2p_func = _p2p_ops
 
-    if recv_next and not recv_prev:
-        print('receiving1')
+    # if recv_next and not recv_prev:
+    #     print('receiving1')
     reqs = p2p_func(
         tensor_send_prev=tensor_send_prev,
         tensor_recv_prev=tensor_recv_prev,
@@ -390,14 +390,14 @@ def _communicate(
         tensor_recv_next=tensor_recv_next,
         group=get_pipeline_model_parallel_group(),
     )
-    if recv_next and not recv_prev:
-        print('receiving2')
+    # if recv_next and not recv_prev:
+    #     print('receiving2')
     if wait_on_reqs and len(reqs) > 0:
         for req in reqs:
             req.wait()
         reqs = None
-    if recv_next and not recv_prev:
-        print('receiving3')
+    # if recv_next and not recv_prev:
+    #     print('receiving3')
     # print('waiting of rank',dist.get_rank())
     if config.batch_p2p_comm and config.batch_p2p_sync:
         # To protect against race condition when using batch_isend_irecv().
@@ -566,7 +566,7 @@ def recv_backward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Ten
     else:
         if config.timers is not None:
             config.timers('backward-recv', log_level=2).start()
-        print('receiving backward grad')
+        # print('receiving backward grad')
         _, output_tensor_grad, _ = _communicate(
             tensor_send_next=None,
             tensor_send_prev=None,
@@ -575,7 +575,7 @@ def recv_backward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Ten
             tensor_shape=tensor_shape,
             config=config,
         )
-        print('rev suc')
+        # print('rev suc')
         if config.timers is not None:
             config.timers('backward-recv').stop()
     return output_tensor_grad
@@ -672,7 +672,7 @@ def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) 
     if not core.parallel_state.is_pipeline_first_stage():
         if config.timers is not None:
             config.timers('backward-send', log_level=2).start()
-        print('sending backward grad')
+        # print('sending backward grad')
         assert input_tensor_grad is not None
         _communicate(
             tensor_send_next=None,
@@ -682,7 +682,7 @@ def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) 
             tensor_shape=None,
             config=config,
         )
-        print('sending suc')
+        # print('sending suc')
         if config.timers is not None:
             config.timers('backward-send').stop()
 
