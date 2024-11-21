@@ -15,6 +15,9 @@ from megatron.core.parallel_state import (
     get_pipeline_model_parallel_next_rank,
     get_pipeline_model_parallel_prev_rank,
     get_pipeline_model_parallel_rank,
+    get_pipeline_model_parallel_world_size,
+    get_forward_backward_parallel_dual_rank,
+    get_forward_backward_parallel_group
 )
 
 # Types
@@ -160,6 +163,42 @@ def _batched_p2p_ops(
             group,
         )
         ops.append(recv_next_op)
+    if tensor_send_prev is not None and tensor_send_next is None:
+        print('sneding to', get_pipeline_model_parallel_prev_rank())
+    if tensor_recv_next is not None and tensor_recv_prev is None:
+        print('receiving from', get_pipeline_model_parallel_next_rank())
+    if len(ops) > 0:
+        reqs = dist.batch_isend_irecv(ops)
+    else:
+        reqs = []
+    return reqs
+
+def _forward_backward_p2p_ops(
+    *,
+    tensor_recv_prev: Optional[torch.Tensor],
+    tensor_send_next: Optional[torch.Tensor],
+    group: torch.distributed.ProcessGroup
+):
+    ops = []
+    if tensor_recv_prev is not None:
+        recv_prev_op = dist.P2POp(
+            dist.irecv,
+            tensor_recv_prev,
+            get_forward_backward_parallel_dual_rank(),
+            group,
+        )
+        ops.append(recv_prev_op)
+        # print(dist.get_rank(),'receive from ', get_forward_backward_parallel_dual_rank())
+    if tensor_send_next is not None:
+        # print(dist.get_rank(),'send to',get_forward_backward_parallel_dual_rank())
+        send_next_op = dist.P2POp(
+            dist.isend,
+            tensor_send_next,
+            get_forward_backward_parallel_dual_rank(),
+            group,
+        )
+        ops.append(send_next_op)
+    # print('#',len(ops),'#')
     if len(ops) > 0:
         reqs = dist.batch_isend_irecv(ops)
     else:
@@ -277,6 +316,16 @@ def _communicate(
     tensor_recv_prev = None
     tensor_recv_next = None
 
+    # print('wajting of rank',dist.get_rank())
+    # if config.batch_p2p_comm and config.batch_p2p_sync:
+    #     # To protect against race condition when using batch_isend_irecv().
+    #     # User should assert that we have a modern enough PyTorch to not need this
+    #     torch.cuda.synchronize()
+    # print('finjsh waiting of rank',dist.get_rank())
+
+    if recv_next and not recv_prev:
+        print('receiving')
+    
     if not config.variable_seq_lengths:
         recv_prev_shape = tensor_shape
         recv_next_shape = tensor_shape
@@ -284,6 +333,10 @@ def _communicate(
         recv_prev_shape, recv_next_shape = _communicate_shapes(
             tensor_send_next, tensor_send_prev, recv_prev, recv_next, config
         )
+    if tensor_send_next is None and tensor_send_prev is not None:
+        print('sending')
+    if recv_next and not recv_prev:
+        print('receiving')
 
     if recv_prev:
         if config.pipeline_dtype is None:
@@ -328,6 +381,8 @@ def _communicate(
     else:
         p2p_func = _p2p_ops
 
+    if recv_next and not recv_prev:
+        print('receiving1')
     reqs = p2p_func(
         tensor_send_prev=tensor_send_prev,
         tensor_recv_prev=tensor_recv_prev,
@@ -335,7 +390,131 @@ def _communicate(
         tensor_recv_next=tensor_recv_next,
         group=get_pipeline_model_parallel_group(),
     )
+    if recv_next and not recv_prev:
+        print('receiving2')
+    if wait_on_reqs and len(reqs) > 0:
+        for req in reqs:
+            req.wait()
+        reqs = None
+    if recv_next and not recv_prev:
+        print('receiving3')
+    # print('waiting of rank',dist.get_rank())
+    if config.batch_p2p_comm and config.batch_p2p_sync:
+        # To protect against race condition when using batch_isend_irecv().
+        # User should assert that we have a modern enough PyTorch to not need this
+        torch.cuda.synchronize()
+    # print('finish waiting of rank',dist.get_rank())
 
+    return tensor_recv_prev, tensor_recv_next, reqs
+
+def _forward_backward_communicate(
+    *,
+    tensor_send_next: Optional[torch.Tensor],
+    tensor_send_prev: Optional[torch.Tensor],
+    recv_prev: bool,
+    recv_next: bool,
+    tensor_shape: Shape,
+    config: ModelParallelConfig,
+    wait_on_reqs: bool = True
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Communicate tensors between stages. Used as helper method in other
+    communication methods that are used in megatron/schedules.py.
+
+    Arguments:
+        tensor_send_next (torch.Tensor, optional):
+            Tensor to send to next rank (no tensor sent if None)
+
+        tensor_send_prev (torch.Tensor, optional):
+            Tensor to send to prev rank (no tensor sent if None)
+
+        recv_prev (boolean, required):
+            whether tensor should be received from previous rank.
+
+        recv_next (boolean, required):
+            whether tensor should be received from next rank.
+
+        tensor_shape (List[int] or torch.Size, required):
+            shape of tensor to receive (this method assumes that all
+            tensors sent and received in a single function call are
+            the same shape).
+
+        wait_on_reqs (boolean, optional, default=False):
+            For non-batched p2p communication, wait on each request
+            before returning.
+
+    Returns:
+        tuple containing
+
+        - tensor_recv_prev: torch.Tensor if recv_prev is True, None otherwise.
+        - tensor_recv_next: torch.Tensor if recv_next is True, None otherwise.
+
+    """
+
+    # Create placeholder tensors for receive in forward and backward directions
+    # if needed.
+    tensor_recv_prev = None
+    tensor_recv_next = None
+
+    recv_prev_shape = tensor_shape
+    recv_next_shape = tensor_shape
+
+    # print('waiting of rank',dist.get_rank())
+    # if config.batch_p2p_comm and config.batch_p2p_sync:
+    #     torch.cuda.synchronize()
+    # print('finish waiting of rank',dist.get_rank())
+
+    if recv_prev:
+        if config.pipeline_dtype is None:
+            raise RuntimeError("pipeline_dtype must be provided if recv_prev is True")
+        if tensor_shape is None:
+            raise RuntimeError(
+                "tensor_shape must be specified if recv_prev is True. "
+                "Common tensor_shape is (seq_length, micro_batch_size, hidden_size)"
+            )
+        tensor_recv_prev = torch.empty(
+            recv_prev_shape,
+            requires_grad=True,
+            device=torch.cuda.current_device(),
+            dtype=config.pipeline_dtype,
+        )
+    if recv_next:
+        if config.pipeline_dtype is None:
+            raise RuntimeError("dtype must be provided if recv_next is True")
+        if tensor_shape is None:
+            raise RuntimeError(
+                "tensor_shape must be specified if recv_next is True. "
+                "Common tensor_shape is (seq_length, micro_batch_size, hidden_size)"
+            )
+        tensor_recv_next = torch.empty(
+            recv_next_shape,
+            requires_grad=True,
+            device=torch.cuda.current_device(),
+            dtype=config.pipeline_dtype,
+        )
+
+    # Send tensors in both the forward and backward directions as appropriate.
+    # if config.use_ring_exchange_p2p:
+
+    #     def _ring_exchange_wrapper(**kwargs):
+    #         dist.ring_exchange(**kwargs)
+    #         return []
+
+    #     p2p_func = _ring_exchange_wrapper
+    # elif config.batch_p2p_comm:
+    #     assert wait_on_reqs
+    #     p2p_func = _batched_p2p_ops
+    # else:
+    #     p2p_func = _p2p_ops
+
+    p2p_func = _forward_backward_p2p_ops
+
+    reqs = p2p_func(
+        tensor_recv_prev=tensor_recv_prev,
+        tensor_send_next=tensor_send_next,
+        group=get_forward_backward_parallel_group(),
+    )
+
+    # print('waiting of rank',dist.get_rank())
     if wait_on_reqs and len(reqs) > 0:
         for req in reqs:
             req.wait()
@@ -346,7 +525,10 @@ def _communicate(
         # User should assert that we have a modern enough PyTorch to not need this
         torch.cuda.synchronize()
 
+    # print('finish waiting of rank',dist.get_rank())
+
     return tensor_recv_prev, tensor_recv_next, reqs
+
 
 
 def recv_forward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Tensor:
@@ -384,6 +566,7 @@ def recv_backward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Ten
     else:
         if config.timers is not None:
             config.timers('backward-recv', log_level=2).start()
+        print('receiving backward grad')
         _, output_tensor_grad, _ = _communicate(
             tensor_send_next=None,
             tensor_send_prev=None,
@@ -392,10 +575,32 @@ def recv_backward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Ten
             tensor_shape=tensor_shape,
             config=config,
         )
+        print('rev suc')
         if config.timers is not None:
             config.timers('backward-recv').stop()
     return output_tensor_grad
 
+# def recv_backward_prev(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Tensor:
+#     """Receive tensor from prev rank in pipeline (backward receive).
+
+#     See _communicate for argument details.
+#     """
+#     if core.parallel_state.is_pipeline_backward_first_stage():
+#         output_tensor_grad = None
+#     else:
+#         if config.timers is not None:
+#             config.timers('backward-recv', log_level=2).start()
+#         _, output_tensor_grad, _ = _communicate(
+#             tensor_send_next=None,
+#             tensor_send_prev=None,
+#             recv_prev=True,
+#             recv_next=False,
+#             tensor_shape=tensor_shape,
+#             config=config,
+#         )
+#         if config.timers is not None:
+#             config.timers('backward-recv').stop()
+#     return output_tensor_grad
 
 def send_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> None:
     """Send tensor to next rank in pipeline (forward send).
@@ -417,6 +622,47 @@ def send_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> No
         if config.timers is not None:
             config.timers('forward-send').stop()
 
+def send_corresponding_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> None:
+    """Send tensor to next rank in pipeline (forward send).
+
+    See _communicate for argument details.
+    """
+    # if config.timers is not None:
+    #     config.timers('forward-send', log_level=2).start()
+    _forward_backward_communicate(
+        tensor_send_next=output_tensor,
+        tensor_send_prev=None,
+        recv_prev=False,
+        recv_next=False,
+        tensor_shape=None,
+        config=config,
+    )
+    # if config.timers is not None:
+    #     config.timers('forward-send').stop()
+        
+def recv_corresponding_forward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Tensor:
+    """ Receive tensor from previous rank in pipeline (forward receive).
+
+
+    See _communicate for argument details.
+    """
+
+    # if config.timers is not None:
+    #     config.timers('backward-recv', log_level=2).start()
+    output_tensor_grad, _, _ = _forward_backward_communicate(
+        tensor_send_next=None,
+        tensor_send_prev=None,
+        recv_prev=True,
+        recv_next=False,
+        tensor_shape=tensor_shape,
+        config=config,
+    )
+    # print('receive from',get_forward_backward_parallel_dual_rank(),'finished')
+    assert output_tensor_grad is not None
+    # if config.timers is not None:
+    #     config.timers('backward-recv').stop()
+    
+    return output_tensor_grad
 
 def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) -> None:
     """Send tensor to previous rank in pipeline (backward send).
@@ -426,6 +672,8 @@ def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) 
     if not core.parallel_state.is_pipeline_first_stage():
         if config.timers is not None:
             config.timers('backward-send', log_level=2).start()
+        print('sending backward grad')
+        assert input_tensor_grad is not None
         _communicate(
             tensor_send_next=None,
             tensor_send_prev=input_tensor_grad,
@@ -434,9 +682,28 @@ def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) 
             tensor_shape=None,
             config=config,
         )
+        print('sending suc')
         if config.timers is not None:
             config.timers('backward-send').stop()
 
+# def send_backward_next(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) -> None:
+#     """Send tensor to previous rank in pipeline (backward send).
+
+#     See _communicate for argument details.
+#     """
+#     if not core.parallel_state.is_pipeline_last_stage():
+#         if config.timers is not None:
+#             config.timers('backward-send', log_level=2).start()
+#         _communicate(
+#             tensor_send_next=input_tensor_grad,
+#             tensor_send_prev=None,
+#             recv_prev=False,
+#             recv_next=False,
+#             tensor_shape=None,
+#             config=config,
+#         )
+#         if config.timers is not None:
+#             config.timers('backward-send').stop()
 
 def send_forward_recv_backward(
     output_tensor: torch.Tensor, tensor_shape: Shape, config: ModelParallelConfig

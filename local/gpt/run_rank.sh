@@ -1,9 +1,11 @@
 #!/bin/bash
 
+SAVE_INTERVAL=2
+
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 GPUS_PER_NODE=4
-MASTER_ADDR=10.3.0.25
+MASTER_ADDR=10.3.0.26
 MASTER_PORT=32131
 NNODES=2
 NODE_RANK=$RANK
@@ -17,7 +19,7 @@ echo running on rank $NODE_RANK
 CHECKPOINT_PATH=/scratch/release_gpt_base
 rm -rf $CHECKPOINT_PATH
 mkdir -p $CHECKPOINT_PATH
-DATASET_PATH=/root/Pai-Megatron-Patch/local/datasets
+DATASET_PATH=/root/exp/Pai-Megatron-Patch/local/datasets
 VOCAB_FILE=$DATASET_PATH/vocab.json
 MERGE_FILE=$DATASET_PATH/merges.txt
 DATA_PATH=$DATASET_PATH/gpt-large-cased-vocab-small_text_document
@@ -63,12 +65,12 @@ DATA_ARGS="
 
 OUTPUT_ARGS="
     --log-interval 1 \
-    --save-interval 100 \
+    --save-interval ${SAVE_INTERVAL} \
     --eval-interval 200 \
     --eval-iters 10
 "
 
-cd /root/Pai-Megatron-Patch/Megatron-LM-231007
+cd /root/exp/Pai-Megatron-Patch/Megatron-LM-231007
 torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     $GPT_ARGS \
     $DATA_ARGS \
@@ -76,4 +78,4 @@ torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     --distributed-backend nccl \
     --save $CHECKPOINT_PATH \
     --load $CHECKPOINT_PATH \
-    | tee /gfshome/gpt-outputs/log$RANK.log
+    | tee /root/exp/Pai-Megatron-Patch/results_gpt/log${RANK}_${SAVE_INTERVAL}.log

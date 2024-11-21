@@ -9,6 +9,7 @@ import torch
 import inc.torch as dist
 
 from .utils import GlobalMemoryBuffer
+from megatron import get_args
 
 # Intra-layer model parallel group that the current rank belongs to.
 _TENSOR_MODEL_PARALLEL_GROUP = None
@@ -68,6 +69,13 @@ _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP = None
 # Memory buffers to avoid dynamic memory allocation
 _GLOBAL_MEMORY_BUFFER = None
 
+_FORWARD_BACKWARD_PARALLEL_GROUP = None
+_FORWARD_BACKWARD_PARALLEL_GLOO = None
+_FORWARD_BACKWARD_GLOBAL_RANKS = None
+
+_HALF_DATA_PARALLEL_GROUP = None
+_HALF_DATA_PARALLEL_GROUP_GLOO = None
+_HALF_DATA_PARALLEL_GLOBAL_RANKS = None
 
 def initialize_model_parallel(
     tensor_model_parallel_size: int = 1,
@@ -163,6 +171,7 @@ def initialize_model_parallel(
 
     """
     # Get world size and rank. Ensure some consistencies.
+    args = get_args()
     assert dist.is_initialized()
     world_size: int = dist.get_world_size()
 
@@ -208,6 +217,52 @@ def initialize_model_parallel(
     global _DATA_PARALLEL_GROUP_WITH_CP_GLOO
     global _DATA_PARALLEL_GLOBAL_RANKS_WITH_CP
     assert _DATA_PARALLEL_GROUP is None, 'data parallel group is already initialized'
+    global _FORWARD_BACKWARD_PARALLEL_GROUP
+    global _FORWARD_BACKWARD_PARALLEL_GLOO
+    global _FORWARD_BACKWARD_GLOBAL_RANKS
+    assert _FORWARD_BACKWARD_PARALLEL_GROUP is None, 'forward parallel group is already initialized'
+    global _HALF_DATA_PARALLEL_GROUP
+    global _HALF_DATA_PARALLEL_GROUP_GLOO
+    global _HALF_DATA_PARALLEL_GLOBAL_RANKS
+    if args.forward_backward_disaggregating:
+        # all_data_parallel_group_ranks_with_cp = []
+        for i in range(pipeline_model_parallel_size):
+            start_rank = i * num_pipeline_model_parallel_groups
+            end_rank = (i + 1) * num_pipeline_model_parallel_groups
+            for j in range(context_parallel_size * tensor_model_parallel_size * 2):
+                ranks = range(
+                    start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size * 2
+                )
+                group = dist.new_group(ranks)
+                group_gloo = dist.new_group(ranks, backend="gloo")
+                if rank in ranks:
+                    _HALF_DATA_PARALLEL_GROUP = group
+                    _HALF_DATA_PARALLEL_GROUP_GLOO = group_gloo
+                    _HALF_DATA_PARALLEL_GLOBAL_RANKS = ranks
+        #         ranks_with_cp = ranks
+        #         all_data_parallel_group_ranks_with_cp.append(list(ranks_with_cp))
+        #         group_with_cp = dist.new_group(ranks_with_cp)
+        #         group_with_cp_gloo = dist.new_group(ranks_with_cp, backend="gloo")
+        #         if rank in ranks_with_cp:
+        #             _DATA_PARALLEL_GROUP_WITH_CP = group_with_cp
+        #             _DATA_PARALLEL_GROUP_WITH_CP_GLOO = group_with_cp_gloo
+        #             _DATA_PARALLEL_GLOBAL_RANKS_WITH_CP = ranks_with_cp
+        for i in range(pipeline_model_parallel_size):
+            start_rank = i * num_pipeline_model_parallel_groups
+            end_rank = (i + 1) * num_pipeline_model_parallel_groups
+            for j in range(context_parallel_size * tensor_model_parallel_size):
+                rankraw = range(
+                    start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size
+                )
+                for k in range(0,len(rankraw),2):
+                    ranks = rankraw[k:k+2]
+                    group = dist.new_group(ranks)
+                    group_gloo = dist.new_group(ranks, backend="gloo")
+                    if rank in ranks:
+                        _FORWARD_BACKWARD_PARALLEL_GROUP = group
+                        _FORWARD_BACKWARD_PARALLEL_GLOO = group_gloo
+                        _FORWARD_BACKWARD_GLOBAL_RANKS = ranks
+    # else:
     all_data_parallel_group_ranks_with_cp = []
     for i in range(pipeline_model_parallel_size):
         start_rank = i * num_pipeline_model_parallel_groups
@@ -276,7 +331,7 @@ def initialize_model_parallel(
     # Build the model-parallel groups.
     global _MODEL_PARALLEL_GROUP
     assert _MODEL_PARALLEL_GROUP is None, 'model parallel group is already initialized'
-    for i in range(data_parallel_size * context_parallel_size):
+    for i in range(data_parallel_size * context_parallel_size // 2):
         ranks = [
             data_parallel_group_ranks_with_cp[i]
             for data_parallel_group_ranks_with_cp in all_data_parallel_group_ranks_with_cp
@@ -420,6 +475,12 @@ def get_pipeline_model_parallel_group():
     ), 'pipeline_model parallel group is not initialized'
     return _PIPELINE_MODEL_PARALLEL_GROUP
 
+def get_forward_backward_parallel_group(with_context_parallel=False):
+    """Get the pipeline model parallel group the caller rank belongs to."""
+    assert (
+        _FORWARD_BACKWARD_PARALLEL_GROUP is not None
+    ), 'pipeline_model parallel group is not initialized'
+    return _FORWARD_BACKWARD_PARALLEL_GROUP
 
 def get_data_parallel_group(with_context_parallel=False):
     """Get the data parallel group the caller rank belongs to."""
@@ -432,6 +493,9 @@ def get_data_parallel_group(with_context_parallel=False):
         assert _DATA_PARALLEL_GROUP is not None, 'data parallel group is not initialized'
         return _DATA_PARALLEL_GROUP
 
+def get_half_data_parallel_group(with_context_parallel=False):
+    assert _HALF_DATA_PARALLEL_GROUP is not None, 'data parallel group is not initialized'
+    return _HALF_DATA_PARALLEL_GROUP
 
 def get_data_parallel_group_gloo(with_context_parallel=False):
     """Get the data parallel group-gloo the caller rank belongs to."""
@@ -564,7 +628,6 @@ def get_pipeline_model_parallel_rank():
         return _MPU_PIPELINE_MODEL_PARALLEL_RANK
     return dist.get_rank(group=get_pipeline_model_parallel_group())
 
-
 def get_pipeline_model_parallel_split_rank():
     """Return pipeline model parallel split rank."""
     global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
@@ -594,6 +657,9 @@ def is_pipeline_last_stage(ignore_virtual=False):
             return False
     return get_pipeline_model_parallel_rank() == (get_pipeline_model_parallel_world_size() - 1)
 
+def is_pipeline_backward_first_stage():
+    """Return True if in the first pipeline backward model-parallel stage, False otherwise."""
+    return is_pipeline_last_stage()
 
 def is_rank_in_embedding_group(ignore_virtual=False):
     """Return true if current rank is in embedding group, False otherwise."""
@@ -717,7 +783,6 @@ def get_pipeline_model_parallel_next_rank():
     world_size = get_pipeline_model_parallel_world_size()
     return _PIPELINE_GLOBAL_RANKS[(rank_in_pipeline + 1) % world_size]
 
-
 def get_pipeline_model_parallel_prev_rank():
     """Return the global rank that preceeds the caller in the pipeline"""
     assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
@@ -745,6 +810,25 @@ def get_data_parallel_rank(with_context_parallel=False):
     else:
         return 0
 
+def get_forward_backward_parallel_rank(with_context_parallel=False):
+    """Return my rank for the data parallel group."""
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_rank(
+            group=get_forward_backward_parallel_group(with_context_parallel=with_context_parallel)
+        )
+    else:
+        return 0
+
+def get_forward_backward_parallel_dual_rank():
+    """Return the global rank that follows the caller in the pipeline"""
+    assert _FORWARD_BACKWARD_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
+    rank = get_forward_backward_parallel_rank()
+    return _FORWARD_BACKWARD_GLOBAL_RANKS[rank ^ 1]
+
+
+def is_forward_stage(ignore_virtual=False):
+    """Return True if in the first pipeline backward model-parallel stage, False otherwise."""
+    return get_forward_backward_parallel_rank() % 2 == 0
 
 def get_context_parallel_world_size():
     """Return world size for the context parallel group."""
