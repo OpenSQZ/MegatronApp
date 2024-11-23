@@ -1447,6 +1447,8 @@ def forward_or_backward_pipelining_without_interleaving(
             #         torch.cuda.synchronize()
             #     print('finish waiting of rank',dist.get_rank())
             input_tensor = recv_forward(recv_tensor_shapes, config)
+            if not parallel_state.is_pipeline_first_stage():
+                send_corresponding_forward(input_tensor, recv_tensor_shapes, config)
             # if dist.get_rank() == 6:
             #     print('waiting of rank',dist.get_rank(),'at',i)
             #     if config.batch_p2p_comm and config.batch_p2p_sync:
@@ -1494,8 +1496,6 @@ def forward_or_backward_pipelining_without_interleaving(
             #     print('finish waiting of rank',dist.get_rank())
 
             # send_corresponding_forward(output_tensor, send_tensor_shapes, config)
-            if not parallel_state.is_pipeline_first_stage():
-                send_corresponding_forward(input_tensor, recv_tensor_shapes, config)
     else:
         for i in range(num_microbatches):
             # print(rank,' backward: ',i)
