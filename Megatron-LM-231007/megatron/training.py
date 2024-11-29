@@ -18,6 +18,7 @@ from megatron import get_tensorboard_writer
 from megatron import get_current_global_batch_size
 from megatron import get_num_microbatches
 from megatron import is_last_rank
+from megatron import is_last_forward_rank
 from megatron import update_num_microbatches
 from megatron.core import mpu, tensor_parallel
 from megatron.core.utils import get_model_config
@@ -844,7 +845,7 @@ def evaluate(forward_step_func,
             args.consumed_valid_samples += eval_batch_size
 
         collected_non_loss_data = None
-        if process_non_loss_data_func is not None and is_last_rank():
+        if process_non_loss_data_func is not None and is_last_forward_rank():
             collected_non_loss_data = forward_backward_func(
                 forward_step_func=forward_step_func,
                 data_iterator=data_iterator,
@@ -897,7 +898,7 @@ def evaluate_and_print_results(prefix, forward_step_func,
                 writer.add_scalar('{} validation ppl vs samples'.format(key),
                                   ppl, args.consumed_train_samples)
 
-    if process_non_loss_data_func is not None and writer and is_last_rank():
+    if process_non_loss_data_func is not None and writer and is_last_forward_rank():
         process_non_loss_data_func(collected_non_loss_data, iteration, writer)
 
     length = len(string) + 1

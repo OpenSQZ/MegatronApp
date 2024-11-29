@@ -234,6 +234,15 @@ def is_last_rank():
     return dist.get_rank() == (
         dist.get_world_size() - 1)
 
+def is_last_forward_rank():
+    args = get_args()
+    if args.forward_backward_disaggregating:
+        return dist.get_rank() == (
+            dist.get_world_size() - dist.get_world_size() // get_data_parallel_world_size() )
+    else:
+        return dist.get_rank() == (
+            dist.get_world_size() - 1)
+
 def print_rank_last(message):
     """If distributed is initialized, print only on last rank."""
     if dist.is_initialized():

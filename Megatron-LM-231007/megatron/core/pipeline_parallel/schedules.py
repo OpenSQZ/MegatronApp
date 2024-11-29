@@ -1405,8 +1405,6 @@ def forward_or_backward_pipelining_without_interleaving(
     model_type = get_model_type(model)
 
     rank = parallel_state.get_pipeline_model_parallel_rank()
-    if parallel_state.is_forward_stage():
-        forward_only = True
     recv_tensor_shapes = get_tensor_shapes(
         rank=rank - 1,
         model_type=model_type,
@@ -1435,7 +1433,7 @@ def forward_or_backward_pipelining_without_interleaving(
     forward_data_store = []
 
     # Run warmup forward passes.
-    if forward_only:
+    if forward_only or parallel_state.is_forward_stage():
 
         # Run 1F1B in steady state.
         for i in range(num_microbatches):
@@ -1447,7 +1445,7 @@ def forward_or_backward_pipelining_without_interleaving(
             #         torch.cuda.synchronize()
             #     print('finish waiting of rank',dist.get_rank())
             input_tensor = recv_forward(recv_tensor_shapes, config)
-            if not parallel_state.is_pipeline_first_stage():
+            if not parallel_state.is_pipeline_first_stage() and not forward_only:
                 send_corresponding_forward(input_tensor, recv_tensor_shapes, config)
             # if dist.get_rank() == 6:
             #     print('waiting of rank',dist.get_rank(),'at',i)
@@ -1496,7 +1494,7 @@ def forward_or_backward_pipelining_without_interleaving(
             #     print('finish waiting of rank',dist.get_rank())
 
             # send_corresponding_forward(output_tensor, send_tensor_shapes, config)
-    else:
+    elif not forward_only:
         for i in range(num_microbatches):
             # print(rank,' backward: ',i)
             # Enable async grad reduction in the last backward pass
@@ -1579,6 +1577,7 @@ def forward_or_backward_pipelining_without_interleaving(
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for
         # data parallelism, layernorm all-reduce for sequence parallelism, and
         # embedding all-reduce for pipeline parallelism).
-    distrib_grad.finalize_model_grads([model])
+    if not forward_only:
+        distrib_grad.finalize_model_grads([model])
 
     return forward_data_store
