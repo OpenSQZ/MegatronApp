@@ -21,7 +21,7 @@ false   \
 100000  \
 /gfshome/llama2-datasets/wudao_llamabpe_text_document   \
 /gfshome/llama2-ckpts/Llama-2-7b-hf-to-megatron-tp1-pp4   \
-20480   \
+40960   \
 10000   \
 /mnt/output_megatron_llama2   \
-| tee /root/exp/Pai-Megatron-Patch/results_baseline/output$RANK.log
+| tee /root/exp/Pai-Megatron-Patch/results/output$RANK.log
