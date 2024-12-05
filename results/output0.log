@@ -1,4 +1,4 @@
-torchrun --nproc_per_node 4 --nnodes 2 --node_rank 0 --master_addr 10.3.0.26 --master_port 32364 pretrain_megatron_llama.py --save /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000 --train-data-path /gfshome/llama2-datasets/wudao_llamabpe_text_document --lr 1e-5 --min-lr 1e-6 --lr-decay-style linear --adam-beta1 0.9 --adam-beta2 0.95 --weight-decay 0.1 --clip-grad 1.0 --init-method-std 0.006 --lr-decay-iters 400 --lr-warmup-iters 9 --train-iters 400 --micro-batch-size 1 --global-batch-size 8 --num-layers 32 --hidden-size 4096 --num-attention-heads 32 --ffn-hidden-size 11008 --seq-length 128 --max-position-embeddings 4096 --max-padding-length 128 --log-interval 1 --eval-interval 10000 --eval-iters 10 --save-interval 100000 --tensorboard-queue-size 1 --tensorboard-dir /mnt/output_megatron_llama2/tensorboard/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000_2024.11.22-04.21.56 --log-timers-to-tensorboard --log-batch-size-to-tensorboard --log-validation-ppl-to-tensorboard --tensor-model-parallel-size 1 --pipeline-model-parallel-size 4 --no-load-optim --no-load-rng --num-workers 0 --seed 1234 --max-padding-length 128 --extra-vocab-size 0 --patch-tokenizer-type LLamaTokenizer --dataset LLama-Pretrain-Idxmap --swiglu --normalization RMSNorm --use-llama2-rotary-position-embeddings --position-embedding-type rope --untie-embeddings-and-output-weights --disable-bias-linear --forward-backward-disaggregating --bf16 --load /gfshome/llama2-ckpts/Llama-2-7b-hf-to-megatron-tp1-pp4 --recompute-activations --use-distributed-optimizer
+torchrun --nproc_per_node 4 --nnodes 2 --node_rank 0 --master_addr 10.3.0.26 --master_port 32364 pretrain_megatron_llama.py --save /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000 --train-data-path /gfshome/llama2-datasets/wudao_llamabpe_text_document --lr 1e-5 --min-lr 1e-6 --lr-decay-style linear --adam-beta1 0.9 --adam-beta2 0.95 --weight-decay 0.1 --clip-grad 1.0 --init-method-std 0.006 --lr-decay-iters 40 --lr-warmup-iters 9 --train-iters 40 --micro-batch-size 1 --global-batch-size 8 --num-layers 32 --hidden-size 4096 --num-attention-heads 32 --ffn-hidden-size 11008 --seq-length 128 --max-position-embeddings 4096 --max-padding-length 128 --log-interval 1 --eval-interval 10000 --eval-iters 10 --save-interval 100000 --tensorboard-queue-size 1 --tensorboard-dir /mnt/output_megatron_llama2/tensorboard/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000_2024.11.30-16.22.40 --log-timers-to-tensorboard --log-batch-size-to-tensorboard --log-validation-ppl-to-tensorboard --tensor-model-parallel-size 1 --pipeline-model-parallel-size 4 --no-load-optim --no-load-rng --num-workers 0 --seed 1234 --max-padding-length 128 --extra-vocab-size 0 --patch-tokenizer-type LLamaTokenizer --dataset LLama-Pretrain-Idxmap --swiglu --normalization RMSNorm --use-llama2-rotary-position-embeddings --position-embedding-type rope --untie-embeddings-and-output-weights --disable-bias-linear --forward-backward-disaggregating --bf16 --load /gfshome/llama2-ckpts/Llama-2-7b-hf-to-megatron-tp1-pp4 --recompute-activations --use-distributed-optimizer
 using world size: 8, data-parallel-size: 2, tensor-model-parallel size: 1, pipeline-model-parallel size: 4 
 WARNING: overriding default arguments for tokenizer_type:GPT2BPETokenizer                        with tokenizer_type:NullTokenizer
 accumulate and all-reduce gradients in fp32 for bfloat16 data type.
@@ -148,7 +148,7 @@ using torch.bfloat16 for parameters ...
   loss_scale ...................................... None
   loss_scale_window ............................... 1000
   lr .............................................. 1e-05
-  lr_decay_iters .................................. 400
+  lr_decay_iters .................................. 40
   lr_decay_samples ................................ None
   lr_decay_style .................................. linear
   lr_warmup_fraction .............................. None
@@ -262,7 +262,7 @@ using torch.bfloat16 for parameters ...
   rotary_seq_len_interpolation_factor ............. None
   router_type ..................................... topk
   sample_rate ..................................... 1.0
-  save ............................................ /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000
+  save ............................................ /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000
   save_interval ................................... 100000
   scatter_gather_tensors_in_pipeline .............. True
   seed ............................................ 1234
@@ -284,7 +284,7 @@ using torch.bfloat16 for parameters ...
   task_list ....................................... all
   temperature ..................................... 1.0
   tensor_model_parallel_size ...................... 1
-  tensorboard_dir ................................. /mnt/output_megatron_llama2/tensorboard/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000_2024.11.22-04.21.56
+  tensorboard_dir ................................. /mnt/output_megatron_llama2/tensorboard/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000_2024.11.30-16.22.40
   tensorboard_log_interval ........................ 1
   tensorboard_queue_size .......................... 1
   test_data_path .................................. None
@@ -301,7 +301,7 @@ using torch.bfloat16 for parameters ...
   top_p ........................................... 0.0
   train_data ...................................... None
   train_data_path ................................. ['/gfshome/llama2-datasets/wudao_llamabpe_text_document']
-  train_iters ..................................... 400
+  train_iters ..................................... 40
   train_mode ...................................... pretrain
   train_samples ................................... None
   transformer_impl ................................ local
@@ -353,79 +353,79 @@ setting number of micro-batches to constant 4
 make: Entering directory '/root/exp/Pai-Megatron-Patch/Megatron-LM-231007/megatron/data'
 make: Nothing to be done for 'default'.
 make: Leaving directory '/root/exp/Pai-Megatron-Patch/Megatron-LM-231007/megatron/data'
->>> done with dataset index builder. Compilation time: 0.139 seconds
+>>> done with dataset index builder. Compilation time: 0.142 seconds
 > compiling and loading fused kernels ...
->>> done with compiling and loading fused kernels. Compilation time: 0.862 seconds
-time to initialize megatron (seconds): 1.448
-[after megatron is initialized] datetime: 2024-11-22 04:22:11 
+>>> done with compiling and loading fused kernels. Compilation time: 0.623 seconds
+time to initialize megatron (seconds): 2.407
+[after megatron is initialized] datetime: 2024-11-30 16:22:59 
 Asynchronized saving did not enable.
 > building LLamaTokenizer tokenizer ...
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 1): 1619066880
  > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 1750138880
 > buckets for gradient all-reduce / reduce-scatter:
     params for bucket 1
-      module.language_model.encoder.layers.7.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.7.self_attention.query_key_value.weight
       module.language_model.encoder.layers.6.self_attention.dense.weight
+      module.language_model.encoder.layers.5.input_norm.weight
+      module.language_model.encoder.layers.3.mlp.dense_4h_to_h.weight
+      module.language_model.encoder.layers.2.self_attention.query_key_value.weight
+      module.language_model.encoder.layers.1.self_attention.dense.weight
+      module.language_model.encoder.layers.7.self_attention.dense.weight
       module.language_model.encoder.layers.6.input_norm.weight
+      module.language_model.encoder.layers.4.mlp.dense_4h_to_h.weight
+      module.language_model.encoder.layers.2.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.0.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.7.input_norm.weight
+      module.language_model.encoder.layers.5.mlp.dense_4h_to_h.weight
+      module.language_model.encoder.layers.3.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.2.post_attention_norm.weight
+      module.language_model.encoder.layers.0.post_attention_norm.weight
+      module.language_model.encoder.layers.6.mlp.dense_4h_to_h.weight
+      module.language_model.encoder.layers.4.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.3.post_attention_norm.weight
+      module.language_model.encoder.layers.1.mlp.dense_4h_to_h.weight
+      module.language_model.encoder.layers.0.self_attention.query_key_value.weight
+      module.language_model.embedding.word_embeddings.weight
+      module.language_model.encoder.layers.7.mlp.dense_4h_to_h.weight
       module.language_model.encoder.layers.5.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.4.post_attention_norm.weight
       module.language_model.encoder.layers.3.self_attention.query_key_value.weight
       module.language_model.encoder.layers.2.self_attention.dense.weight
       module.language_model.encoder.layers.1.self_attention.query_key_value.weight
-      module.language_model.encoder.layers.0.input_norm.weight
-      module.language_model.encoder.layers.7.post_attention_norm.weight
-      module.language_model.encoder.layers.7.input_norm.weight
+      module.language_model.encoder.layers.1.input_norm.weight
+      module.language_model.encoder.layers.6.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.5.post_attention_norm.weight
       module.language_model.encoder.layers.4.self_attention.query_key_value.weight
       module.language_model.encoder.layers.3.self_attention.dense.weight
-      module.language_model.encoder.layers.1.post_attention_norm.weight
-      module.language_model.encoder.layers.1.input_norm.weight
-      module.language_model.encoder.layers.7.self_attention.query_key_value.weight
+      module.language_model.encoder.layers.2.input_norm.weight
+      module.language_model.encoder.layers.1.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.7.mlp.dense_h_to_4h.weight
+      module.language_model.encoder.layers.6.post_attention_norm.weight
       module.language_model.encoder.layers.5.self_attention.query_key_value.weight
       module.language_model.encoder.layers.4.self_attention.dense.weight
       module.language_model.encoder.layers.3.input_norm.weight
-      module.language_model.encoder.layers.2.post_attention_norm.weight
+      module.language_model.encoder.layers.1.post_attention_norm.weight
       module.language_model.encoder.layers.0.mlp.dense_4h_to_h.weight
-      module.language_model.encoder.layers.7.self_attention.dense.weight
+      module.language_model.encoder.layers.0.self_attention.dense.weight
+      module.language_model.encoder.layers.7.post_attention_norm.weight
       module.language_model.encoder.layers.6.self_attention.query_key_value.weight
       module.language_model.encoder.layers.5.self_attention.dense.weight
-      module.language_model.encoder.layers.3.post_attention_norm.weight
-      module.language_model.encoder.layers.2.mlp.dense_4h_to_h.weight
-      module.language_model.encoder.layers.0.post_attention_norm.weight
-      module.language_model.encoder.layers.6.mlp.dense_4h_to_h.weight
-      module.language_model.encoder.layers.4.post_attention_norm.weight
-      module.language_model.encoder.layers.3.mlp.dense_4h_to_h.weight
-      module.language_model.encoder.layers.1.mlp.dense_h_to_4h.weight
-      module.language_model.encoder.layers.1.self_attention.dense.weight
-      module.language_model.encoder.layers.5.post_attention_norm.weight
-      module.language_model.encoder.layers.4.mlp.dense_4h_to_h.weight
-      module.language_model.encoder.layers.2.mlp.dense_h_to_4h.weight
-      module.language_model.encoder.layers.2.input_norm.weight
-      module.language_model.encoder.layers.0.mlp.dense_h_to_4h.weight
-      module.language_model.encoder.layers.7.mlp.dense_4h_to_h.weight
-      module.language_model.encoder.layers.6.post_attention_norm.weight
-      module.language_model.encoder.layers.5.mlp.dense_4h_to_h.weight
       module.language_model.encoder.layers.4.input_norm.weight
-      module.language_model.encoder.layers.3.mlp.dense_h_to_4h.weight
-      module.language_model.encoder.layers.0.self_attention.query_key_value.weight
-      module.language_model.encoder.layers.6.mlp.dense_h_to_4h.weight
-      module.language_model.encoder.layers.5.input_norm.weight
-      module.language_model.encoder.layers.4.mlp.dense_h_to_4h.weight
-      module.language_model.encoder.layers.2.self_attention.query_key_value.weight
-      module.language_model.encoder.layers.1.mlp.dense_4h_to_h.weight
-      module.language_model.encoder.layers.0.self_attention.dense.weight
-      module.language_model.embedding.word_embeddings.weight
+      module.language_model.encoder.layers.2.mlp.dense_4h_to_h.weight
+      module.language_model.encoder.layers.0.input_norm.weight
      total number of elements: 1750138880
- > number of parameters on (tensor, pipeline) model parallel rank (0, 1): 1619066880
 > learning rate decay style: linear
-Rank level:Rank level: 0  1
-0 0
 Rank level: 0 0
+Rank level: 0Rank level: 1 
+0 0
  loading release checkpoint from /gfshome/llama2-ckpts/Llama-2-7b-hf-to-megatron-tp1-pp4
 Rank level: 0 1
  checkpoint version 3.0
   successfully loaded checkpoint from /gfshome/llama2-ckpts/Llama-2-7b-hf-to-megatron-tp1-pp4 at iteration 0
-[after model, optimizer, and learning rate scheduler are built] datetime: 2024-11-22 04:22:21 
+[after model, optimizer, and learning rate scheduler are built] datetime: 2024-11-30 16:23:11 
 > building train, validation, and test datasets ...
  > datasets target sizes (minimum size):
-    train:      3200
+    train:      320
     validation: 80
     test:       80
  > building dataset index ...
@@ -434,40 +434,80 @@ Rank level: 0 1
     reading document indices...
     creating np buffer of mmap...
     creating memory view of np buffer...
- > finished creating indexed dataset in 0.007202 seconds
+ > finished creating indexed dataset in 0.005228 seconds
     number of documents: 10000
- > loading doc-idx mapping from /gfshome/llama2-datasets/index-cache/94827d0ae425d67fc60af55408d72ee1_doc_idx.npy
- > loading sample-idx mapping from /gfshome/llama2-datasets/index-cache/94827d0ae425d67fc60af55408d72ee1_sample_idx.npy
- > loading shuffle-idx mapping from /gfshome/llama2-datasets/index-cache/94827d0ae425d67fc60af55408d72ee1_shuffle_idx.npy
-    loaded indexed file in 0.007 seconds
+ > loading doc-idx mapping from /gfshome/llama2-datasets/index-cache/86bed28bc5b2363420900ccac33731de_doc_idx.npy
+ > loading sample-idx mapping from /gfshome/llama2-datasets/index-cache/86bed28bc5b2363420900ccac33731de_sample_idx.npy
+ > loading shuffle-idx mapping from /gfshome/llama2-datasets/index-cache/86bed28bc5b2363420900ccac33731de_shuffle_idx.npy
+    loaded indexed file in 0.010 seconds
     total number of samples: 145103
     total number of epochs: 1
  > loading doc-idx mapping from /gfshome/llama2-datasets/index-cache/742909af41580880d5d2ce05f581679e_doc_idx.npy
  > loading sample-idx mapping from /gfshome/llama2-datasets/index-cache/742909af41580880d5d2ce05f581679e_sample_idx.npy
  > loading shuffle-idx mapping from /gfshome/llama2-datasets/index-cache/742909af41580880d5d2ce05f581679e_shuffle_idx.npy
-    loaded indexed file in 1.023 seconds
+    loaded indexed file in 1.078 seconds
     total number of samples: 4237
     total number of epochs: 1
  > loading doc-idx mapping from /gfshome/llama2-datasets/index-cache/40a4093641cc2a2aa546ddaf21a17bd2_doc_idx.npy
  > loading sample-idx mapping from /gfshome/llama2-datasets/index-cache/40a4093641cc2a2aa546ddaf21a17bd2_sample_idx.npy
  > loading shuffle-idx mapping from /gfshome/llama2-datasets/index-cache/40a4093641cc2a2aa546ddaf21a17bd2_shuffle_idx.npy
-    loaded indexed file in 0.016 seconds
+    loaded indexed file in 0.013 seconds
     total number of samples: 337
     total number of epochs: 1
-[after dataloaders are built] datetime: 2024-11-22 04:22:24 
+[after dataloaders are built] datetime: 2024-11-30 16:23:14 
 done with setup ...
 training ...
-[before the start of training step] datetime: 2024-11-22 04:22:24 
-[Rank 2] (after 1 iterations) memory (MB) | allocated: 18554.880859375 | max allocated: 18554.88427734375 | reserved: 18928.0 | max reserved: 18928.0
-[Rank 0] (after 1 iterations) memory (MB) | allocated: 20053.880859375 | max allocated: 20053.88427734375 | reserved: 20554.0 | max reserved: 20554.0
-[after training is done] datetime: 2024-11-22 04:33:56 
-saving checkpoint at iteration     400 to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000
-Rank 2 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000/iter_0000400/mp_rank_00_001/distrib_optim.pt
-Rank 0 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000/iter_0000400/mp_rank_00_000/distrib_optim.pt
-Rank 2 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000/iter_0000400/mp_rank_00_001/nondistrib_optim.pt
-Rank 2 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000/iter_0000400/mp_rank_00_001/model_optim_rng.pt
-Rank 0 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000/iter_0000400/mp_rank_00_000/nondistrib_optim.pt
-Rank 0 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000/iter_0000400/mp_rank_00_000/model_optim_rng.pt
-  successfully saved checkpoint at iteration     400 to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-409600-wt-10000
+[before the start of training step] datetime: 2024-11-30 16:23:14 
+[Rank 2] (after 1 iterations) memory (MB) | allocated: 18554.880859375 | max allocated: 18554.88427734375 | reserved: 18928.0 | max reserved: 18928.0[Rank 0] (after 1 iterations) memory (MB) | allocated: 20053.880859375 | max allocated: 20053.88427734375 | reserved: 20554.0 | max reserved: 20554.0
+
+[after training is done] datetime: 2024-11-30 16:24:17 
+saving checkpoint at iteration      40 to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000
+Rank 0 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000/iter_0000040/mp_rank_00_000/distrib_optim.pt
+Rank 2 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000/iter_0000040/mp_rank_00_001/distrib_optim.pt
+Rank 0 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000/iter_0000040/mp_rank_00_000/nondistrib_optim.pt
+Rank 0 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000/iter_0000040/mp_rank_00_000/model_optim_rng.pt
+Rank 2 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000/iter_0000040/mp_rank_00_001/nondistrib_optim.pt
+Rank 2 will save checkpoint to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000/iter_0000040/mp_rank_00_001/model_optim_rng.pt
+  successfully saved checkpoint at iteration      40 to /mnt/output_megatron_llama2/checkpoint/dsw-pretrain-megatron-gpt3-7B-lr-1e-5-bs-1-seqlen-128-pr-bf16-tp-1-pp-4-ac-sel-do-true-sp-false-tt-40960-wt-10000
 Evaluating on 80 samples
 Evaluating iter 1/10
+Evaluating iter 2/10
+Evaluating iter 3/10
+Evaluating iter 4/10
+Evaluating iter 5/10
+Evaluating iter 6/10
+Evaluating iter 7/10
+Evaluating iter 8/10
+Evaluating iter 9/10
+Evaluating iter 10/10
+Evaluating on 80 samples
+Evaluating iter 1/10
+Evaluating iter 2/10
+Evaluating iter 3/10
+Evaluating iter 4/10
+Evaluating iter 5/10
+Evaluating iter 6/10
+Evaluating iter 7/10
+Evaluating iter 8/10
+Evaluating iter 9/10
+Evaluating iter 10/10
+P2P   : 251677440
+Reduce: 420033487888
+Gather: 10500833520
+Broadcast: 553064
+Consumed: 4888320
+P2P   : 251677440
+Reduce: 420033487888
+Gather: 10500833520
+Broadcast: 553064
+Consumed: 4888320
+P2P   : 671139840
+Reduce: 388576207888
+Gather: 9714401520
+Broadcast: 553064
+Consumed: 4888320
+P2P   : 671139840
+Reduce: 388576207888
+Gather: 9714401520
+Broadcast: 553064
+Consumed: 4888320

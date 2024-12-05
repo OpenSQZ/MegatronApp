@@ -225,6 +225,7 @@ def initialize_model_parallel(
     global _HALF_DATA_PARALLEL_GROUP_GLOO
     global _HALF_DATA_PARALLEL_GLOBAL_RANKS
     if args.forward_backward_disaggregating:
+        assert data_parallel_size % 2 == 0, 'data_parallel_size must be even'
         # all_data_parallel_group_ranks_with_cp = []
         for i in range(pipeline_model_parallel_size):
             start_rank = i * num_pipeline_model_parallel_groups
