@@ -192,7 +192,13 @@ def _initialize_distributed():
                 ), "expected local-rank to be the same as rank % device-count."
             else:
                 args.local_rank = device
+            if args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel:
+                num_pipeline_model_parallel_groups: int = args.world_size // args.pipeline_model_parallel_size
+                reminder: int = args.rank % num_pipeline_model_parallel_groups
+                if reminder // args.tensor_model_parallel_size % 2 == 0:
+                    device=device // args.tensor_model_parallel_size * args.tensor_model_parallel_size
             torch.cuda.set_device(device)
+            # print(args.rank,':',device)
         # Call the init process
         dist.init_process_group(
             backend=args.distributed_backend,

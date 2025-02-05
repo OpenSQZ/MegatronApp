@@ -101,7 +101,10 @@ def get_forward_backward_func():
         forward_backward_func = forward_backward_no_pipelining
     args = get_args()
     if args.forward_backward_disaggregating:
-        forward_backward_func = forward_or_backward_pipelining_without_interleaving
+        if args.ignore_forward_tensor_parallel:
+            forward_backward_func = Multimodel_forward_or_backward_pipelining_without_interleaving
+        else:
+            forward_backward_func = forward_or_backward_pipelining_without_interleaving
     return forward_backward_func
 
 
@@ -1328,6 +1331,34 @@ def forward_backward_pipelining_without_interleaving(
         # embedding all-reduce for pipeline parallelism).
         distrib_grad.finalize_model_grads([model])
 
+    return forward_data_store
+
+    
+def Multimodel_forward_or_backward_pipelining_without_interleaving(
+    *,
+    forward_step_func,
+    data_iterator: Union[Iterator, List[Iterator]],
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    num_microbatches: int,
+    seq_length: int,
+    micro_batch_size: int,
+    decoder_seq_length: int = None,
+    forward_only: bool = False,
+    collect_non_loss_data: bool = False,
+):
+    forward_data_store = []
+    for (tensor_rank, partition) in enumerate(model):
+        parallel_state.set_tensor_parallel_rank(tensor_rank)
+        forward_data_store.append(forward_or_backward_pipelining_without_interleaving(
+                                    forward_step_func,
+                                    data_iterator,
+                                    partition,
+                                    num_microbatches,
+                                    micro_batch_size,
+                                    decoder_seq_length
+                                    forward_only
+                                    collect_non_loss_data
+                                    ))
     return forward_data_store
 
 def forward_or_backward_pipelining_without_interleaving(

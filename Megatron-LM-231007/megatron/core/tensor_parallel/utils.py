@@ -3,7 +3,12 @@
 from typing import List, Sequence
 
 import torch
-import inc.torch as dist
+
+from .virtual_pipeline_model_parallel_size import if_use_thread_communication
+if if_use_thread_communication:
+    import virtual_pipeline_model_parallel_size as dist
+else:
+    import inc.torch as dist
 
 from megatron.core import parallel_state
 from megatron.core.utils import divide

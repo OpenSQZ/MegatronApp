@@ -11,8 +11,8 @@ dsw  \
 128  \
 0   \
 bf16  \
-1   \
-4  \
+2   \
+2  \
 sel  \
 true   \
 false  \
@@ -20,7 +20,7 @@ false   \
 false   \
 100000  \
 /gfshome/llama2-datasets/wudao_llamabpe_text_document   \
-/gfshome/llama2-ckpts/Llama-2-7b-hf-to-megatron-tp1-pp4   \
+/gfshome/llama2-ckpts/Llama-2-7b-hf-to-megatron-tp2-pp2   \
 40960   \
 10000   \
 /mnt/output_megatron_llama2   \
