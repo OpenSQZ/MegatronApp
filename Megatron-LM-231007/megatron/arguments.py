@@ -77,10 +77,10 @@ def validate_args(args, defaults={}):
     # Checks.
     model_parallel_size = args.pipeline_model_parallel_size * \
                           args.tensor_model_parallel_size
-    assert args.world_size % model_parallel_size == 0, 'world size ({}) is not'\
-        ' divisible by tensor parallel size ({}) times pipeline parallel ' \
-        'size ({})'.format(args.world_size, args.tensor_model_parallel_size,
-                           args.pipeline_model_parallel_size)
+    # assert args.world_size % model_parallel_size == 0, 'world size ({}) is not'\
+    #     ' divisible by tensor parallel size ({}) times pipeline parallel ' \
+    #     'size ({})'.format(args.world_size, args.tensor_model_parallel_size,
+    #                        args.pipeline_model_parallel_size)
     args.data_parallel_size = args.world_size // model_parallel_size
     if args.rank == 0:
         print('using world size: {}, data-parallel-size: {}, '
@@ -1064,7 +1064,8 @@ def _add_distributed_args(parser):
                        help='Use distributed optimizer.')
     group.add_argument('--forward-backward-disaggregating', action='store_true',
                         help='If ranks should be forward or backward only')
-
+    group.add_argument('--ignore-forward-tensor-parallel', action='store_true',
+                       help='If forward ranks need to do tensor parallel when forward-backward-disaggregating')
     return parser
 
 

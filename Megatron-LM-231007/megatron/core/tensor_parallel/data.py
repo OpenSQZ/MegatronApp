@@ -1,7 +1,12 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 import torch
-import inc.torch as dist
+
+from .virtual_pipeline_model_parallel_size import if_use_thread_communication
+if if_use_thread_communication:
+    import virtual_pipeline_model_parallel_size as dist
+else:
+    import inc.torch as dist
 
 from megatron.core.parallel_state import (
     get_tensor_model_parallel_group,

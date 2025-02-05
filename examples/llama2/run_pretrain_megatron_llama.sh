@@ -11,7 +11,7 @@ MASTER_ADDR=10.3.0.26
 MASTER_PORT=32364
 NNODES=2
 NODE_RANK=${RANK}
-GPUS_PER_NODE=4
+GPUS_PER_NODE=3
 
 elif [ $ENV = dlc ]; then
 
@@ -212,7 +212,8 @@ megatron_options="  \
         --position-embedding-type rope \
         --untie-embeddings-and-output-weights \
         --disable-bias-linear \
-        --forward-backward-disaggregating
+        --forward-backward-disaggregating \
+        --ignore-forward-tensor-parallel
         "
 
 run_cmd="torchrun $DISTRIBUTED_ARGS pretrain_megatron_llama.py

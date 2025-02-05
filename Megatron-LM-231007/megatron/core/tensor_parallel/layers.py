@@ -9,7 +9,6 @@ import warnings
 from typing import Callable, Optional
 
 import torch
-import inc.torch as dist
 import torch.nn.functional as F
 import torch.nn.init as init
 from torch.cuda.amp import custom_bwd, custom_fwd
@@ -33,6 +32,12 @@ from .mappings import (
 )
 from .random import get_cuda_rng_tracker, get_expert_parallel_rng_tracker_name
 from .utils import VocabUtility, divide, split_tensor_along_last_dim
+
+from .virtual_pipeline_model_parallel_size import if_use_thread_communication
+if if_use_thread_communication:
+    import virtual_pipeline_model_parallel_size as dist
+else:
+    import inc.torch as dist
 
 _grad_accum_fusion_available = True
 try:

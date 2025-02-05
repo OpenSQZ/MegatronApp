@@ -10,6 +10,7 @@ import time
 _TRAIN_START_TIME = time.time()
 import torch
 import inc.torch as dist
+import thread
 
 from megatron import get_args
 from megatron import get_signal_handler
@@ -42,7 +43,7 @@ from megatron.utils import calc_params_l2_norm
 from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.utils import report_memory
 from megatron.model.vision.knn_monitor import compute_feature_bank
-
+import megatron.core.tensor_parallel.virtual_tensor_parallel_communication as dist_thread
 
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
@@ -218,7 +219,27 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     args.model_type = model_type
 
     # Build model.
-    if mpu.get_pipeline_model_parallel_world_size() > 1 and \
+    if args.ignore_forward_tensor_parallel:
+        if mpu.is_forward_stage():
+            model = []
+            for i in range(mpu.get_tensor_model_parallel_world_size()):
+                mpu.set_tensor_model_parallel_rank(i)
+                pre_process = mpu.is_pipeline_first_stage()
+                post_process = mpu.is_pipeline_last_stage()
+                this_model = model_provider_func(
+                pre_process=pre_process,
+                post_process=post_process,
+                )
+            mpu.set_tensor_model_parallel_rank(0)
+            this_model.model_type = model_type
+            model.append(this_model)
+        else:
+            pre_process = mpu.is_pipeline_first_stage()
+            post_process = mpu.is_pipeline_last_stage()
+            model = model_provider_func(
+            pre_process=pre_process,
+            post_process=post_process)
+    elif mpu.get_pipeline_model_parallel_world_size() > 1 and \
        args.virtual_pipeline_model_parallel_size is not None:
         assert model_type != ModelType.encoder_and_decoder, \
             "Interleaved schedule not supported for model with both encoder and decoder"
@@ -653,6 +674,35 @@ def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler):
     timers('save-checkpoint').stop(barrier=True)
     timers.log(['save-checkpoint'])
 
+class VirtualTensorParallelThread (threading.Thread):
+    def __init__(self, forward_step_func, train_data_iterator, model, optimizer,
+                        opt_param_scheduler, config, virtual_tensor_parallel_rank):
+        threading.Thread.__init__(self)
+        self.forward_step_func = forward_step_func
+        self.train_data_iterator = train_data_iterator
+        self.model = model
+        self.optimizer = optimizer
+        self.opt_param_scheduler = opt_param_scheduler
+        self.config = config
+        self.virtual_tensor_parallel_rank = virtual_tensor_parallel_rank
+        self.loss_dict = None
+        self.skipped_iter = None
+        self.grad_norm = None
+        self.num_zeros_in_grad = None
+        self.rank = virtual_tensor_parallel_rank
+
+    def run(self):
+        dist_thread.thread_mappings[threading.get_ident()]=self.rank
+        self.loss_dict, self.skipped_iter, self.grad_norm, self.num_zeros_in_grad = \
+            train_step(self.forward_step_func,
+                        self.train_data_iterator,
+                        self.model,
+                        self.optimizer,
+                        self.opt_param_scheduler,
+                        self.config)
+
+    def get_results(self):
+        return self.loss_dict, self.skipped_iter, self.grad_norm, self.num_zeros_in_grad
 
 def train(forward_step_func, model, optimizer, opt_param_scheduler,
           train_data_iterator, valid_data_iterator,
@@ -699,13 +749,31 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
         update_num_microbatches(args.consumed_train_samples)
         args.curr_iteration = iteration
-        loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
-            train_step(forward_step_func,
-                       train_data_iterator,
-                       model,
-                       optimizer,
-                       opt_param_scheduler,
-                       config)
+        if args.ignore_forward_tensor_parallel and mpu.is_forward_stage():
+            loss_dict_list, skipped_iter_list, grad_norm_list, num_zeros_in_grad_list = []
+            thread_list = []
+            for (tensor_rank, partition) in enumerate(model):
+                thread_list.append(VirtualTensorParallelThread(forward_step_func,
+                                                                train_data_iterator,
+                                                                partition,
+                                                                optimizer,
+                                                                opt_param_scheduler,
+                                                                config,
+                                                                tensor_rank)))
+            for i in range(len(thread_list)):
+                loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = thread_list.get_results()
+                loss_dict_list.append(loss_dict)
+                skipped_iter_list.append(skipped_iter)
+                grad_norm_list.append(grad_norm)
+                num_zeros_in_grad_list.append(num_zeros_in_grad)
+        else:
+            loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
+                train_step(forward_step_func,
+                        train_data_iterator,
+                        model,
+                        optimizer,
+                        opt_param_scheduler,
+                        config)
         iteration += 1
         args.consumed_train_samples += mpu.get_data_parallel_world_size() * \
                                        args.micro_batch_size * \

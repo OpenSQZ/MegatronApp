@@ -95,7 +95,6 @@ def pretrain(train_valid_test_dataset_provider,
 
     # Set pytorch JIT layer fusion options and warmup JIT functions.
     set_jit_fusion_options()
-
     # Adjust the startup time so it reflects the largest value.
     # This will be closer to what scheduler will see (outside of
     # image ... launches.
