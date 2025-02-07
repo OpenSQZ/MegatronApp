@@ -212,6 +212,20 @@ def update_train_iters(args):
 
     print_rank_0('setting training iterations to {}'.format(args.train_iters))
 
+class GetModelThread (threading.Thread):
+    def __init__(self, pre_process, post_process, virtual_tensor_parallel_rank):
+        threading.Thread.__init__(self)
+        self.pre_process = pre_process
+        self.post_process = post_process
+        self.model = None
+        self.rank = virtual_tensor_parallel_rank
+
+    def run(self):
+        dist_thread.thread_mappings[threading.get_ident()]=self.rank
+        self.model = model_provider_func(pre_process=pre_process, post_process=post_process)
+
+    def get_results(self):
+        return self.model
 
 def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap_with_ddp=True):
     """Build the model."""
@@ -222,17 +236,23 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     if args.ignore_forward_tensor_parallel:
         if mpu.is_forward_stage():
             model = []
+            thread_list = []
             for i in range(mpu.get_tensor_model_parallel_world_size()):
-                mpu.set_tensor_model_parallel_rank(i)
                 pre_process = mpu.is_pipeline_first_stage()
                 post_process = mpu.is_pipeline_last_stage()
-                this_model = model_provider_func(
-                pre_process=pre_process,
-                post_process=post_process,
-                )
-            mpu.set_tensor_model_parallel_rank(0)
-            this_model.model_type = model_type
-            model.append(this_model)
+                thread_list.append(GetModelThread(
+                    pre_process=pre_process,
+                    post_process=post_process,
+                    virtual_tensor_parallel_rank=i
+                    ))
+            for i in range(len(thread_list)):
+                thread[i].start()
+            for i in range(len(thread_list)):
+                thread[i].join()
+            for i in range(len(thread_list)):
+                this_model = thread_list[i].get_results()
+                this_model.model_type = model_type
+                model.append(this_model)
         else:
             pre_process = mpu.is_pipeline_first_stage()
             post_process = mpu.is_pipeline_last_stage()
@@ -761,7 +781,11 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                                                 config,
                                                                 tensor_rank)))
             for i in range(len(thread_list)):
-                loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = thread_list.get_results()
+                thread[i].start()
+            for i in range(len(thread_list)):
+                thread[i].join()
+            for i in range(len(thread_list)):
+                loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = thread_list[i].get_results()
                 loss_dict_list.append(loss_dict)
                 skipped_iter_list.append(skipped_iter)
                 grad_norm_list.append(grad_norm)
