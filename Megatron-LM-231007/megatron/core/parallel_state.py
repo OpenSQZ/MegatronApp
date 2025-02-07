@@ -10,6 +10,7 @@ import inc.torch as dist
 
 from .utils import GlobalMemoryBuffer
 from megatron import get_args
+from megatron.core.tensor_parallel.virtual_tensor_parallel_communication import get_thread_index
 
 # Intra-layer model parallel group that the current rank belongs to.
 _TENSOR_MODEL_PARALLEL_GROUP = None
@@ -679,10 +680,7 @@ def get_tensor_model_parallel_rank():
     if _MPU_TENSOR_MODEL_PARALLEL_RANK is not None:
         return _MPU_TENSOR_MODEL_PARALLEL_RANK
     if args.ignore_forward_tensor_parallel and is_forward_stage():
-        if _TEMPORARY_TENSOR_MODEL_PARALLEL_RANK is None:
-            return 0
-        else:
-            return _TEMPORARY_TENSOR_MODEL_PARALLEL_RANK
+        return get_thread_index()
     else:
         return dist.get_rank(group=get_tensor_model_parallel_group())
 

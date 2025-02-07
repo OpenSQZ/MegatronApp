@@ -2,9 +2,9 @@
 
 import torch
 
-from .virtual_pipeline_model_parallel_size import if_use_thread_communication
+from .virtual_tensor_parallel_communication import if_use_thread_communication
 if if_use_thread_communication:
-    import virtual_pipeline_model_parallel_size as dist
+    import virtual_tensor_parallel_communication as dist
 else:
     import inc.torch as dist
 
