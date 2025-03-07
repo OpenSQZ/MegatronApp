@@ -33,9 +33,9 @@ from .mappings import (
 from .random import get_cuda_rng_tracker, get_expert_parallel_rng_tracker_name
 from .utils import VocabUtility, divide, split_tensor_along_last_dim
 
-from .virtual_pipeline_model_parallel_size import if_use_thread_communication
+from megatron.virtual_tensor_parallel_communication import if_use_thread_communication
 if if_use_thread_communication:
-    import virtual_pipeline_model_parallel_size as dist
+    import megatron.virtual_tensor_parallel_communication as dist
 else:
     import inc.torch as dist
 
@@ -330,7 +330,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
 
             all_gather_buffer = get_global_memory_buffer().get_tensor(dim_size, input.dtype, "mpu")
             dist._all_gather_base(
-                all_gather_buffer, input, group=get_tensor_model_parallel_group()
+                all_gather_buffer, input, group=get_tensor_model_parallel_group(), use_inter_thread_comm = True,
             )
             total_input = all_gather_buffer
         else:
@@ -354,7 +354,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
 
             all_gather_buffer = get_global_memory_buffer().get_tensor(dim_size, input.dtype, "mpu")
             handle = dist._all_gather_base(
-                all_gather_buffer, input, group=get_tensor_model_parallel_group(), async_op=True
+                all_gather_buffer, input, group=get_tensor_model_parallel_group(), async_op=True, use_inter_thread_comm = True,
             )
 
             # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
@@ -383,7 +383,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         if ctx.async_grad_allreduce:
             # Asynchronous all-reduce
             handle = dist.all_reduce(
-                grad_input, group=get_tensor_model_parallel_group(), async_op=True
+                grad_input, group=get_tensor_model_parallel_group(), async_op=True, use_inter_thread_comm = True,
             )
             # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
             # all-reduce is scheduled before the weight gradient computation

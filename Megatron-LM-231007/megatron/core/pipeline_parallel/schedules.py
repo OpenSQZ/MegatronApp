@@ -1355,8 +1355,8 @@ def Multimodel_forward_or_backward_pipelining_without_interleaving(
                                     partition,
                                     num_microbatches,
                                     micro_batch_size,
-                                    decoder_seq_length
-                                    forward_only
+                                    decoder_seq_length,
+                                    forward_only,
                                     collect_non_loss_data
                                     ))
     return forward_data_store

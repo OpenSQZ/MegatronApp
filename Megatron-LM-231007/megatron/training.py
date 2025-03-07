@@ -10,7 +10,7 @@ import time
 _TRAIN_START_TIME = time.time()
 import torch
 import inc.torch as dist
-import thread
+import threading
 
 from megatron import get_args
 from megatron import get_signal_handler
@@ -779,7 +779,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                                                 optimizer,
                                                                 opt_param_scheduler,
                                                                 config,
-                                                                tensor_rank)))
+                                                                tensor_rank))
             for i in range(len(thread_list)):
                 thread[i].start()
             for i in range(len(thread_list)):
