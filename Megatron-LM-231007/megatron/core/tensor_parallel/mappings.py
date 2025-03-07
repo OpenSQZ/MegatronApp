@@ -2,9 +2,9 @@
 
 import torch
 
-from .virtual_pipeline_model_parallel_size import if_use_thread_communication
+from megatron.virtual_tensor_parallel_communication import if_use_thread_communication
 if if_use_thread_communication:
-    import virtual_pipeline_model_parallel_size as dist
+    import megatron.virtual_tensor_parallel_communication as dist
 else:
     import inc.torch as dist
 
@@ -150,7 +150,7 @@ def _gather_along_first_dim_moe(input_, expert_parallel):
     dim_size[0] = dim_size[0] * world_size
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    dist._all_gather_base(output, input_.contiguous(), group=group)
+    dist._all_gather_base(output, input_.contiguous(), group=group, use_inter_thread_comm = True,)
 
     return output
 

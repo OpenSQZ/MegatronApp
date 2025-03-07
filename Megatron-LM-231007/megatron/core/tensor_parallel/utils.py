@@ -4,9 +4,9 @@ from typing import List, Sequence
 
 import torch
 
-from .virtual_pipeline_model_parallel_size import if_use_thread_communication
+from megatron.virtual_tensor_parallel_communication import if_use_thread_communication
 if if_use_thread_communication:
-    import virtual_pipeline_model_parallel_size as dist
+    import megatron.virtual_tensor_parallel_communication as dist
 else:
     import inc.torch as dist
 
@@ -89,7 +89,7 @@ def gather_split_1d_tensor(tensor):
     # This API calls directly NCCL all-gather versus the former does
     # internal copies and can potentially cause slow down.
     dist._all_gather_base(
-        gathered, tensor, group=parallel_state.get_tensor_model_parallel_group()
+        gathered, tensor, group=parallel_state.get_tensor_model_parallel_group(), use_inter_thread_comm = True,
     )
     return gathered
 

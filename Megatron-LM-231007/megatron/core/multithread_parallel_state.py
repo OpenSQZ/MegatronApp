@@ -11,492 +11,7 @@ import inc.torch as dist
 from .utils import GlobalMemoryBuffer
 from megatron import get_args
 from megatron.virtual_tensor_parallel_communication import get_thread_index
-
-# Intra-layer model parallel group that the current rank belongs to.
-_TENSOR_MODEL_PARALLEL_GROUP = None
-# Inter-layer model parallel group that the current rank belongs to.
-_PIPELINE_MODEL_PARALLEL_GROUP = None
-# Model parallel group (both intra- and pipeline) that the current rank belongs to.
-_MODEL_PARALLEL_GROUP = None
-# Embedding group.
-_EMBEDDING_GROUP = None
-# Position embedding group.
-_POSITION_EMBEDDING_GROUP = None
-# Data parallel group that the current rank belongs to.
-_DATA_PARALLEL_GROUP = None
-_DATA_PARALLEL_GROUP_GLOO = None
-# tensor model parallel group and data parallel group combined
-# used for fp8 and moe training
-_TENSOR_AND_DATA_PARALLEL_GROUP = None
-
-_VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = None
-_VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
-_PIPELINE_MODEL_PARALLEL_SPLIT_RANK = None
-
-# These values enable us to change the mpu sizes on the fly.
-_MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE = None
-_MPU_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
-_MPU_TENSOR_MODEL_PARALLEL_RANK = None
-_MPU_PIPELINE_MODEL_PARALLEL_RANK = None
-
-# A list of ranks that have a copy of the embedding.
-_EMBEDDING_GLOBAL_RANKS = None
-
-# A list of ranks that have a copy of the position embedding.
-_POSITION_EMBEDDING_GLOBAL_RANKS = None
-
-# A list of global ranks for each pipeline group to ease calculation of the source
-# rank when broadcasting from the first or last pipeline stage.
-_PIPELINE_GLOBAL_RANKS = None
-
-# A list of global ranks for each data parallel group to ease calculation of the source
-# rank when broadcasting weights from src to all other data parallel ranks
-_DATA_PARALLEL_GLOBAL_RANKS = None
-
-# Context parallel group that the current rank belongs to
-_CONTEXT_PARALLEL_GROUP = None
-# A list of global ranks for each context parallel group to ease calculation of the
-# destination rank when exchanging KV/dKV between context parallel_ranks
-_CONTEXT_PARALLEL_GLOBAL_RANKS = None
-
-# Data parallel group information with context parallel combined.
-_DATA_PARALLEL_GROUP_WITH_CP = None
-_DATA_PARALLEL_GROUP_WITH_CP_GLOO = None
-_DATA_PARALLEL_GLOBAL_RANKS_WITH_CP = None
-
-# combined parallel group of TP, DP, and CP used for fp8
-_TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP = None
-
-# Memory buffers to avoid dynamic memory allocation
-_GLOBAL_MEMORY_BUFFER = None
-
-_FORWARD_BACKWARD_PARALLEL_GROUP = None
-_FORWARD_BACKWARD_PARALLEL_GROUPS = None
-_FORWARD_BACKWARD_PARALLEL_GLOO = None
-_FORWARD_BACKWARD_GLOBAL_RANKS = None
-
-_HALF_DATA_PARALLEL_GROUP = None
-_HALF_DATA_PARALLEL_GROUP_GLOO = None
-_HALF_DATA_PARALLEL_GLOBAL_RANKS = None
-
-_TEMPORARY_TENSOR_MODEL_PARALLEL_RANK = None
-
-DELETED_RANKS = []
-
-def get_real_ranks(ranks):
-    new_ranks = []
-    for i in ranks:
-        s = 0
-        for j in range(0,i+1):
-            if DELETED_RANKS[j] != -1:
-                s += 1
-        new_ranks.append(s-1)
-    return new_ranks
-
-def initialize_model_parallel(
-    tensor_model_parallel_size: int = 1,
-    pipeline_model_parallel_size: int = 1,
-    virtual_pipeline_model_parallel_size: Optional[int] = None,
-    pipeline_model_parallel_split_rank: Optional[int] = None,
-    use_sharp: bool = False,
-    context_parallel_size: int = 1,
-    rank: int = -1,
-) -> None:
-    """Initialize model data parallel groups.
-
-    Arguments:
-        tensor_model_parallel_size (int, default = 1):
-            The number of GPUs to split individual tensors across.
-
-        pipeline_model_parallel_size (int, default = 1):
-            The number of tensor parallel GPU groups to split the
-            Transformer layers across. For example, if
-            tensor_model_parallel_size is 4 and
-            pipeline_model_parallel_size is 2, the model will be split
-            into 2 groups of 4 GPUs.
-
-        virtual_pipeline_model_parallel_size (int, optional):
-            The number of stages that each pipeline group will have,
-            interleaving as necessary. If None, no interleaving is
-            performed. For example, if tensor_model_parallel_size is 1,
-            pipeline_model_parallel_size is 4,
-            virtual_pipeline_model_parallel_size is 2, and there are
-            16 transformer layers in the model, the model will be
-            split into 8 stages with two layers each and each GPU
-            would get 2 stages as such (layer number starting with 1):
-
-            GPU 0: [1, 2] [9, 10]
-            GPU 1: [3, 4] [11, 12]
-            GPU 2: [5, 6] [13, 14]
-            GPU 3: [7, 8] [15, 16]
-
-        pipeline_model_parallel_split_rank (int, optional):
-            For models with both an encoder and decoder, the rank in
-            pipeline to switch between encoder and decoder (i.e. the
-            first rank of the decoder). This allows the user to set
-            the pipeline parallel size of the encoder and decoder
-            independently. For example, if
-            pipeline_model_parallel_size is 8 and
-            pipeline_model_parallel_split_rank is 3, then ranks 0-2
-            will be the encoder and ranks 3-7 will be the decoder.
-
-        use_sharp (bool, default = False):
-            Set the use of SHARP for the collective communications of
-            data-parallel process groups. When `True`, run barrier
-            within each data-parallel process group, which specifies
-            the SHARP application target groups.
-
-        context_parallel_size (int, default = 1):
-            The number of tensor parallel GPU groups to split the
-            network input sequence length across. Compute of attention
-            module requires tokens of full sequence length, so GPUs
-            in a context parallel group need to communicate with each
-            other to exchange information of other sequence chunks.
-            Each GPU and its counterparts in other tensor parallel
-            groups compose a context parallel group.
-
-            For example, assume we have 8 GPUs, if tensor model parallel
-            size is 4 and context parallel size is 2, the network input
-            will be split into two sequence chunks, which are processed
-            by 2 different groups of 4 GPUs. One chunk is processed by
-            GPU0-3, the other chunk is processed by GPU4-7. Four groups
-            are build to do context parallel communications: [GPU0, GPU4],
-            [GPU1, GPU5], [GPU2, GPU6], and [GPU3, GPU7].
-
-            Context parallelism partitions sequence length, so it has no
-            impact on weights, which means weights are duplicated among
-            GPUs in a context parallel group. Hence, weight gradients
-            all-reduce is required in backward. For simplicity, we piggyback
-            GPUs of context parallelism on data parallel group for
-            weight gradient all-reduce.
-
-    Let's say we have a total of 16 GPUs denoted by g0 ... g15 and we
-    use 2 GPUs to parallelize the model tensor, and 4 GPUs to parallelize
-    the model pipeline. The present function will
-    create 8 tensor model-parallel groups, 4 pipeline model-parallel groups
-    and 8 data-parallel groups as:
-        8 data_parallel groups:
-            [g0, g2], [g1, g3], [g4, g6], [g5, g7], [g8, g10], [g9, g11], [g12, g14], [g13, g15]
-        8 tensor model-parallel groups:
-            [g0, g1], [g2, g3], [g4, g5], [g6, g7], [g8, g9], [g10, g11], [g12, g13], [g14, g15]
-        4 pipeline model-parallel groups:
-            [g0, g4, g8, g12], [g1, g5, g9, g13], [g2, g6, g10, g14], [g3, g7, g11, g15]
-    Note that for efficiency, the caller should make sure adjacent ranks
-    are on the same DGX box. For example if we are using 2 DGX-1 boxes
-    with a total of 16 GPUs, rank 0 to 7 belong to the first box and
-    ranks 8 to 15 belong to the second box.
-
-    """
-    # Get world size and rank. Ensure some consistencies.
-    args = get_args()
-    assert dist.is_initialized()
-    world_size: int = dist.get_world_size()
-
-    if args.ignore_forward_tensor_parallel:
-        world_size = 8 # ?
-
-    if (
-        world_size
-        % (tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size)
-        != 0
-    ):
-        raise RuntimeError(
-            f"world_size ({world_size}) is not divisible by tensor_model_parallel_size "
-            f"({tensor_model_parallel_size}) x pipeline_model_parallel_size ({pipeline_model_parallel_size}) "
-            f"x context_parallel_size ({context_parallel_size})"
-        )
-
-    data_parallel_size: int = world_size // (
-        tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size
-    )
-
-    num_tensor_model_parallel_groups: int = world_size // tensor_model_parallel_size
-    num_pipeline_model_parallel_groups: int = world_size // pipeline_model_parallel_size
-
-    if virtual_pipeline_model_parallel_size is not None:
-        if not pipeline_model_parallel_size > 2:
-            raise RuntimeError(
-                "pipeline-model-parallel size should be greater than 2 with interleaved schedule"
-            )
-        global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
-        global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
-        _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = 0
-        _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = virtual_pipeline_model_parallel_size
-
-    if pipeline_model_parallel_split_rank is not None:
-        global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
-        _PIPELINE_MODEL_PARALLEL_SPLIT_RANK = pipeline_model_parallel_split_rank
-
-    if rank == -1:
-        rank = dist.get_rank()
-
-    # Build the data-parallel groups.
-    global _DATA_PARALLEL_GROUP
-    global _DATA_PARALLEL_GROUP_GLOO
-    global _DATA_PARALLEL_GLOBAL_RANKS
-    global _DATA_PARALLEL_GROUP_WITH_CP
-    global _DATA_PARALLEL_GROUP_WITH_CP_GLOO
-    global _DATA_PARALLEL_GLOBAL_RANKS_WITH_CP
-    assert _DATA_PARALLEL_GROUP is None, 'data parallel group is already initialized'
-    global _FORWARD_BACKWARD_PARALLEL_GROUP
-    global _FORWARD_BACKWARD_PARALLEL_GLOO
-    global _FORWARD_BACKWARD_GLOBAL_RANKS
-    assert _FORWARD_BACKWARD_PARALLEL_GROUP is None, 'forward parallel group is already initialized'
-    global _HALF_DATA_PARALLEL_GROUP
-    global _HALF_DATA_PARALLEL_GROUP_GLOO
-    global _HALF_DATA_PARALLEL_GLOBAL_RANKS
-
-    for i in range(world_size):
-        DELETED_RANKS.append(-1)
-
-    if args.ignore_forward_tensor_parallel:
-        for i in range(pipeline_model_parallel_size):
-            start_rank = i * num_pipeline_model_parallel_groups
-            end_rank = (i + 1) * num_pipeline_model_parallel_groups
-            for j in range(1, context_parallel_size * tensor_model_parallel_size):
-                ranks = range(
-                    start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size * 2
-                )
-                for (id, k) in enumerate(ranks):
-                    DELETED_RANKS[k] = id
-
-    if args.forward_backward_disaggregating:
-        assert data_parallel_size % 2 == 0, 'data_parallel_size must be even'
-        # all_data_parallel_group_ranks_with_cp = []
-        for i in range(pipeline_model_parallel_size):
-            start_rank = i * num_pipeline_model_parallel_groups
-            end_rank = (i + 1) * num_pipeline_model_parallel_groups
-            for j in range(context_parallel_size * tensor_model_parallel_size * 2):
-                ranks = range(
-                    start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size * 2
-                )
-                ranks = get_real_ranks(ranks)
-                if len(ranks) > 0:
-                    group = dist.new_group(ranks)
-                    group_gloo = dist.new_group(ranks, backend="gloo")
-                    if rank in ranks:
-                        _HALF_DATA_PARALLEL_GROUP = group
-                        _HALF_DATA_PARALLEL_GROUP_GLOO = group_gloo
-                        _HALF_DATA_PARALLEL_GLOBAL_RANKS = ranks
-        #         ranks_with_cp = ranks
-        #         all_data_parallel_group_ranks_with_cp.append(list(ranks_with_cp))
-        #         group_with_cp = dist.new_group(ranks_with_cp)
-        #         group_with_cp_gloo = dist.new_group(ranks_with_cp, backend="gloo")
-        #         if rank in ranks_with_cp:
-        #             _DATA_PARALLEL_GROUP_WITH_CP = group_with_cp
-        #             _DATA_PARALLEL_GROUP_WITH_CP_GLOO = group_with_cp_gloo
-        #             _DATA_PARALLEL_GLOBAL_RANKS_WITH_CP = ranks_with_cp
-        _FORWARD_BACKWARD_PARALLEL_GROUPS = [None for i in range(0,tensor_model_parallel_size)]
-        for i in range(pipeline_model_parallel_size):
-            start_rank = i * num_pipeline_model_parallel_groups
-            end_rank = (i + 1) * num_pipeline_model_parallel_groups
-            for j in range(context_parallel_size * tensor_model_parallel_size):
-                rankraw = range(
-                    start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size
-                )
-                for k in range(0,len(rankraw),2):
-                    ranks = rankraw[k:k+2]
-                    ranks = get_real_ranks(ranks)
-                    if len(ranks) > 0:
-                        group = dist.new_group(ranks)
-                        group_gloo = dist.new_group(ranks, backend="gloo")
-                        if rank in ranks:
-                            if DELETED_RANKS[rank] == 0:
-                                _FORWARD_BACKWARD_PARALLEL_GROUPS[DELETED_RANKS[rank]] = group
-                            else:
-                                _FORWARD_BACKWARD_PARALLEL_GROUP = group
-                            _FORWARD_BACKWARD_PARALLEL_GLOO = group_gloo
-                            _FORWARD_BACKWARD_GLOBAL_RANKS = ranks
-    # else:
-    all_data_parallel_group_ranks_with_cp = []
-    for i in range(pipeline_model_parallel_size):
-        start_rank = i * num_pipeline_model_parallel_groups
-        end_rank = (i + 1) * num_pipeline_model_parallel_groups
-        for j in range(context_parallel_size * tensor_model_parallel_size):
-            ranks = range(
-                start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size
-            )
-            ranks = get_real_ranks(ranks)
-            if len(ranks) > 0:
-                group = dist.new_group(ranks)
-                group_gloo = dist.new_group(ranks, backend="gloo")
-                if rank in ranks:
-                    _DATA_PARALLEL_GROUP = group
-                    _DATA_PARALLEL_GROUP_GLOO = group_gloo
-                    _DATA_PARALLEL_GLOBAL_RANKS = ranks
-        for j in range(tensor_model_parallel_size):
-            ranks_with_cp = range(start_rank + j, end_rank, tensor_model_parallel_size)
-            ranks_with_cp = get_real_ranks(ranks_with_cp)
-            if len(ranks_with_cp) > 0:
-                all_data_parallel_group_ranks_with_cp.append(list(ranks_with_cp))
-                group_with_cp = dist.new_group(ranks_with_cp)
-                group_with_cp_gloo = dist.new_group(ranks_with_cp, backend="gloo")
-                if rank in ranks_with_cp:
-                    _DATA_PARALLEL_GROUP_WITH_CP = group_with_cp
-                    _DATA_PARALLEL_GROUP_WITH_CP_GLOO = group_with_cp_gloo
-                    _DATA_PARALLEL_GLOBAL_RANKS_WITH_CP = ranks_with_cp
-
-    # Apply SHARP to DP process groups
-    if use_sharp:
-        if rank == 0:
-            print(
-                "The number of process groups to use SHARP with depends on the type "
-                "of the network switch. Nvidia QM1 switch supports SAHRP up to 8 "
-                "process groups and QM2 supports up to 256 process groups. We apply "
-                "SHARP to the communications of the data-parallel domain. If the "
-                "number of data-parallel process groups is larger than the max "
-                "process groups that the network switch supports, the communication "
-                "will fall back to non-SHARP operators. To enable SHARP, "
-                "`#SBATCH_NETWORK=sharp` should be set in the sbatch script."
-            )
-        dist.barrier(
-            group=get_data_parallel_group(with_context_parallel=context_parallel_size > 1),
-            device_ids=[torch.cuda.current_device()],
-        )
-        # Set `NCCL_SHARP_DISABLE=1` to restrict SHARP application to DP process groups
-        os.environ["NCCL_SHARP_DISABLE"] = "1"
-
-    # Build the context-parallel groups.
-    global _CONTEXT_PARALLEL_GROUP
-    global _CONTEXT_PARALLEL_GLOBAL_RANKS
-    assert _CONTEXT_PARALLEL_GROUP is None, 'context parallel group is already initialized'
-    for i in range(pipeline_model_parallel_size):
-        for j in range(data_parallel_size):
-            start_rank = (
-                i * num_pipeline_model_parallel_groups
-                + j * tensor_model_parallel_size * context_parallel_size
-            )
-            end_rank = (
-                i * num_pipeline_model_parallel_groups
-                + (j + 1) * tensor_model_parallel_size * context_parallel_size
-            )
-            for k in range(tensor_model_parallel_size):
-                ranks = range(start_rank + k, end_rank, tensor_model_parallel_size)
-                ranks = get_real_ranks(ranks)
-                if len(ranks) > 0:
-                    group = dist.new_group(ranks)
-                    if rank in ranks:
-                        _CONTEXT_PARALLEL_GROUP = group
-                        _CONTEXT_PARALLEL_GLOBAL_RANKS = ranks
-
-    # Build the model-parallel groups.
-    global _MODEL_PARALLEL_GROUP
-    assert _MODEL_PARALLEL_GROUP is None, 'model parallel group is already initialized'
-    for i in range(data_parallel_size * context_parallel_size // 2):
-        ranks = [
-            data_parallel_group_ranks_with_cp[i]
-            for data_parallel_group_ranks_with_cp in all_data_parallel_group_ranks_with_cp
-        ]
-        ranks = get_real_ranks(ranks)
-        if len(ranks) > 0:
-            group = dist.new_group(ranks)
-            if rank in ranks:
-                _MODEL_PARALLEL_GROUP = group
-
-    # Build the tensor model-parallel groups.
-    global _TENSOR_MODEL_PARALLEL_GROUP
-    assert (
-        _TENSOR_MODEL_PARALLEL_GROUP is None
-    ), 'tensor model parallel group is already initialized'
-    for i in range(num_tensor_model_parallel_groups):
-        ranks = range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
-        ranks = get_real_ranks(ranks)
-        if len(ranks) > 0:
-            group = dist.new_group(ranks)
-            if rank in ranks:
-                _TENSOR_MODEL_PARALLEL_GROUP = group
-
-    # Build the pipeline model-parallel groups and embedding groups
-    # (first and last rank in each pipeline model-parallel group).
-    global _PIPELINE_MODEL_PARALLEL_GROUP
-    global _PIPELINE_GLOBAL_RANKS
-    assert (
-        _PIPELINE_MODEL_PARALLEL_GROUP is None
-    ), 'pipeline model parallel group is already initialized'
-    global _EMBEDDING_GROUP
-    global _EMBEDDING_GLOBAL_RANKS
-    assert _EMBEDDING_GROUP is None, 'embedding group is already initialized'
-    global _POSITION_EMBEDDING_GROUP
-    global _POSITION_EMBEDDING_GLOBAL_RANKS
-    assert _POSITION_EMBEDDING_GROUP is None, 'position embedding group is already initialized'
-    for i in range(num_pipeline_model_parallel_groups):
-        ranks = range(i, world_size, num_pipeline_model_parallel_groups)
-        ranks = get_real_ranks(ranks)
-        group = dist.new_group(ranks)
-        if rank in ranks:
-            _PIPELINE_MODEL_PARALLEL_GROUP = group
-            _PIPELINE_GLOBAL_RANKS = ranks
-        # Setup embedding group (to exchange gradients between
-        # first and last stages).
-        if len(ranks) > 1:
-            embedding_ranks = [ranks[0], ranks[-1]]
-            position_embedding_ranks = [ranks[0]]
-            if pipeline_model_parallel_split_rank is not None:
-                if ranks[pipeline_model_parallel_split_rank] not in embedding_ranks:
-                    embedding_ranks = [
-                        ranks[0],
-                        ranks[pipeline_model_parallel_split_rank],
-                        ranks[-1],
-                    ]
-                if ranks[pipeline_model_parallel_split_rank] not in position_embedding_ranks:
-                    position_embedding_ranks = [ranks[0], ranks[pipeline_model_parallel_split_rank]]
-        else:
-            embedding_ranks = ranks
-            position_embedding_ranks = ranks
-
-        if len(embedding_ranks) > 0:
-            group = dist.new_group(embedding_ranks)
-            if rank in embedding_ranks:
-                _EMBEDDING_GROUP = group
-            if rank in ranks:
-                _EMBEDDING_GLOBAL_RANKS = embedding_ranks
-
-        if len(position_embedding_ranks) > 0:
-            group = dist.new_group(position_embedding_ranks)
-            if rank in position_embedding_ranks:
-                _POSITION_EMBEDDING_GROUP = group
-            if rank in ranks:
-                _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
-
-    # Build the tensor + data parallel groups.
-    global _TENSOR_AND_DATA_PARALLEL_GROUP
-    global _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP
-    assert (
-        _TENSOR_AND_DATA_PARALLEL_GROUP is None
-    ), 'Tensor + data parallel group is already initialized'
-    tensor_and_data_group_size_with_cp: int = tensor_model_parallel_size * data_parallel_size * context_parallel_size
-    num_tensor_and_data_groups_with_cp: int = world_size // tensor_and_data_group_size_with_cp
-    for i in range(num_tensor_and_data_groups_with_cp):
-        start_rank = i * tensor_and_data_group_size_with_cp
-        end_rank = start_rank + tensor_and_data_group_size_with_cp
-        ranks = range(start_rank, end_rank)
-        ranks = get_real_ranks(ranks)
-        if len(ranks) > 0:
-            group = dist.new_group(ranks)
-            if rank in ranks:
-                _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP = group
-
-        for j in range(context_parallel_size):
-            ranks = []
-            for k in range(data_parallel_size):
-                start_rank = (
-                    i * tensor_and_data_group_size_with_cp
-                    + j * tensor_model_parallel_size
-                    + k * tensor_model_parallel_size * context_parallel_size
-                )
-                end_rank = start_rank + tensor_model_parallel_size
-                ranks = ranks + list(range(start_rank, end_rank))
-            ranks = get_real_ranks(ranks)
-            if len(ranks) > 0:
-                group = dist.new_group(ranks)
-                if rank in ranks:
-                    _TENSOR_AND_DATA_PARALLEL_GROUP = group
-
-    # Initialize global memory buffer
-    # This isn't really "parallel state" but there isn't another good place to
-    # put this. If we end up with a more generic initialization of megatron-core
-    # we could stick it there
-    _set_global_memory_buffer()
+import megatron.core.parallel_state as mpu
 
 # Intra-layer model parallel group that the current rank belongs to.
 # Inter-layer model parallel group that the current rank belongs to.
@@ -562,43 +77,7 @@ _HALF_DATA_PARALLEL_GLOBAL_RANKS_LIST = []
 def initiallize_list(
     tensor_model_parallel_size: int = 1:
 ) -> None:
-    _PIPELINE_MODEL_PARALLEL_GROUP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-    _MODEL_PARALLEL_GROUP_LIST = [None for i in range(0,tensor_model_parallel_size)]
 
-    _EMBEDDING_GROUP_LIST.append = [None for i in range(0,tensor_model_parallel_size)]
-
-    _POSITION_EMBEDDING_GROUP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _DATA_PARALLEL_GROUP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-    _DATA_PARALLEL_GROUP_GLOO_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _TENSOR_AND_DATA_PARALLEL_GROUP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _EMBEDDING_GLOBAL_RANKS_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _POSITION_EMBEDDING_GLOBAL_RANKS_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _PIPELINE_GLOBAL_RANKS_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _DATA_PARALLEL_GLOBAL_RANKS_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _CONTEXT_PARALLEL_GROUP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _CONTEXT_PARALLEL_GLOBAL_RANKS_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _DATA_PARALLEL_GROUP_WITH_CP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-    _DATA_PARALLEL_GROUP_WITH_CP_GLOO_LIST = [None for i in range(0,tensor_model_parallel_size)]
-    _DATA_PARALLEL_GLOBAL_RANKS_WITH_CP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _FORWARD_BACKWARD_PARALLEL_GROUP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-    _FORWARD_BACKWARD_PARALLEL_GLOO_LIST = [None for i in range(0,tensor_model_parallel_size)]
-    _FORWARD_BACKWARD_GLOBAL_RANKS_LIST = [None for i in range(0,tensor_model_parallel_size)]
-
-    _HALF_DATA_PARALLEL_GROUP_LIST = [None for i in range(0,tensor_model_parallel_size)]
-    _HALF_DATA_PARALLEL_GROUP_GLOO_LIST= [None for i in range(0,tensor_model_parallel_size)]
-    _HALF_DATA_PARALLEL_GLOBAL_RANKS_LIST = [None for i in range(0,tensor_model_parallel_size)]
 
 def initialize_model_parallel_list(
     tensor_model_parallel_size: int = 1,
@@ -759,6 +238,7 @@ def initialize_model_parallel_list(
     _HALF_DATA_PARALLEL_GROUP_GLOO_LIST[get_thread_index()] = mpu._HALF_DATA_PARALLEL_GROUP_GLOO
     _HALF_DATA_PARALLEL_GLOBAL_RANKS_LIST[get_thread_index()] = mpu._HALF_DATA_PARALLEL_GLOBAL_RANKS
 
+
 def is_unitialized():
     """Useful for code segments that may be accessed with or without mpu initialization"""
     return _DATA_PARALLEL_GROUP is None
@@ -778,10 +258,7 @@ def model_parallel_is_initialized():
 def get_model_parallel_group():
     """Get the model parallel group the caller rank belongs to."""
     assert _MODEL_PARALLEL_GROUP is not None, 'model parallel group is not initialized'
-    if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _MODEL_PARALLEL_GROUP
-    else:
-        return _MODEL_PARALLEL_GROUP_LIST[get_thread_index()]
+    return _MODEL_PARALLEL_GROUP_LIST[get_thread_index()]
 
 
 def get_tensor_model_parallel_group(check_initialized=True):
@@ -798,21 +275,14 @@ def get_pipeline_model_parallel_group():
     assert (
         _PIPELINE_MODEL_PARALLEL_GROUP is not None
     ), 'pipeline_model parallel group is not initialized'
-    if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _PIPELINE_MODEL_PARALLEL_GROUP
-    else:
-        return _PIPELINE_MODEL_PARALLEL_GROUP_LIST[get_thread_index()]
+    return _PIPELINE_MODEL_PARALLEL_GROUP_LIST[get_thread_index()]
 
 def get_forward_backward_parallel_group(with_context_parallel=False):
     """Get the pipeline model parallel group the caller rank belongs to."""
     assert (
         _FORWARD_BACKWARD_PARALLEL_GROUP is not None
     ), 'pipeline_model parallel group is not initialized'
-    args = get_args()
-    if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _FORWARD_BACKWARD_PARALLEL_GROUP
-    else:
-        return _FORWARD_BACKWARD_PARALLEL_GROUP_LIST[get_thread_index()]
+    return _FORWARD_BACKWARD_PARALLEL_GROUP_LIST[get_thread_index()]
 
 def get_data_parallel_group(with_context_parallel=False):
     """Get the data parallel group the caller rank belongs to."""
@@ -820,23 +290,14 @@ def get_data_parallel_group(with_context_parallel=False):
         assert (
             _DATA_PARALLEL_GROUP_WITH_CP is not None
         ), 'data parallel group with context parallel combined is not initialized'
-        if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _DATA_PARALLEL_GROUP_WITH_CP
-        else:
-            return _DATA_PARALLEL_GROUP_WITH_CP_LIST[get_thread_index()]
+        return _DATA_PARALLEL_GROUP_WITH_CP_LIST[get_thread_index()]
     else:
         assert _DATA_PARALLEL_GROUP is not None, 'data parallel group is not initialized'
-        if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _DATA_PARALLEL_GROUP
-        else:
-            return _DATA_PARALLEL_GROUP_LIST[get_thread_index()]
+        return _DATA_PARALLEL_GROUP_LIST[get_thread_index()]
 
 def get_half_data_parallel_group(with_context_parallel=False):
     assert _HALF_DATA_PARALLEL_GROUP is not None, 'data parallel group is not initialized'
-    if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _HALF_DATA_PARALLEL_GROUP
-    else:
-        return _HALF_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
+    return _HALF_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
 
 def get_data_parallel_group_gloo(with_context_parallel=False):
     """Get the data parallel group-gloo the caller rank belongs to."""
@@ -844,52 +305,34 @@ def get_data_parallel_group_gloo(with_context_parallel=False):
         assert (
             _DATA_PARALLEL_GROUP_WITH_CP_GLOO is not None
         ), 'data parallel group-gloo with context parallel combined is not initialized'
-        if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _DATA_PARALLEL_GROUP_WITH_CP_GLOO
-        else:
-            return _DATA_PARALLEL_GROUP_WITH_CP_GLOO_LIST[get_thread_index()]
+        return _DATA_PARALLEL_GROUP_WITH_CP_GLOO_LIST[get_thread_index()]
     else:
         assert _DATA_PARALLEL_GROUP_GLOO is not None, 'data parallel group-gloo is not initialized'
-        if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _DATA_PARALLEL_GROUP_GLOO
-        else:
-            return _DATA_PARALLEL_GROUP_GLOO_LIST[get_thread_index()]
+        return _DATA_PARALLEL_GROUP_GLOO_LIST[get_thread_index()]
 
 
 def get_context_parallel_group():
     """Get the context parallel group the caller rank belongs to."""
     assert _CONTEXT_PARALLEL_GROUP is not None, 'context parallel group is not initialized'
-    if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _CONTEXT_PARALLEL_GROUP
-    else:
-        return _CONTEXT_PARALLEL_GROUP_LIST[get_thread_index()]
+    return _CONTEXT_PARALLEL_GROUP_LIST[get_thread_index()]
 
 
 def get_context_parallel_global_ranks():
     """Get all global ranks of the context parallel group that the caller rank belongs to."""
     assert _CONTEXT_PARALLEL_GLOBAL_RANKS is not None, 'context parallel group is not initialized'
-    if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _CONTEXT_PARALLEL_GLOBAL_RANKS
-    else:
-        return _CONTEXT_PARALLEL_GLOBAL_RANKS_LIST[get_thread_index()]
+    return _CONTEXT_PARALLEL_GLOBAL_RANKS_LIST[get_thread_index()]
 
 
 def get_embedding_group():
     """Get the embedding group the caller rank belongs to."""
     assert _EMBEDDING_GROUP is not None, 'embedding group is not initialized'
-    if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _EMBEDDING_GROUP
-    else:
-        return _EMBEDDING_GROUP_LIST[get_thread_index()]
+    return _EMBEDDING_GROUP_LIST[get_thread_index()]
 
 
 def get_position_embedding_group():
     """Get the position embedding group the caller rank belongs to."""
     assert _POSITION_EMBEDDING_GROUP is not None, 'position embedding group is not initialized'
-    if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _POSITION_EMBEDDING_GROUP
-    else:
-        return _POSITION_EMBEDDING_GROUP_LIST[get_thread_index()]
+    return _POSITION_EMBEDDING_GROUP_LIST[get_thread_index()]
 
 
 def get_amax_reduction_group(with_context_parallel=False):
@@ -898,18 +341,12 @@ def get_amax_reduction_group(with_context_parallel=False):
         assert (
             _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP is not None
         ), 'FP8 amax reduction group is not initialized'
-        if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP
-        else:
-            return _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP_LIST[get_thread_index()]
+        return _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP_LIST[get_thread_index()]
     else:
         assert (
             _TENSOR_AND_DATA_PARALLEL_GROUP is not None
         ), 'FP8 amax reduction group is not initialized'
-        if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _TENSOR_AND_DATA_PARALLEL_GROUP
-        else:
-            return _TENSOR_AND_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
+        return _TENSOR_AND_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
 
 
 def get_tensor_and_data_parallel_group(with_context_parallel=False):
@@ -918,18 +355,12 @@ def get_tensor_and_data_parallel_group(with_context_parallel=False):
         assert (
             _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP is not None
         ), 'tensor and data parallel group is not initialized'
-        if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP
-        else:
-            return _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP_LIST[get_thread_index()]
+        return _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP_LIST[get_thread_index()]
     else:
         assert (
             _TENSOR_AND_DATA_PARALLEL_GROUP is not None
         ), 'tensor and data parallel group is not initialized'
-        if not (is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _TENSOR_AND_DATA_PARALLEL_GROUP
-        else:
-            return _TENSOR_AND_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
+        return _TENSOR_AND_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
 
 
 def set_tensor_model_parallel_world_size(world_size):
@@ -992,14 +423,7 @@ def is_forward_stage(ignore_virtual=False):
 
 def get_tensor_model_parallel_rank():
     """Return my rank for the tensor model parallel group."""
-    global _MPU_TENSOR_MODEL_PARALLEL_RANK
-    args = get_args()
-    if _MPU_TENSOR_MODEL_PARALLEL_RANK is not None:
-        return _MPU_TENSOR_MODEL_PARALLEL_RANK
-    if args.ignore_forward_tensor_parallel and is_forward_stage():
-        return get_thread_index()
-    else:
-        return dist.get_rank(group=get_tensor_model_parallel_group())
+    return get_thread_index()
 
 
 def get_pipeline_model_parallel_rank():
