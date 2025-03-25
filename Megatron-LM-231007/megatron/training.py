@@ -43,7 +43,7 @@ from megatron.utils import calc_params_l2_norm
 from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.utils import report_memory
 from megatron.model.vision.knn_monitor import compute_feature_bank
-import megatron.core.tensor_parallel.virtual_tensor_parallel_communication as dist_thread
+import megatron.virtual_tensor_parallel_communication as dist_thread
 
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
@@ -213,16 +213,17 @@ def update_train_iters(args):
     print_rank_0('setting training iterations to {}'.format(args.train_iters))
 
 class GetModelThread (threading.Thread):
-    def __init__(self, pre_process, post_process, virtual_tensor_parallel_rank):
+    def __init__(self, pre_process, post_process, virtual_tensor_parallel_rank, model_provider_func):
         threading.Thread.__init__(self)
         self.pre_process = pre_process
         self.post_process = post_process
         self.model = None
         self.rank = virtual_tensor_parallel_rank
+        self.model_provider_func = model_provider_func
 
     def run(self):
         dist_thread.thread_mappings[threading.get_ident()]=self.rank
-        self.model = model_provider_func(pre_process=pre_process, post_process=post_process)
+        self.model = self.model_provider_func(pre_process=self.pre_process, post_process=self.post_process)
 
     def get_results(self):
         return self.model
@@ -243,12 +244,13 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
                 thread_list.append(GetModelThread(
                     pre_process=pre_process,
                     post_process=post_process,
-                    virtual_tensor_parallel_rank=i
+                    virtual_tensor_parallel_rank=i,
+                    model_provider_func=model_provider_func,
                     ))
             for i in range(len(thread_list)):
-                thread[i].start()
+                thread_list[i].start()
             for i in range(len(thread_list)):
-                thread[i].join()
+                thread_list[i].join()
             for i in range(len(thread_list)):
                 this_model = thread_list[i].get_results()
                 this_model.model_type = model_type
@@ -419,14 +421,15 @@ def setup_model_and_optimizer(model_provider_func,
                                        scale_lr_cond, lr_mult)
     opt_param_scheduler = get_optimizer_param_scheduler(optimizer)
 
-    if args.load is not None:
-        timers = get_timers()
-        timers('load-checkpoint', log_level=0).start(barrier=True)
-        args.iteration = load_checkpoint(model, optimizer, opt_param_scheduler)
-        timers('load-checkpoint').stop(barrier=True)
-        timers.log(['load-checkpoint'])
-    else:
-        args.iteration = 0
+    # if args.load is not None:
+    #     timers = get_timers()
+    #     timers('load-checkpoint', log_level=0).start(barrier=True)
+    #     args.iteration = load_checkpoint(model, optimizer, opt_param_scheduler)
+    #     timers('load-checkpoint').stop(barrier=True)
+    #     timers.log(['load-checkpoint'])
+    # else:
+    #     args.iteration = 0
+    args.iteration = 0
 
     # get model without FP16 and/or DDP wrappers
     if args.iteration == 0 and len(unwrapped_model) == 1 \
@@ -500,7 +503,7 @@ def train_step(forward_step_func, data_iterator,
     if args.empty_unused_memory_level >= 2:
         torch.cuda.empty_cache()
 
-    if mpu.is_pipeline_last_stage(ignore_virtual=True) and mpu.is_forward_stage():
+    if mpu.is_pipeline_last_stage(ignore_virtual=True) and (not args.forward_backward_disaggregating or mpu.is_forward_stage()):
         # Average loss across microbatches.
         loss_reduced = {}
         for key in losses_reduced[0]:
@@ -1078,12 +1081,13 @@ def build_train_valid_test_data_loaders(
         flags = torch.cuda.LongTensor([0, 0, 0])
 
     # Broadcast num tokens.
-    dist.broadcast(flags,
-                                mpu.get_tensor_model_parallel_src_rank(),
-                                group=mpu.get_tensor_model_parallel_group())
-    args.do_train = flags[0].item()
-    args.do_valid = flags[1].item()
-    args.do_test = flags[2].item()
+    if not (mpu.is_forward_stage() and args.ignore_forward_tensor_parallel):
+        dist_thread.broadcast(flags,
+                                    mpu.get_tensor_model_parallel_src_rank(),
+                                    group=mpu.get_tensor_model_parallel_group())
+        args.do_train = flags[0].item()
+        args.do_valid = flags[1].item()
+        args.do_test = flags[2].item()
 
     return train_dataloader, valid_dataloader, test_dataloader
 

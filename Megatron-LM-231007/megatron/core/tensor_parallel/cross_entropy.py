@@ -3,7 +3,7 @@
 import torch
 
 from megatron.virtual_tensor_parallel_communication import if_use_thread_communication
-if if_use_thread_communication:
+if if_use_thread_communication():
     import megatron.virtual_tensor_parallel_communication as dist
 else:
     import inc.torch as dist
@@ -24,7 +24,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
         dist.all_reduce(
-            logits_max, op=dist.ReduceOp.MAX, group=get_tensor_model_parallel_group(), use_inter_thread_comm = True
+            logits_max, op=dist.ReduceOp.MAX, group=get_tensor_model_parallel_group(),
         )
         # Subtract the maximum value.
         vocab_parallel_logits = vocab_parallel_logits - logits_max.unsqueeze(dim=-1)

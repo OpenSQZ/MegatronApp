@@ -59,7 +59,6 @@ def initialize_megatron(
         args = get_args()
         # Pytorch distributed.
         _initialize_distributed()
-
         # Random seeds for reproducibility.
         if args.rank == 0:
             print("> setting random seeds to {} ...".format(args.seed))
@@ -192,11 +191,11 @@ def _initialize_distributed():
                 ), "expected local-rank to be the same as rank % device-count."
             else:
                 args.local_rank = device
-            if args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel:
-                num_pipeline_model_parallel_groups: int = args.world_size // args.pipeline_model_parallel_size
-                reminder: int = args.rank % num_pipeline_model_parallel_groups
-                if reminder // args.tensor_model_parallel_size % 2 == 0:
-                    device=device // args.tensor_model_parallel_size * args.tensor_model_parallel_size
+            # if args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel:
+            #     num_pipeline_model_parallel_groups: int = args.world_size // args.pipeline_model_parallel_size
+            #     reminder: int = args.rank % num_pipeline_model_parallel_groups
+            #     if reminder // args.tensor_model_parallel_size % 2 == 0:
+            #         device=device // args.tensor_model_parallel_size * args.tensor_model_parallel_size
             torch.cuda.set_device(device)
             # print(args.rank,':',device)
         # Call the init process
@@ -213,12 +212,20 @@ def _initialize_distributed():
         if mpu.model_parallel_is_initialized():
             print("model parallel is already initialized")
         else:
-            mpu.initialize_model_parallel(
-                args.tensor_model_parallel_size,
-                args.pipeline_model_parallel_size,
-                args.virtual_pipeline_model_parallel_size,
-                args.pipeline_model_parallel_split_rank,
-            )
+            if args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel:
+                mpu.initialize_model_parallel_ignore_forward_tensor_parallel(
+                    args.tensor_model_parallel_size,
+                    args.pipeline_model_parallel_size,
+                    args.virtual_pipeline_model_parallel_size,
+                    args.pipeline_model_parallel_split_rank,
+                )
+            else:
+                mpu.initialize_model_parallel(
+                    args.tensor_model_parallel_size,
+                    args.pipeline_model_parallel_size,
+                    args.virtual_pipeline_model_parallel_size,
+                    args.pipeline_model_parallel_split_rank,
+                )
             if args.rank == 0:
                 print(
                     f"> initialized tensor model parallel with size "

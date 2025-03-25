@@ -3,7 +3,7 @@
 """Transformer based language model."""
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 import torch.nn.functional as F
 
 from megatron import get_args

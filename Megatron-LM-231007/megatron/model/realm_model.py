@@ -1,6 +1,6 @@
 import os
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron import get_args, print_rank_0
 from megatron.checkpointing import get_checkpoint_tracker_filename, get_checkpoint_name
