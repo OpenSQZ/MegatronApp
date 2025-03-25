@@ -4,15 +4,15 @@
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-GPUS_PER_NODE=4
+GPUS_PER_NODE=3
 # Change for multinode config
-MASTER_ADDR=10.233.79.12
+MASTER_ADDR=10.233.105.216
 MASTER_PORT=6001
-NNODES=1
+NNODES=2
 NODE_RANK=$1
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
-TENSOR_MP_SIZE=1
-PIPELINE_MP_SIZE=4
+TENSOR_MP_SIZE=2
+PIPELINE_MP_SIZE=2
 VIRTUAL_STAGE_LAYER=1
 
 CHECKPOINT_PATH=ngc_models/release_gpt_base
@@ -50,6 +50,8 @@ GPT_ARGS="
     --recompute-num-layers 1\
     --pipeline-model-parallel-size $PIPELINE_MP_SIZE \
     --tensor-model-parallel-size $TENSOR_MP_SIZE 
+    --forward-backward-disaggregating
+    --ignore-forward-tensor-parallel
 "
 
 DATA_ARGS="
