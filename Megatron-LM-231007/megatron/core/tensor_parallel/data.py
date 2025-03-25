@@ -3,7 +3,7 @@
 import torch
 
 from megatron.virtual_tensor_parallel_communication import if_use_thread_communication
-if if_use_thread_communication:
+if if_use_thread_communication():
     import megatron.virtual_tensor_parallel_communication as dist
 else:
     import inc.torch as dist
@@ -44,7 +44,7 @@ def _build_key_size_numel_dictionaries(keys, data):
     # Move to GPU and broadcast.
     sizes_cuda = torch.cuda.LongTensor(sizes)
     dist.broadcast(
-        sizes_cuda, get_tensor_model_parallel_src_rank(), group=get_tensor_model_parallel_group(), use_inter_thread_comm = True,
+        sizes_cuda, get_tensor_model_parallel_src_rank(), group=get_tensor_model_parallel_group(),
     )
 
     # Move back to cpu and unpack.
@@ -95,7 +95,7 @@ def broadcast_data(keys, data, datatype):
 
     # Broadcast
     dist.broadcast(
-        flatten_data, get_tensor_model_parallel_src_rank(), group=get_tensor_model_parallel_group(), use_inter_thread_comm = True,
+        flatten_data, get_tensor_model_parallel_src_rank(), group=get_tensor_model_parallel_group(),
     )
 
     # Unpack

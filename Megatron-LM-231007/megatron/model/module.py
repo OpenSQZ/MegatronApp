@@ -3,7 +3,7 @@
 """Megatron Module"""
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 
@@ -101,7 +101,9 @@ class MegatronModule(torch.nn.Module):
 
         # Ensure that first and last stages have the same initial parameter
         # values.
+        print('is_rank_in_embedding_group')
         if mpu.is_rank_in_embedding_group():
+            print('all_reduce')
             dist.all_reduce(self.shared_embedding_or_output_weight().data,
                                          group=mpu.get_embedding_group())
 

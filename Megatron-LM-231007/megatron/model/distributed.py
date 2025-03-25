@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from typing import Dict, List
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 import torch.distributed
 
 from megatron.core import mpu

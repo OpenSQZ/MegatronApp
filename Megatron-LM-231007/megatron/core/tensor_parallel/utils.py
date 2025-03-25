@@ -5,7 +5,7 @@ from typing import List, Sequence
 import torch
 
 from megatron.virtual_tensor_parallel_communication import if_use_thread_communication
-if if_use_thread_communication:
+if if_use_thread_communication():
     import megatron.virtual_tensor_parallel_communication as dist
 else:
     import inc.torch as dist

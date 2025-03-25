@@ -25,7 +25,7 @@ import collections
 
 import numpy as np
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron import (
     get_args,

@@ -5,7 +5,7 @@ from contextlib import nullcontext
 import math
 import numpy as np
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 import torch.nn.functional as F
 from typing import Optional
 
