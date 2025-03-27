@@ -51,52 +51,14 @@ def print_datetime(string):
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print_rank_0('[' + string + '] datetime: {} '.format(time_str))
 
+def pretrain_body(train_valid_test_dataset_provider,
+                model_provider,
+                model_type,
+                forward_step_func,
+                process_non_loss_data_func=None,
+                extra_args_provider=None,
+                args_defaults={}):
 
-def pretrain(train_valid_test_dataset_provider,
-             model_provider,
-             model_type,
-             forward_step_func,
-             process_non_loss_data_func=None,
-             extra_args_provider=None,
-             args_defaults={}):
-    """Main training program.
-
-    This function will run the followings in the order provided:
-        1) initialize Megatron.
-        2) setup model, optimizer and lr schedule using the model_provider.
-        3) call train_val_test_data_provider to get train/val/test datasets.
-        4) train the modle using the forward_step_func.
-
-    Arguments:
-        train_valid_test_dataset_provider: a function that takes the size of
-            train/valid/test dataset and returns `train, valid, test` datasets.
-        model_provider: a function that returns a vanilla version of the
-            model. By vanilla we mean a simple model on cpu with no fp16 or ddp.
-        model_type: an enum that specifies the type of model being trained.
-        forward_step_func: a function that takes a `data iterator` and `model`,
-            and returns a `loss` scalar with a dictionary with key:values being
-            the info we would like to monitor during training, for example
-            `lm-loss: value`. We also require that this function add
-            `batch generator` to the timers class.
-        process_non_loss_data_func: a function to post process outputs of the
-            network. It can be used for dumping output tensors (e.g images) to
-            tensorboard. It takes `collected data`(list of tensors),
-            `current iteration index` and `tensorboard writer` as arguments.
-        extra_args_provider: a function that takes a parser and adds arguments
-            to it. It is used for programs to add their own arguments.
-        args_defaults: a dictionary from argument-name to argument-value. It
-            to set already parse arguments.
-    """
-
-    # Initalize and get arguments, timers, and Tensorboard writer.
-    initialize_megatron(extra_args_provider=extra_args_provider,
-                        args_defaults=args_defaults)
-    # Set pytorch JIT layer fusion options and warmup JIT functions.
-    set_jit_fusion_options()
-
-    # Adjust the startup time so it reflects the largest value.
-    # This will be closer to what scheduler will see (outside of
-    # image ... launches.
     global _TRAIN_START_TIME
     start_time_tensor = torch.cuda.DoubleTensor([_TRAIN_START_TIME])
     # print('get_time')
@@ -184,6 +146,102 @@ def pretrain(train_valid_test_dataset_provider,
                                    iteration, process_non_loss_data_func, config,
                                    verbose=True, write_to_tensorboard=not args.skip_train)
 
+class VirtualTensorParallelThread (threading.Thread):
+    def __init__(self,
+                train_valid_test_dataset_provider,
+                model_provider,
+                model_type,
+                forward_step_func,
+                process_non_loss_data_func,
+                extra_args_provider,
+                args_defaults,
+                rank):
+        threading.Thread.__init__(self)
+        self.train_valid_test_dataset_provider = train_valid_test_dataset_provider
+        self.model_provider = model_provider
+        self.model_type = model_type
+        self.forward_step_func = forward_step_func
+        self.process_non_loss_data_func = process_non_loss_data_func
+        self.extra_args_provider = extra_args_provider
+        self.args_defaults = args_defaults
+        self.rank = rank
+
+    def run(self):
+        dist_thread.thread_mappings[threading.get_ident()]=self.rank
+        pretrain_body(train_valid_test_dataset_provider,
+                    model_provider,
+                    model_type,
+                    forward_step_func,
+                    process_non_loss_data_func,
+                    extra_args_provider,
+                    args_defaults,)
+
+def pretrain(train_valid_test_dataset_provider,
+             model_provider,
+             model_type,
+             forward_step_func,
+             process_non_loss_data_func=None,
+             extra_args_provider=None,
+             args_defaults={}):
+    """Main training program.
+
+    This function will run the followings in the order provided:
+        1) initialize Megatron.
+        2) setup model, optimizer and lr schedule using the model_provider.
+        3) call train_val_test_data_provider to get train/val/test datasets.
+        4) train the modle using the forward_step_func.
+
+    Arguments:
+        train_valid_test_dataset_provider: a function that takes the size of
+            train/valid/test dataset and returns `train, valid, test` datasets.
+        model_provider: a function that returns a vanilla version of the
+            model. By vanilla we mean a simple model on cpu with no fp16 or ddp.
+        model_type: an enum that specifies the type of model being trained.
+        forward_step_func: a function that takes a `data iterator` and `model`,
+            and returns a `loss` scalar with a dictionary with key:values being
+            the info we would like to monitor during training, for example
+            `lm-loss: value`. We also require that this function add
+            `batch generator` to the timers class.
+        process_non_loss_data_func: a function to post process outputs of the
+            network. It can be used for dumping output tensors (e.g images) to
+            tensorboard. It takes `collected data`(list of tensors),
+            `current iteration index` and `tensorboard writer` as arguments.
+        extra_args_provider: a function that takes a parser and adds arguments
+            to it. It is used for programs to add their own arguments.
+        args_defaults: a dictionary from argument-name to argument-value. It
+            to set already parse arguments.
+    """
+
+    # Initalize and get arguments, timers, and Tensorboard writer.
+    initialize_megatron(extra_args_provider=extra_args_provider,
+                        args_defaults=args_defaults)
+    # Set pytorch JIT layer fusion options and warmup JIT functions.
+    set_jit_fusion_options()
+    args = get_args()
+    if not (args.ignore_forward_tensor_parallel and mpu.is_forward_stage()):
+        pretrain_body(train_valid_test_dataset_provider,
+                    model_provider,
+                    model_type,
+                    forward_step_func,
+                    process_non_loss_data_func,
+                    extra_args_provider,
+                    args_defaults,)
+    else:
+        for i in range(mpu.get_tensor_model_parallel_world_size()):
+            thread_list.append(
+                VirtualTensorParallelThread(train_valid_test_dataset_provider,
+                                            model_provider,
+                                            model_type,
+                                            forwar d_step_func,
+                                            process_non_loss_data_func,
+                                            extra_args_provider,
+                                            args_defaults,
+                                            i,)
+            )
+        for i in range(len(thread_list)):
+            thread_list[i].start()
+        for i in range(len(thread_list)):
+            thread_list[i].join()
 
 def update_train_iters(args):
 
@@ -214,21 +272,21 @@ def update_train_iters(args):
 
     print_rank_0('setting training iterations to {}'.format(args.train_iters))
 
-class GetModelThread (threading.Thread):
-    def __init__(self, pre_process, post_process, virtual_tensor_parallel_rank, model_provider_func):
-        threading.Thread.__init__(self)
-        self.pre_process = pre_process
-        self.post_process = post_process
-        self.model = None
-        self.rank = virtual_tensor_parallel_rank
-        self.model_provider_func = model_provider_func
+# class GetModelThread (threading.Thread):
+#     def __init__(self, pre_process, post_process, virtual_tensor_parallel_rank, model_provider_func):
+#         threading.Thread.__init__(self)
+#         self.pre_process = pre_process
+#         self.post_process = post_process
+#         self.model = None
+#         self.rank = virtual_tensor_parallel_rank
+#         self.model_provider_func = model_provider_func
 
-    def run(self):
-        dist_thread.thread_mappings[threading.get_ident()]=self.rank
-        self.model = self.model_provider_func(pre_process=self.pre_process, post_process=self.post_process)
+#     def run(self):
+#         dist_thread.thread_mappings[threading.get_ident()]=self.rank
+#         self.model = self.model_provider_func(pre_process=self.pre_process, post_process=self.post_process)
 
-    def get_results(self):
-        return self.model
+#     def get_results(self):
+#         return self.model
 
 def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap_with_ddp=True):
     """Build the model."""
@@ -236,34 +294,34 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     args.model_type = model_type
 
     # Build model.
-    if args.ignore_forward_tensor_parallel:
-        if mpu.is_forward_stage():
-            model = []
-            thread_list = []
-            for i in range(mpu.get_tensor_model_parallel_world_size()):
-                pre_process = mpu.is_pipeline_first_stage()
-                post_process = mpu.is_pipeline_last_stage()
-                thread_list.append(GetModelThread(
-                    pre_process=pre_process,
-                    post_process=post_process,
-                    virtual_tensor_parallel_rank=i,
-                    model_provider_func=model_provider_func,
-                    ))
-            for i in range(len(thread_list)):
-                thread_list[i].start()
-            for i in range(len(thread_list)):
-                thread_list[i].join()
-            for i in range(len(thread_list)):
-                this_model = thread_list[i].get_results()
-                this_model.model_type = model_type
-                model.append(this_model)
-        else:
-            pre_process = mpu.is_pipeline_first_stage()
-            post_process = mpu.is_pipeline_last_stage()
-            model = model_provider_func(
-            pre_process=pre_process,
-            post_process=post_process)
-    elif mpu.get_pipeline_model_parallel_world_size() > 1 and \
+    # if args.ignore_forward_tensor_parallel:
+    #     if mpu.is_forward_stage():
+    #         model = []
+    #         thread_list = []
+    #         for i in range(mpu.get_tensor_model_parallel_world_size()):
+    #             pre_process = mpu.is_pipeline_first_stage()
+    #             post_process = mpu.is_pipeline_last_stage()
+    #             thread_list.append(GetModelThread(
+    #                 pre_process=pre_process,
+    #                 post_process=post_process,
+    #                 virtual_tensor_parallel_rank=i,
+    #                 model_provider_func=model_provider_func,
+    #                 ))
+    #         for i in range(len(thread_list)):
+    #             thread_list[i].start()
+    #         for i in range(len(thread_list)):
+    #             thread_list[i].join()
+    #         for i in range(len(thread_list)):
+    #             this_model = thread_list[i].get_results()
+    #             this_model.model_type = model_type
+    #             model.append(this_model)
+    #     else:
+    #         pre_process = mpu.is_pipeline_first_stage()
+    #         post_process = mpu.is_pipeline_last_stage()
+    #         model = model_provider_func(
+    #         pre_process=pre_process,
+    #         post_process=post_process)
+    if mpu.get_pipeline_model_parallel_world_size() > 1 and \
        args.virtual_pipeline_model_parallel_size is not None:
         assert model_type != ModelType.encoder_and_decoder, \
             "Interleaved schedule not supported for model with both encoder and decoder"
@@ -699,35 +757,35 @@ def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler):
     timers('save-checkpoint').stop(barrier=True)
     timers.log(['save-checkpoint'])
 
-class VirtualTensorParallelThread (threading.Thread):
-    def __init__(self, forward_step_func, train_data_iterator, model, optimizer,
-                        opt_param_scheduler, config, virtual_tensor_parallel_rank):
-        threading.Thread.__init__(self)
-        self.forward_step_func = forward_step_func
-        self.train_data_iterator = train_data_iterator
-        self.model = model
-        self.optimizer = optimizer
-        self.opt_param_scheduler = opt_param_scheduler
-        self.config = config
-        self.virtual_tensor_parallel_rank = virtual_tensor_parallel_rank
-        self.loss_dict = None
-        self.skipped_iter = None
-        self.grad_norm = None
-        self.num_zeros_in_grad = None
-        self.rank = virtual_tensor_parallel_rank
+# class VirtualTensorParallelThread (threading.Thread):
+#     def __init__(self, forward_step_func, train_data_iterator, model, optimizer,
+#                         opt_param_scheduler, config, virtual_tensor_parallel_rank):
+#         threading.Thread.__init__(self)
+#         self.forward_step_func = forward_step_func
+#         self.train_data_iterator = train_data_iterator
+#         self.model = model
+#         self.optimizer = optimizer
+#         self.opt_param_scheduler = opt_param_scheduler
+#         self.config = config
+#         self.virtual_tensor_parallel_rank = virtual_tensor_parallel_rank
+#         self.loss_dict = None
+#         self.skipped_iter = None
+#         self.grad_norm = None
+#         self.num_zeros_in_grad = None
+#         self.rank = virtual_tensor_parallel_rank
 
-    def run(self):
-        dist_thread.thread_mappings[threading.get_ident()]=self.rank
-        self.loss_dict, self.skipped_iter, self.grad_norm, self.num_zeros_in_grad = \
-            train_step(self.forward_step_func,
-                        self.train_data_iterator,
-                        self.model,
-                        self.optimizer,
-                        self.opt_param_scheduler,
-                        self.config)
+#     def run(self):
+#         dist_thread.thread_mappings[threading.get_ident()]=self.rank
+#         self.loss_dict, self.skipped_iter, self.grad_norm, self.num_zeros_in_grad = \
+#             train_step(self.forward_step_func,
+#                         self.train_data_iterator,
+#                         self.model,
+#                         self.optimizer,
+#                         self.opt_param_scheduler,
+#                         self.config)
 
-    def get_results(self):
-        return self.loss_dict, self.skipped_iter, self.grad_norm, self.num_zeros_in_grad
+#     def get_results(self):
+#         return self.loss_dict, self.skipped_iter, self.grad_norm, self.num_zeros_in_grad
 
 def train(forward_step_func, model, optimizer, opt_param_scheduler,
           train_data_iterator, valid_data_iterator,
@@ -774,35 +832,35 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
         update_num_microbatches(args.consumed_train_samples)
         args.curr_iteration = iteration
-        if args.ignore_forward_tensor_parallel and mpu.is_forward_stage():
-            loss_dict_list, skipped_iter_list, grad_norm_list, num_zeros_in_grad_list = []
-            thread_list = []
-            for (tensor_rank, partition) in enumerate(model):
-                thread_list.append(VirtualTensorParallelThread(forward_step_func,
-                                                                train_data_iterator,
-                                                                partition,
-                                                                optimizer,
-                                                                opt_param_scheduler,
-                                                                config,
-                                                                tensor_rank))
-            for i in range(len(thread_list)):
-                thread[i].start()
-            for i in range(len(thread_list)):
-                thread[i].join()
-            for i in range(len(thread_list)):
-                loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = thread_list[i].get_results()
-                loss_dict_list.append(loss_dict)
-                skipped_iter_list.append(skipped_iter)
-                grad_norm_list.append(grad_norm)
-                num_zeros_in_grad_list.append(num_zeros_in_grad)
-        else:
-            loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
-                train_step(forward_step_func,
-                        train_data_iterator,
-                        model,
-                        optimizer,
-                        opt_param_scheduler,
-                        config)
+        # if args.ignore_forward_tensor_parallel and mpu.is_forward_stage():
+        #     loss_dict_list, skipped_iter_list, grad_norm_list, num_zeros_in_grad_list = []
+        #     thread_list = []
+        #     for (tensor_rank, partition) in enumerate(model):
+        #         thread_list.append(VirtualTensorParallelThread(forward_step_func,
+        #                                                         train_data_iterator,
+        #                                                         partition,
+        #                                                         optimizer,
+        #                                                         opt_param_scheduler,
+        #                                                         config,
+        #                                                         tensor_rank))
+        #     for i in range(len(thread_list)):
+        #         thread[i].start()
+        #     for i in range(len(thread_list)):
+        #         thread[i].join()
+        #     for i in range(len(thread_list)):
+        #         loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = thread_list[i].get_results()
+        #         loss_dict_list.append(loss_dict)
+        #         skipped_iter_list.append(skipped_iter)
+        #         grad_norm_list.append(grad_norm)
+        #         num_zeros_in_grad_list.append(num_zeros_in_grad)
+        # else:
+        loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
+            train_step(forward_step_func,
+                    train_data_iterator,
+                    model,
+                    optimizer,
+                    opt_param_scheduler,
+                    config)
         iteration += 1
         args.consumed_train_samples += mpu.get_data_parallel_world_size() * \
                                        args.micro_batch_size * \
