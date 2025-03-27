@@ -132,6 +132,10 @@ def init(total_num_threads, total_num_forward_ranks, _CONTROLLER_GROUP):
     request_args = [None for i in range(0, num_threads)]
     request_func = [None for i in range(0, num_threads)]
     request_group = [None for i in range(0, num_threads)]
+    global global_request_func
+    global global_request_args
+    global_request_args = None
+    global_request_func = None
     global finished_thread
     finished_thread = [0 for i in range(0, num_threads)]
     global controller
@@ -150,7 +154,7 @@ def get_thread_index():
     if threading.get_ident() in thread_mappings:
         return thread_mappings[threading.get_ident()]
     else:
-        return 0
+        return -1
 
 def is_initialized():
     return dist.is_initialized()
@@ -201,12 +205,47 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=None):
     if not use_thread_communication:
         dist.all_reduce(tensor, op, group)
     elif group is None:
-        global global_request_func
-        global global_request_args
-        global_request_func = dist.all_reduce
-        global_request_args = (tensor, op, group)
-        while global_request_func is not None:
-            pass
+        if get_thread_index() == -1:
+            global global_request_func
+            global global_request_args
+            global_request_func = dist.all_reduce
+            global_request_args = (tensor, op, group)
+            while global_request_func is not None:
+                pass
+        else:
+            lock.acquire()
+            global result
+            if op == ReduceOp.SUM:
+                if result is None:
+                    result = tensor.clone()
+                else:
+                    result += tensor
+            elif op == ReduceOp.MAX:
+                if result is None:
+                    result = tensor.clone()
+                else:
+                    for i in range(result.shape[0]):
+                        result[i] = max(result[i], tensor[i])
+            elif op == ReduceOp.MIN:
+                if result is None:
+                    result = tensor.clone()
+                else:
+                    for i in range(result.shape[0]):
+                        result[i] = min(result[i], tensor[i])
+            lock.release()
+            thread_barrier.wait()
+            if get_thread_index() == 0:
+                global global_request_func
+                global global_request_args
+                global_request_func = dist.all_reduce
+                global_request_args = (result, op, group)
+            thread_barrier.wait()
+            while global_request_func is not None:
+                pass
+            tensor.copy_(result)
+            thread_barrier.wait()
+            result = None
+            thread_barrier.wait()
     elif isinstance(group, int):
         lock.acquire()
         global result
