@@ -999,7 +999,7 @@ def initialize_model_parallel_ignore_forward_tensor_parallel(
         global _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE
         _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE = tensor_model_parallel_size
         set_use_thread_communication()
-        init(tensor_model_parallel_size, _FORWARD_CONTROLLER_GROUP)
+        init(tensor_model_parallel_size, dist.get_world_size() // (tensor_model_parallel_size+1), _FORWARD_CONTROLLER_GROUP)
     set_virtual_rank_info(DELETED_RANKS)
     # print(rank, model_parallel_is_initialized())
     print(rank, get_pipeline_model_parallel_rank())
@@ -1416,6 +1416,7 @@ def get_tensor_model_parallel_src_rank():
     """Calculate the global rank corresponding to the first local rank
     in the tensor model parallel group."""
     global_rank = dist.get_rank()
+    global_rank = get_virtual_rank(global_rank)
     local_world_size = get_tensor_model_parallel_world_size()
     return (global_rank // local_world_size) * local_world_size
 

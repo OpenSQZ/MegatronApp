@@ -13,7 +13,7 @@ num_forward_ranks = 2
 use_thread_communication = False
 
 result = None
-barrier = threading.Barrier(num_threads, timeout=None)
+thread_barrier = threading.Barrier(num_threads, timeout=None)
 lock = threading.Lock()
 processing_done = threading.Event()
 
@@ -22,6 +22,9 @@ requests_queue = queue.Queue()
 request_args = None 
 request_func = None 
 request_group = None 
+
+global_request_args = None
+global_request_func = None
 
 listening = False
 
@@ -60,13 +63,16 @@ class Communication_Controller (threading.Thread):
         threading.Thread.__init__(self)
         self.result = None
         self._CONTROLLER_GROUP = _CONTROLLER_GROUP
-        self.BitVector = torch.zeros([num_threads, dist.get_world_size()], dtype = int, device="cuda")
+        self.BitVector = torch.zeros([num_threads+1, dist.get_world_size()], dtype = int, device="cuda")
         self.rank = dist.get_rank()
 
     def run(self):
         global listening
         global request_args
         global request_func
+        global request_group
+        global global_request_func
+        global global_request_args
         # print(listening)
         while listening:
             time.sleep(0.01)
@@ -77,7 +83,12 @@ class Communication_Controller (threading.Thread):
                 request_args[request[0]] = request[2]
                 request_group[request[0]] = request[3]
             tmp_BitVector = self.BitVector.clone()
+            if global_request_func is not None:
+                tmp_BitVector[num_threads][0] = 1
             dist.all_reduce(tmp_BitVector, ReduceOp.SUM, self._CONTROLLER_GROUP)
+            if tmp_BitVector[num_threads][0] == num_forward_ranks:
+                global_request_func(*global_request_args)
+                global_request_func = None
             for i in range(num_threads):
                 if self.BitVector[i][self.rank] == 1 and is_ready(tmp_BitVector[i],request_group[i][1]):
                     request_func[i](*request_args[i], request_group[i][0])
@@ -104,11 +115,13 @@ def set_virtual_rank_info(rank_info):
     global _GLOBAL_RANK_INFO
     _GLOBAL_RANK_INFO = rank_info
 
-def init(total_num_threads, _CONTROLLER_GROUP):
+def init(total_num_threads, total_num_forward_ranks, _CONTROLLER_GROUP):
     global num_threads
     num_threads = total_num_threads
-    global barrier
-    barrier = threading.Barrier(num_threads, timeout=None)
+    global num_forward_ranks
+    num_forward_ranks = total_num_forward_ranks
+    global thread_barrier
+    thread_barrier = threading.Barrier(num_threads, timeout=None)
     global use_thread_communication
     use_thread_communication = True
     global listening
@@ -143,7 +156,17 @@ def is_initialized():
     return dist.is_initialized()
 
 def barrier():
-    dist.barrier()
+    if not use_thread_communication:
+        dist.barrier()
+    else:
+        global global_request_func
+        global global_request_args
+        global_request_func = dist.barrier
+        global_request_args = ()
+        global controller
+        print(dist.get_rank(),controller.is_alive())
+        while global_request_func is not None:
+            pass
 
 def get_world_size(group = None,):
     if isinstance(group, list):
@@ -165,6 +188,9 @@ def get_rank(group = None,):
     else:
         return dist.get_world_size(group)
 
+def init_process_group(backend, world_size, rank, timeout,):
+    dist.init_process_group(backend = backend, world_size = world_size, rank = rank, timeout = timeout)
+
 def set_thread_index(rank):
     global thread_mappings
     # print('%', threading.get_ident(), rank)
@@ -172,10 +198,15 @@ def set_thread_index(rank):
 
 def all_reduce(tensor, op=ReduceOp.SUM, group=None):
     global use_thread_communication
-    if not use_thread_communication or group is None:
-        print(group)
+    if not use_thread_communication:
         dist.all_reduce(tensor, op, group)
-        print(group)
+    elif group is None:
+        global global_request_func
+        global global_request_args
+        global_request_func = dist.all_reduce
+        global_request_args = (tensor, op, group)
+        while global_request_func is not None:
+            pass
     elif isinstance(group, int):
         lock.acquire()
         global result
@@ -191,12 +222,12 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=None):
                 for i in range(result.shape[0]):
                     result[i] = max(result[i], tensor[i])
         lock.release()
-        barrier.wait()
+        thread_barrier.wait()
         dist.all_reduce(result, op = op, group = group)
         tensor.copy_(result)
-        barrier.wait()
+        thread_barrier.wait()
         result = None
-        barrier.wait()
+        thread_barrier.wait()
     else:
         index = get_thread_index()
         print('@',index)
@@ -219,13 +250,13 @@ def _all_gather_base(tensor_list, tensor, group=None):
             result = []
         result.append((get_thread_index(),tensor))
         lock.release()
-        barrier.wait()
+        thread_barrier.wait()
         for x in result:
             tensor_list[x[0]]=x[1].clone()
-        barrier.wait()
+        thread_barrier.wait()
         dist._all_gather_base(tensor_list, tensor_list, op = op, group = group)
         result = None
-        barrier.wait()
+        thread_barrier.wait()
     else:
         index = get_thread_index()
         finished_thread[index] = 1
@@ -247,11 +278,11 @@ def _reduce_scatter_base(tensor, tensor_list, op=ReduceOp.SUM, group=None):
             for i in range(num_threads):
                 result[i] += tensor_list[i]
         lock.release()
-        barrier.wait()
+        thread_barrier.wait()
         tensor.copy_(result[get_thread_index()])
-        barrier.wait()
+        thread_barrier.wait()
         result = None
-        barrier.wait()
+        thread_barrier.wait()
     else:
         index = get_thread_index()
         requests_queue.put((index, dist._reduce_scatter_base, (tensor, tensor_list, op), group))
@@ -261,21 +292,29 @@ def _reduce_scatter_base(tensor, tensor_list, op=ReduceOp.SUM, group=None):
 
 def broadcast(tensor, src, group=None):
     global use_thread_communication
+    src = get_real_rank(src)
     if not use_thread_communication:
         dist.broadcast(tensor, src, group)
+    elif group is None:
+        global global_request_func
+        global global_request_args
+        global_request_func = dist.broadcast
+        global_request_args = (tensor, src, group)
+        while global_request_func is not None:
+            pass
     elif isinstance(group, int):
         global result
         if get_thread_index() == _GLOBAL_RANK_INFO[src]:
             result = tensor
-        barrier.wait()
+        thread_barrier.wait()
         tensor.copy_(result)
-        barrier.wait()
+        thread_barrier.wait()
         result = None
-        barrier.wait()
+        thread_barrier.wait()
     else:
         index = get_thread_index()
         finished_thread[index] = 1
         # print(group)
-        requests_queue.put((get_thread_index(), dist.broadcast, (tensor, get_real_rank(src)), group))
+        requests_queue.put((get_thread_index(), dist.broadcast, (tensor, src), group))
         while controller.get_status(index):
             pass
