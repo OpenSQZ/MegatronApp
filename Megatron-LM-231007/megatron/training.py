@@ -9,7 +9,7 @@ import time
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 import threading
 
 from megatron import get_args
@@ -99,6 +99,7 @@ def pretrain(train_valid_test_dataset_provider,
     # image ... launches.
     global _TRAIN_START_TIME
     start_time_tensor = torch.cuda.DoubleTensor([_TRAIN_START_TIME])
+    # print('get_time')
     dist.all_reduce(start_time_tensor,
                                  op=dist.ReduceOp.MIN)
     _TRAIN_START_TIME = start_time_tensor.item()
@@ -109,6 +110,7 @@ def pretrain(train_valid_test_dataset_provider,
     args = get_args()
     timers = get_timers()
 
+    # print('start setting')
     # Model, optimizer, and learning rate.
     timers('model-and-optimizer-setup', log_level=0).start(barrier=True)
     model, optimizer, opt_param_scheduler = setup_model_and_optimizer(

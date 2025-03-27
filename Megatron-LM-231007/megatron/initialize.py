@@ -8,7 +8,7 @@ import time
 
 import numpy as np
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 from datetime import timedelta
 
 from megatron import fused_kernels
@@ -141,6 +141,8 @@ def _compile_dependencies():
             )
 
     # Always build on rank zero first.
+    print('running barrier')
+    print(type(dist.barrier))
     if dist.get_rank() == 0:
         start_time = time.time()
         print("> compiling and loading fused kernels ...", flush=True)
@@ -149,11 +151,13 @@ def _compile_dependencies():
     else:
         dist.barrier()
         fused_kernels.load(args)
+    print(dist.get_rank(),'barrier finished')
     # Simple barrier to make sure all ranks have passed the
     # compilation phase successfully before moving on to the
     # rest of the program. We think this might ensure that
     # the lock is released.
     dist.barrier()
+    print(dist.get_rank(),'barrier finished')
     if dist.get_rank() == 0:
         print(
             ">>> done with compiling and loading fused kernels. "
