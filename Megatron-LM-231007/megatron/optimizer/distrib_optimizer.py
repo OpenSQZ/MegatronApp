@@ -6,7 +6,7 @@
 from apex.optimizers import FusedAdam as Adam
 import math
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 import pickle
 
 from megatron import get_args

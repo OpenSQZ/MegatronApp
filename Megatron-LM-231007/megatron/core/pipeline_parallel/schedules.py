@@ -4,8 +4,9 @@ import contextlib
 from typing import Callable, Iterator, List, Optional, Union
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 from torch.autograd.variable import Variable
+import time
 
 from megatron import get_args
 from megatron.core import parallel_state
@@ -100,11 +101,13 @@ def get_forward_backward_func():
     else:
         forward_backward_func = forward_backward_no_pipelining
     args = get_args()
+    # if args.forward_backward_disaggregating:
+    #     if args.ignore_forward_tensor_parallel:
+    #         forward_backward_func = Multimodel_forward_or_backward_pipelining_without_interleaving
+    #     else:
+    #         forward_backward_func = forward_or_backward_pipelining_without_interleaving
     if args.forward_backward_disaggregating:
-        if args.ignore_forward_tensor_parallel:
-            forward_backward_func = Multimodel_forward_or_backward_pipelining_without_interleaving
-        else:
-            forward_backward_func = forward_or_backward_pipelining_without_interleaving
+        forward_backward_func = forward_or_backward_pipelining_without_interleaving
     return forward_backward_func
 
 
@@ -171,8 +174,9 @@ def forward_step(
     passed-in input_tensor is used.
 
     Returns output tensor."""
-    if config.timers is not None:
-        config.timers('forward-compute', log_level=2).start()
+    print('doing foward_step at',dist.get_rank())
+    # if config.timers is not None:
+    #     config.timers('forward-compute', log_level=2).start()
 
     unwrap_output_tensor = False
     if not isinstance(input_tensor, list):
@@ -193,6 +197,8 @@ def forward_step(
             output_tensor, loss_func = forward_step_func(
                 data_iterator, model, checkpoint_activations_microbatch
             )
+    
+    # print('foward_step middle at',dist.get_rank())
 
     # if dist.get_rank() == 6:
     #     print('waaaaaaaaiting of rank',dist.get_rank())
@@ -215,13 +221,14 @@ def forward_step(
     #         torch.cuda.synchronize()
     #     print('finish waiting of rank',dist.get_rank())
     
-    if config.timers is not None:
-        config.timers('forward-compute').stop()
+    # if config.timers is not None:
+    #     config.timers('forward-compute').stop()
 
     # If T5 model (or other model with encoder and decoder)
     # and in decoder stack, then send encoder_hidden_state
     # downstream as well.
     model_type = get_model_type(model)
+    # print('foward_step finished at',dist.get_rank())
     if (
         parallel_state.is_pipeline_stage_after_split()
         and model_type == ModelType.encoder_and_decoder
@@ -245,8 +252,8 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     # needs to be modified slightly to support arbitrary numbers of skip
     # connections.
 
-    if config.timers is not None:
-        config.timers('backward-compute', log_level=2).start()
+    # if config.timers is not None:
+    #     config.timers('backward-compute', log_level=2).start()
 
     # Retain the grad on the input_tensor.
     unwrap_input_tensor_grad = False
@@ -297,8 +304,8 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     if unwrap_input_tensor_grad:
         input_tensor_grad = input_tensor_grad[0]
 
-    if config.timers is not None:
-        config.timers('backward-compute').stop()
+    # if config.timers is not None:
+    #     config.timers('backward-compute').stop()
 
     return input_tensor_grad
 
@@ -1334,32 +1341,32 @@ def forward_backward_pipelining_without_interleaving(
     return forward_data_store
 
     
-def Multimodel_forward_or_backward_pipelining_without_interleaving(
-    *,
-    forward_step_func,
-    data_iterator: Union[Iterator, List[Iterator]],
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
-    num_microbatches: int,
-    seq_length: int,
-    micro_batch_size: int,
-    decoder_seq_length: int = None,
-    forward_only: bool = False,
-    collect_non_loss_data: bool = False,
-):
-    forward_data_store = []
-    for (tensor_rank, partition) in enumerate(model):
-        parallel_state.set_tensor_parallel_rank(tensor_rank)
-        forward_data_store.append(forward_or_backward_pipelining_without_interleaving(
-                                    forward_step_func,
-                                    data_iterator,
-                                    partition,
-                                    num_microbatches,
-                                    micro_batch_size,
-                                    decoder_seq_length,
-                                    forward_only,
-                                    collect_non_loss_data
-                                    ))
-    return forward_data_store
+# def Multimodel_forward_or_backward_pipelining_without_interleaving(
+#     *,
+#     forward_step_func,
+#     data_iterator: Union[Iterator, List[Iterator]],
+#     model: Union[torch.nn.Module, List[torch.nn.Module]],
+#     num_microbatches: int,
+#     seq_length: int,
+#     micro_batch_size: int,
+#     decoder_seq_length: int = None,
+#     forward_only: bool = False,
+#     collect_non_loss_data: bool = False,
+# ):
+#     forward_data_store = []
+#     for (tensor_rank, partition) in enumerate(model):
+#         parallel_state.set_tensor_parallel_rank(tensor_rank)
+#         forward_data_store.append(forward_or_backward_pipelining_without_interleaving(
+#                                     forward_step_func,
+#                                     data_iterator,
+#                                     partition,
+#                                     num_microbatches,
+#                                     micro_batch_size,
+#                                     decoder_seq_length,
+#                                     forward_only,
+#                                     collect_non_loss_data
+#                                     ))
+#     return forward_data_store
 
 def forward_or_backward_pipelining_without_interleaving(
     *,
@@ -1396,8 +1403,8 @@ def forward_or_backward_pipelining_without_interleaving(
             "Non-interleaved pipeline parallelism does not support overlapping p2p communication"
         )
 
-    if config.timers is not None:
-        config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
+    # if config.timers is not None:
+    #     config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
 
     # Disable async grad reductions
     no_sync_func = config.no_sync_func
@@ -1468,6 +1475,7 @@ def forward_or_backward_pipelining_without_interleaving(
 
         # Run 1F1B in steady state.
         for i in range(num_microbatches):
+            print('running', dist.get_rank(), i)
             # print(rank,' forward: ',i)
             # print(rank,'reveiving input tensor at',i)
             # if dist.get_rank() == 6:
@@ -1476,6 +1484,7 @@ def forward_or_backward_pipelining_without_interleaving(
             #         torch.cuda.synchronize()
             #     print('finish waiting of rank',dist.get_rank())
             input_tensor = recv_forward(recv_tensor_shapes, config)
+            # print(rank,'sending input tensor')
             if not parallel_state.is_pipeline_first_stage() and not forward_only:
                 send_corresponding_forward(input_tensor, recv_tensor_shapes, config)
             # if dist.get_rank() == 6:
@@ -1496,7 +1505,7 @@ def forward_or_backward_pipelining_without_interleaving(
             #     if config.batch_p2p_comm and config.batch_p2p_sync:
             #         torch.cuda.synchronize()
             #     print('finish waiting of rank',dist.get_rank())
-
+            # print(rank,'fowardstep')
             output_tensor = forward_step(
                 forward_step_func,
                 data_iterator,
@@ -1508,6 +1517,7 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
+            # print(rank,'fowardstep finished')
             # print(output_tensor[0].grad_fn)
             # if dist.get_rank() == 6:
             #     print('wajting of rank',dist.get_rank(),'at',i)
@@ -1527,6 +1537,7 @@ def forward_or_backward_pipelining_without_interleaving(
             # send_corresponding_forward(output_tensor, send_tensor_shapes, config)
     elif not forward_only:
         for i in range(num_microbatches):
+            print('running', dist.get_rank(), i)
             # print(rank,' backward: ',i)
             # Enable async grad reduction in the last backward pass
             # Note: If grad sync function is provided, only enable
@@ -1548,6 +1559,7 @@ def forward_or_backward_pipelining_without_interleaving(
             input_tensor = None
             if not parallel_state.is_pipeline_first_stage():
                 input_tensor = recv_corresponding_forward(recv_tensor_shapes, config)
+            # print(rank,'forward_step_backward')
             output_tensor = forward_step(
                 forward_step_func,
                 data_iterator,
@@ -1601,8 +1613,11 @@ def forward_or_backward_pipelining_without_interleaving(
         if config.grad_sync_func is not None:
             config.grad_sync_func(model.parameters())
 
-    if config.timers is not None:
-        config.timers('forward-backward').stop()
+    print('finished iteration', dist.get_rank())
+
+    dist.barrier()
+    # if config.timers is not None:
+    #     config.timers('forward-backward').stop()
 
     # if backward_only:
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for

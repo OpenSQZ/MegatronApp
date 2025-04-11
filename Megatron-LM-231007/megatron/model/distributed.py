@@ -99,6 +99,7 @@ class Bucket:
                 async_op=self.overlap_grad_reduce,
             )
         else:
+            print('here!')
             self.communication_handle = dist.all_reduce(
                 self.data, group=self.data_parallel_group, async_op=self.overlap_grad_reduce
             )

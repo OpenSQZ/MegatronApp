@@ -5,7 +5,7 @@ from functools import reduce
 from typing import Callable, List, Optional, Tuple, Union
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 import torch.distributed
 
 from megatron import core
@@ -70,7 +70,7 @@ def _communicate_shapes(tensor_send_next, tensor_send_prev, recv_prev, recv_next
             tensor_recv_prev=recv_prev_shape_tensor,
             tensor_send_next=send_next_shape_tensor,
             tensor_recv_next=recv_next_shape_tensor,
-            group=get_pipeline_model_parallel_group(),
+            group=get_pipeline_model_parallel_group(extracted = True),
         )
     else:
         ops = []
@@ -322,7 +322,7 @@ def _communicate(
     #     # User should assert that we have a modern enough PyTorch to not need this
     #     torch.cuda.synchronize()
     # print('finjsh waiting of rank',dist.get_rank())
-
+    # print('communication of rank',dist.get_rank())
     # if recv_next and not recv_prev:
     #     print('receiving')
     
@@ -383,27 +383,35 @@ def _communicate(
 
     # if recv_next and not recv_prev:
     #     print('receiving1')
+    # print(get_pipeline_model_parallel_group(extracted = True))
     reqs = p2p_func(
         tensor_send_prev=tensor_send_prev,
         tensor_recv_prev=tensor_recv_prev,
         tensor_send_next=tensor_send_next,
         tensor_recv_next=tensor_recv_next,
-        group=get_pipeline_model_parallel_group(),
+        group=get_pipeline_model_parallel_group(extracted = True),
     )
     # if recv_next and not recv_prev:
     #     print('receiving2')
+    # print('waiting',dist.get_rank())
     if wait_on_reqs and len(reqs) > 0:
+        # print('waiting')
         for req in reqs:
             req.wait()
         reqs = None
+        # print('waiting finished')
+    # print('waiting',dist.get_rank(),'finished')
     # if recv_next and not recv_prev:
     #     print('receiving3')
     # print('waiting of rank',dist.get_rank())
     if config.batch_p2p_comm and config.batch_p2p_sync:
         # To protect against race condition when using batch_isend_irecv().
         # User should assert that we have a modern enough PyTorch to not need this
+        # print('syning',dist.get_rank())
         torch.cuda.synchronize()
+        # print('syn',dist.get_rank(),'finished')
     # print('finish waiting of rank',dist.get_rank())
+    # print('communication of rank',dist.get_rank(),'finished')
 
     return tensor_recv_prev, tensor_recv_next, reqs
 
@@ -458,7 +466,7 @@ def _forward_backward_communicate(
     recv_prev_shape = tensor_shape
     recv_next_shape = tensor_shape
 
-    # print('waiting of rank',dist.get_rank())
+    # print('fcommunication of rank',dist.get_rank())
     # if config.batch_p2p_comm and config.batch_p2p_sync:
     #     torch.cuda.synchronize()
     # print('finish waiting of rank',dist.get_rank())
@@ -511,14 +519,16 @@ def _forward_backward_communicate(
     reqs = p2p_func(
         tensor_recv_prev=tensor_recv_prev,
         tensor_send_next=tensor_send_next,
-        group=get_forward_backward_parallel_group(),
+        group=get_forward_backward_parallel_group(extracted = True),
     )
 
-    # print('waiting of rank',dist.get_rank())
+    # print('fwaiting of rank',dist.get_rank())
     if wait_on_reqs and len(reqs) > 0:
+        # print('waiting')
         for req in reqs:
             req.wait()
         reqs = None
+        # print('waiting finished')
 
     if config.batch_p2p_comm and config.batch_p2p_sync:
         # To protect against race condition when using batch_isend_irecv().
@@ -526,6 +536,7 @@ def _forward_backward_communicate(
         torch.cuda.synchronize()
 
     # print('finish waiting of rank',dist.get_rank())
+    # print('fcommunication of rank',dist.get_rank(),'finished')
 
     return tensor_recv_prev, tensor_recv_next, reqs
 
@@ -541,8 +552,8 @@ def recv_forward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Tens
     if core.parallel_state.is_pipeline_first_stage():
         input_tensor = None
     else:
-        if config.timers is not None:
-            config.timers('forward-recv', log_level=2).start()
+        # if config.timers is not None:
+        #     config.timers('forward-recv', log_level=2).start()
         input_tensor, _, _ = _communicate(
             tensor_send_next=None,
             tensor_send_prev=None,
@@ -551,8 +562,8 @@ def recv_forward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Tens
             tensor_shape=tensor_shape,
             config=config,
         )
-        if config.timers is not None:
-            config.timers('forward-recv').stop()
+        # if config.timers is not None:
+        #     config.timers('forward-recv').stop()
     return input_tensor
 
 
@@ -564,8 +575,8 @@ def recv_backward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Ten
     if core.parallel_state.is_pipeline_last_stage():
         output_tensor_grad = None
     else:
-        if config.timers is not None:
-            config.timers('backward-recv', log_level=2).start()
+        # if config.timers is not None:
+        #     config.timers('backward-recv', log_level=2).start()
         # print('receiving backward grad')
         _, output_tensor_grad, _ = _communicate(
             tensor_send_next=None,
@@ -576,8 +587,8 @@ def recv_backward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Ten
             config=config,
         )
         # print('rev suc')
-        if config.timers is not None:
-            config.timers('backward-recv').stop()
+        # if config.timers is not None:
+        #     config.timers('backward-recv').stop()
     return output_tensor_grad
 
 # def recv_backward_prev(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Tensor:
@@ -609,8 +620,8 @@ def send_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> No
     """
 
     if not core.parallel_state.is_pipeline_last_stage():
-        if config.timers is not None:
-            config.timers('forward-send', log_level=2).start()
+        # if config.timers is not None:
+        #     config.timers('forward-send', log_level=2).start()
         _communicate(
             tensor_send_next=output_tensor,
             tensor_send_prev=None,
@@ -619,8 +630,8 @@ def send_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> No
             tensor_shape=None,
             config=config,
         )
-        if config.timers is not None:
-            config.timers('forward-send').stop()
+        # if config.timers is not None:
+        #     config.timers('forward-send').stop()
 
 def send_corresponding_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> None:
     """Send tensor to next rank in pipeline (forward send).
@@ -670,8 +681,8 @@ def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) 
     See _communicate for argument details.
     """
     if not core.parallel_state.is_pipeline_first_stage():
-        if config.timers is not None:
-            config.timers('backward-send', log_level=2).start()
+        # if config.timers is not None:
+        #     config.timers('backward-send', log_level=2).start()
         # print('sending backward grad')
         assert input_tensor_grad is not None
         _communicate(
@@ -683,8 +694,8 @@ def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) 
             config=config,
         )
         # print('sending suc')
-        if config.timers is not None:
-            config.timers('backward-send').stop()
+        # if config.timers is not None:
+        #     config.timers('backward-send').stop()
 
 # def send_backward_next(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) -> None:
 #     """Send tensor to previous rank in pipeline (backward send).
@@ -715,8 +726,8 @@ def send_forward_recv_backward(
     if core.parallel_state.is_pipeline_last_stage():
         output_tensor_grad = None
     else:
-        if config.timers is not None:
-            config.timers('forward-send-backward-recv', log_level=2).start()
+        # if config.timers is not None:
+        #     config.timers('forward-send-backward-recv', log_level=2).start()
         _, output_tensor_grad, _ = _communicate(
             tensor_send_next=output_tensor,
             tensor_send_prev=None,
@@ -725,8 +736,8 @@ def send_forward_recv_backward(
             tensor_shape=tensor_shape,
             config=config,
         )
-        if config.timers is not None:
-            config.timers('forward-send-backward-recv').stop()
+        # if config.timers is not None:
+        #     config.timers('forward-send-backward-recv').stop()
     return output_tensor_grad
 
 
@@ -740,8 +751,8 @@ def send_backward_recv_forward(
     if core.parallel_state.is_pipeline_first_stage():
         input_tensor = None
     else:
-        if config.timers is not None:
-            config.timers('backward-send-forward-recv', log_level=2).start()
+        # if config.timers is not None:
+        #     config.timers('backward-send-forward-recv', log_level=2).start()
         input_tensor, _, _ = _communicate(
             tensor_send_next=None,
             tensor_send_prev=input_tensor_grad,
@@ -750,8 +761,8 @@ def send_backward_recv_forward(
             tensor_shape=tensor_shape,
             config=config,
         )
-        if config.timers is not None:
-            config.timers('backward-send-forward-recv').stop()
+        # if config.timers is not None:
+        #     config.timers('backward-send-forward-recv').stop()
     return input_tensor
 
 
@@ -766,8 +777,8 @@ def send_forward_recv_forward(
 
     See _communicate for argument details.
     """
-    if config.timers is not None:
-        config.timers('forward-send-forward-recv', log_level=2).start()
+    # if config.timers is not None:
+    #     config.timers('forward-send-forward-recv', log_level=2).start()
     input_tensor, _, wait_handles = _communicate(
         tensor_send_next=output_tensor,
         tensor_send_prev=None,
@@ -777,8 +788,8 @@ def send_forward_recv_forward(
         wait_on_reqs=(not overlap_p2p_comm),
         config=config,
     )
-    if config.timers is not None:
-        config.timers('forward-send-forward-recv').stop()
+    # if config.timers is not None:
+    #     config.timers('forward-send-forward-recv').stop()
     if overlap_p2p_comm:
         return input_tensor, wait_handles
     return input_tensor
@@ -795,8 +806,8 @@ def send_backward_recv_backward(
 
     See _communicate for argument details.
     """
-    if config.timers is not None:
-        config.timers('backward-send-backward-recv', log_level=2).start()
+    # if config.timers is not None:
+    #     config.timers('backward-send-backward-recv', log_level=2).start()
     _, output_tensor_grad, wait_handles = _communicate(
         tensor_send_next=None,
         tensor_send_prev=input_tensor_grad,
@@ -806,8 +817,8 @@ def send_backward_recv_backward(
         wait_on_reqs=(not overlap_p2p_comm),
         config=config,
     )
-    if config.timers is not None:
-        config.timers('backward-send-backward-recv').stop()
+    # if config.timers is not None:
+    #     config.timers('backward-send-backward-recv').stop()
     if overlap_p2p_comm:
         return output_tensor_grad, wait_handles
     return output_tensor_grad
@@ -825,8 +836,8 @@ def send_forward_backward_recv_forward_backward(
 
     See _communicate for argument details.
     """
-    if config.timers is not None:
-        config.timers('forward-backward-send-forward-backward-recv', log_level=2).start()
+    # if config.timers is not None:
+    #     config.timers('forward-backward-send-forward-backward-recv', log_level=2).start()
     input_tensor, output_tensor_grad, _ = _communicate(
         tensor_send_next=output_tensor,
         tensor_send_prev=input_tensor_grad,
@@ -835,6 +846,6 @@ def send_forward_backward_recv_forward_backward(
         tensor_shape=tensor_shape,
         config=config,
     )
-    if config.timers is not None:
-        config.timers('forward-backward-send-forward-backward-recv').stop()
+    # if config.timers is not None:
+    #     config.timers('forward-backward-send-forward-backward-recv').stop()
     return input_tensor, output_tensor_grad

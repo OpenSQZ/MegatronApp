@@ -5,7 +5,7 @@
 import os
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 from torch import inf
 
 from apex.multi_tensor_apply import multi_tensor_applier

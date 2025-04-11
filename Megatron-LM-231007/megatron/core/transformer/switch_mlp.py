@@ -1,7 +1,7 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.parallel_state import (

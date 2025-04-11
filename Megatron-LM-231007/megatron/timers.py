@@ -7,7 +7,7 @@ from abc import abstractmethod
 import time
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 
 
 

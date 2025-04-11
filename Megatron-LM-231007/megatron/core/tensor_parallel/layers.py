@@ -33,11 +33,7 @@ from .mappings import (
 from .random import get_cuda_rng_tracker, get_expert_parallel_rng_tracker_name
 from .utils import VocabUtility, divide, split_tensor_along_last_dim
 
-from megatron.virtual_tensor_parallel_communication import if_use_thread_communication
-if if_use_thread_communication():
-    import megatron.virtual_tensor_parallel_communication as dist
-else:
-    import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 
 _grad_accum_fusion_available = True
 try:
