@@ -8,7 +8,7 @@ import sys
 import numpy as np
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron import update_num_microbatches
 from megatron.core import mpu, tensor_parallel

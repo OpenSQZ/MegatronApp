@@ -1599,7 +1599,10 @@ class ParallelTransformer(MegatronModule):
             te_forward_kwargs['is_first_microbatch'] = is_first_microbatch
             if self.transformer_engine_v_0_10:
                 te_forward_kwargs['rotary_pos_emb'] = rotary_pos_emb
-
+        import time
+        import megatron.virtual_tensor_parallel_communication as dist
+        start_time = time.time()
+        print('foward_step clock start', dist.get_rank())
         if self.recompute_method == 'uniform':
             # Uniformly divide the total number of Transformer layers and
             # checkpoint the input activation of each divided chunk.
@@ -1657,6 +1660,8 @@ class ParallelTransformer(MegatronModule):
                             None, None, None, None, rotary_pos_emb)
         else:
             raise ValueError("Invalid activation recompute method.")
+        end_time = time.time()
+        print('foward_step time:',end_time-start_time,'at',dist.get_rank(),self.recompute_method)
 
         return hidden_states
 

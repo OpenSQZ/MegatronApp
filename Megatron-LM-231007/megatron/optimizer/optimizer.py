@@ -7,7 +7,7 @@ from abc import abstractmethod
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron import get_timers
 from megatron import print_rank_0

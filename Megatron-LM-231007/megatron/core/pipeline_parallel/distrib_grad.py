@@ -1,7 +1,7 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from megatron.core import mpu

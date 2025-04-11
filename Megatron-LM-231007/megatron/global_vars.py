@@ -10,6 +10,7 @@ from megatron import dist_signal_handler
 from megatron.tokenizer import build_tokenizer
 from .microbatches import build_num_microbatches_calculator
 from .timers import Timers
+import megatron.virtual_tensor_parallel_communication as dist
 
 _GLOBAL_ARGS = None
 _GLOBAL_RETRO_ARGS = None
@@ -19,6 +20,9 @@ _GLOBAL_TENSORBOARD_WRITER = None
 _GLOBAL_ADLR_AUTORESUME = None
 _GLOBAL_TIMERS = None
 _GLOBAL_SIGNAL_HANDLER = None
+_GLOBAL_TIMERS_LIST = None
+
+_GLOBAL_LIST_USE = False
 
 def get_args():
     """Return arguments."""
@@ -64,8 +68,12 @@ def get_adlr_autoresume():
 
 def get_timers():
     """Return timers."""
-    _ensure_var_is_initialized(_GLOBAL_TIMERS, 'timers')
-    return _GLOBAL_TIMERS
+    if not dist.if_use_thread_communication():
+        _ensure_var_is_initialized(_GLOBAL_TIMERS, 'timers')
+        return _GLOBAL_TIMERS
+    else:
+        # print('_GLOBAL_TIMERS_LIST', dist.get_thread_index())
+        return _GLOBAL_TIMERS_LIST[dist.get_thread_index()]
 
 
 def get_signal_handler():
@@ -94,6 +102,8 @@ def set_global_variables(args, build_tokenizer=True):
     _set_tensorboard_writer(args)
     _set_adlr_autoresume(args)
     _set_timers(args)
+    # global _GLOBAL_LIST_USE
+    # _GLOBAL_LIST_USE = global_list_needed
 
     if args.exit_signal_handler:
         _set_signal_handler()
@@ -174,8 +184,14 @@ def _set_adlr_autoresume(args):
 def _set_timers(args):
     """Initialize timers."""
     global _GLOBAL_TIMERS
+    global _GLOBAL_TIMERS_LIST
     _ensure_var_is_not_initialized(_GLOBAL_TIMERS, 'timers')
     _GLOBAL_TIMERS = Timers(args.timing_log_level, args.timing_log_option)
+    _ensure_var_is_not_initialized(_GLOBAL_TIMERS_LIST, 'timers')
+    args = get_args()
+    _GLOBAL_TIMERS_LIST = []
+    for i in range(args.tensor_model_parallel_size):
+        _GLOBAL_TIMERS_LIST.append(Timers(args.timing_log_level, args.timing_log_option))
 
 
 def _ensure_var_is_initialized(var, name):

@@ -231,7 +231,6 @@ class Embedding(MegatronModule):
         # If the input flag for fp32 residual connection is set, convert for float.
         if self.fp32_residual_connection:
             embeddings = embeddings.float()
-
         # Dropout.
         if self.sequence_parallel:
             embeddings = tensor_parallel.scatter_to_sequence_parallel_region(embeddings)
@@ -461,6 +460,7 @@ class TransformerLanguageModel(MegatronModule):
                 enc_hidden_states=None, output_enc_hidden=False):
 
         # Encoder embedding.
+        # print('forward,TransformerLanguageModel', dist.get_rank())
         if self.pre_process:
             encoder_input = self.embedding(enc_input_ids, enc_position_ids,
                                            tokentype_ids=tokentype_ids)
@@ -484,6 +484,7 @@ class TransformerLanguageModel(MegatronModule):
             else:
                 rotary_pos_emb = self.rotary_pos_emb(self.seq_length)
 
+        # print('forward,TransformerLanguageModel,embedding', dist.get_rank())
         # Run encoder.
         if enc_hidden_states is None:
             if self.encoder is not None:
@@ -528,7 +529,7 @@ class TransformerLanguageModel(MegatronModule):
             enc_dec_attn_mask=enc_dec_attn_mask,
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb)
-
+        # print('forward,TransformerLanguageModel,finished', dist.get_rank())
         if self.add_pooler and self.post_process:
             return decoder_output, encoder_output, pooled_output
         else:

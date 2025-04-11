@@ -3,10 +3,7 @@
 import torch
 
 from megatron.virtual_tensor_parallel_communication import if_use_thread_communication
-if if_use_thread_communication():
-    import megatron.virtual_tensor_parallel_communication as dist
-else:
-    import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.parallel_state import (
     get_tensor_model_parallel_group,
@@ -40,7 +37,6 @@ def _build_key_size_numel_dictionaries(keys, data):
             for i, s in enumerate(size):
                 sizes[i + offset] = s
             offset += max_dim
-
     # Move to GPU and broadcast.
     sizes_cuda = torch.cuda.LongTensor(sizes)
     dist.broadcast(

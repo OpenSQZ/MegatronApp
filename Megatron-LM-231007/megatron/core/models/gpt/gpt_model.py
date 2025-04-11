@@ -4,7 +4,7 @@ import logging
 from typing import Literal, Optional
 
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 from torch import Tensor
 
 from megatron.core import parallel_state, tensor_parallel

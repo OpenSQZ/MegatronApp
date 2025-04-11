@@ -8,7 +8,7 @@ import time
 
 import numpy as np
 import torch
-import megatron.virtual_tensor_parallel_communication as dist
+import inc.torch as dist
 from datetime import timedelta
 
 from megatron import fused_kernels
@@ -142,7 +142,7 @@ def _compile_dependencies():
 
     # Always build on rank zero first.
     print('running barrier')
-    print(type(dist.barrier))
+    # print(type(dist.barrier))
     if dist.get_rank() == 0:
         start_time = time.time()
         print("> compiling and loading fused kernels ...", flush=True)
@@ -157,7 +157,7 @@ def _compile_dependencies():
     # rest of the program. We think this might ensure that
     # the lock is released.
     dist.barrier()
-    print(dist.get_rank(),'barrier finished')
+    # print(dist.get_rank(),'barrier finished')
     if dist.get_rank() == 0:
         print(
             ">>> done with compiling and loading fused kernels. "
@@ -201,7 +201,7 @@ def _initialize_distributed():
             #     if reminder // args.tensor_model_parallel_size % 2 == 0:
             #         device=device // args.tensor_model_parallel_size * args.tensor_model_parallel_size
             torch.cuda.set_device(device)
-            # print(args.rank,':',device)
+            # print(args.rank,':',device,':',torch.cuda.current_device())
         # Call the init process
         dist.init_process_group(
             backend=args.distributed_backend,
