@@ -10,7 +10,8 @@ import inc.torch as dist
 
 from .utils import GlobalMemoryBuffer
 from megatron import get_args
-from megatron.virtual_tensor_parallel_communication import (get_thread_index, set_use_thread_communication, init, set_virtual_rank_info)
+from megatron.virtual_tensor_parallel_communication import (get_thread_index, set_use_thread_communication, init, init_backward, set_virtual_rank_info)
+
 
 # Intra-layer model parallel group that the current rank belongs to.
 _TENSOR_MODEL_PARALLEL_GROUP = None
@@ -38,6 +39,8 @@ _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE = None
 _MPU_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
 _MPU_TENSOR_MODEL_PARALLEL_RANK = None
 _MPU_PIPELINE_MODEL_PARALLEL_RANK = None
+
+_MODEL_PARALLEL_GLOBAL_RANKS = None
 
 # A list of ranks that have a copy of the embedding.
 _EMBEDDING_GLOBAL_RANKS = None
@@ -156,6 +159,7 @@ _HALF_DATA_PARALLEL_GROUP_CONTROLLER = None
 
 _FORWARD_CONTROLLER_GROUP = None
 _CONTROLLER_GROUP_RANKS = None
+_GLOBAL_CONTROLLER_GROUP = None
 
 def get_real_ranks(ranks):
     ranks = sorted(ranks)
@@ -184,8 +188,8 @@ def get_forward_ranks(ranks):
         for j in range(0,i+1):
             if DELETED_RANKS[j] <= 0:
                 s += 1
-        if DELETED_RANKS[i] >= 0:
-            new_ranks.append(s-1)
+        # if DELETED_RANKS[i] >= 0:
+        new_ranks.append(s-1)
     return list(set(new_ranks))
 
 def get_virtual_rank(rank):
@@ -372,15 +376,23 @@ def initialize_model_parallel(
                 )
                 for id in ranks:
                     DELETED_RANKS[id] = j
+                ranks = range(
+                    start_rank + j + context_parallel_size * tensor_model_parallel_size, end_rank, context_parallel_size * tensor_model_parallel_size * 2
+                )
+                for id in ranks:
+                    DELETED_RANKS[id] = -j - 1
         ranks = []
         for i in range(world_size):
             if DELETED_RANKS[i] == 0:
                 ranks.append(get_real_rank(i))
         global _FORWARD_CONTROLLER_GROUP
         global _CONTROLLER_GROUP_RANKS
-        print(rank, ranks)
+        global _GLOBAL_CONTROLLER_GROUP
+        # print(rank, ranks)
         _FORWARD_CONTROLLER_GROUP = dist.new_group(ranks, backend="gloo")
+        ranks = [i for i in range(0,dist.get_world_size())]
         _CONTROLLER_GROUP_RANKS = ranks
+        _GLOBAL_CONTROLLER_GROUP = dist.new_group(ranks, backend="gloo")
     elif args.forward_backward_disaggregating:
         global _IS_FORWARD_STAGE
         if (rank // tensor_model_parallel_size) & 1:
@@ -407,8 +419,8 @@ def initialize_model_parallel(
                         _HALF_DATA_PARALLEL_GROUP_CONTROLLER = controller_ranks
                     if get_real_rank(rank) in real_ranks:
                         if not group_list_needed:
-                            _HALF_DATA_PARALLEL_GROUP = group
-                            _HALF_DATA_PARALLEL_GROUP_GLOO = group_gloo
+                            _HALF_DATA_PARALLEL_GROUP = [group, _HALF_DATA_PARALLEL_GROUP_CONTROLLER]
+                            _HALF_DATA_PARALLEL_GROUP_GLOO = [group_gloo, _HALF_DATA_PARALLEL_GROUP_CONTROLLER]
                             _HALF_DATA_PARALLEL_GLOBAL_RANKS = ranks
                         else:
                             thread_id = DELETED_RANKS[ranks[real_ranks.index(get_real_rank(rank))]]
@@ -441,8 +453,8 @@ def initialize_model_parallel(
                             _FORWARD_BACKWARD_PARALLEL_GROUP_CONTROLLER = controller_ranks
                         if get_real_rank(rank) in real_ranks:
                             if not group_list_needed:
-                                _FORWARD_BACKWARD_PARALLEL_GROUP = group
-                                _FORWARD_BACKWARD_PARALLEL_GLOO = group_gloo
+                                _FORWARD_BACKWARD_PARALLEL_GROUP = [group, _FORWARD_BACKWARD_PARALLEL_GROUP_CONTROLLER]
+                                _FORWARD_BACKWARD_PARALLEL_GLOO = [group_gloo, _FORWARD_BACKWARD_PARALLEL_GROUP_CONTROLLER]
                                 _FORWARD_BACKWARD_GLOBAL_RANKS = ranks
                             else:
                                 thread_id = DELETED_RANKS[ranks[real_ranks.index(get_real_rank(rank))]]
@@ -468,8 +480,8 @@ def initialize_model_parallel(
                     _DATA_PARALLEL_GROUP_CONTROLLER = controller_ranks
                 if get_real_rank(rank) in real_ranks:
                     if not group_list_needed:
-                        _DATA_PARALLEL_GROUP = group
-                        _DATA_PARALLEL_GROUP_GLOO = group_gloo
+                        _DATA_PARALLEL_GROUP = [group, _DATA_PARALLEL_GROUP_CONTROLLER]
+                        _DATA_PARALLEL_GROUP_GLOO = [group_gloo, _DATA_PARALLEL_GROUP_CONTROLLER]
                         _DATA_PARALLEL_GLOBAL_RANKS = ranks
                     else:
                         thread_id = DELETED_RANKS[ranks[real_ranks.index(get_real_rank(rank))]]
@@ -488,8 +500,8 @@ def initialize_model_parallel(
                     _DATA_PARALLEL_GROUP_WITH_CP_CONTROLLER = controller_ranks
                 if get_real_rank(rank) in real_ranks_with_cp:
                     if not group_list_needed:
-                        _DATA_PARALLEL_GROUP_WITH_CP = group_with_cp
-                        _DATA_PARALLEL_GROUP_WITH_CP_GLOO = group_with_cp_gloo
+                        _DATA_PARALLEL_GROUP_WITH_CP = [group_with_cp, _DATA_PARALLEL_GROUP_WITH_CP_CONTROLLER]
+                        _DATA_PARALLEL_GROUP_WITH_CP_GLOO = [group_with_cp_gloo, _DATA_PARALLEL_GROUP_WITH_CP_CONTROLLER]
                         _DATA_PARALLEL_GLOBAL_RANKS_WITH_CP = ranks_with_cp
                     else:
                         thread_id = DELETED_RANKS[ranks_with_cp[real_ranks_with_cp.index(get_real_rank(rank))]]
@@ -542,7 +554,7 @@ def initialize_model_parallel(
                     group = dist.new_group(real_ranks)
                     if get_real_rank(rank) in real_ranks:
                         if not group_list_needed:
-                            _CONTEXT_PARALLEL_GROUP = group
+                            _CONTEXT_PARALLEL_GROUP = [group, _CONTEXT_PARALLEL_GROUP_CONTROLLER]
                             _CONTEXT_PARALLEL_GLOBAL_RANKS = ranks
                         else:
                             thread_id = DELETED_RANKS[ranks[real_ranks.index(get_real_rank(rank))]]
@@ -566,7 +578,7 @@ def initialize_model_parallel(
                 _MODEL_PARALLEL_GROUP_CONTROLLER = controller_ranks
             if get_real_rank(rank) in real_ranks:
                 if not group_list_needed:
-                    _MODEL_PARALLEL_GROUP = group
+                    _MODEL_PARALLEL_GROUP = [group, _MODEL_PARALLEL_GROUP_CONTROLLER]
                 else:
                     # thread_id = DELETED_RANKS[ranks[real_ranks.index(get_real_rank(rank))]]
                     for i in range(args.tensor_model_parallel_size):
@@ -584,7 +596,7 @@ def initialize_model_parallel(
         if len(ranks) > 0:
             group = dist.new_group(real_ranks)
             if rank in ranks:
-                _TENSOR_MODEL_PARALLEL_GROUP = group
+                _TENSOR_MODEL_PARALLEL_GROUP = [group, real_ranks, 'TENSOR']
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
@@ -612,7 +624,7 @@ def initialize_model_parallel(
             _PIPELINE_MODEL_PARALLEL_GROUP_CONTROLLER = controller_ranks
         if get_real_rank(rank) in real_ranks:
             if not group_list_needed:
-                _PIPELINE_MODEL_PARALLEL_GROUP = group
+                _PIPELINE_MODEL_PARALLEL_GROUP = [group, _PIPELINE_MODEL_PARALLEL_GROUP_CONTROLLER]
                 _PIPELINE_GLOBAL_RANKS = ranks
             else:
                 # print(get_real_rank(rank), DELETED_RANKS[rank], ranks, real_ranks)
@@ -647,7 +659,7 @@ def initialize_model_parallel(
                 if dist.get_rank() == 0:
                     print('_EMBEDDING_GROUP:', ranks)
                 if not group_list_needed:
-                    _EMBEDDING_GROUP = group
+                    _EMBEDDING_GROUP = [group, _EMBEDDING_GROUP_LIST_CONTROLLER]
                 else:
                     thread_id = DELETED_RANKS[embedding_ranks[real_embedding_ranks.index(get_real_rank(rank))]]
                     _EMBEDDING_GROUP_LIST[thread_id] = [group, _EMBEDDING_GROUP_LIST_CONTROLLER]
@@ -671,7 +683,7 @@ def initialize_model_parallel(
                 if dist.get_rank() == 0:
                     print('_POSITION_EMBEDDING_GROUP:', ranks)
                 if not group_list_needed:
-                    _POSITION_EMBEDDING_GROUP = group
+                    _POSITION_EMBEDDING_GROUP = [group, _POSITION_EMBEDDING_GROUP_CONTROLLER]
                 else:
                     thread_id = DELETED_RANKS[position_embedding_ranks[real_position_embedding_ranks.index(get_real_rank(rank))]]
                     _POSITION_EMBEDDING_GROUP_LIST[thread_id] = [group, _POSITION_EMBEDDING_GROUP_CONTROLLER]
@@ -1019,7 +1031,10 @@ def initialize_model_parallel_ignore_forward_tensor_parallel(
         global _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE
         _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE = tensor_model_parallel_size
         set_use_thread_communication()
-        init(tensor_model_parallel_size, dist.get_world_size() // (tensor_model_parallel_size+1), _FORWARD_CONTROLLER_GROUP, _CONTROLLER_GROUP_RANKS)
+        init(tensor_model_parallel_size, dist.get_world_size() // (tensor_model_parallel_size+1), _GLOBAL_CONTROLLER_GROUP, _CONTROLLER_GROUP_RANKS)
+    else:
+        tensor_parallel_rank = dist.get_rank() % (tensor_model_parallel_size+1) - 1
+        init_backward(tensor_model_parallel_size, _GLOBAL_CONTROLLER_GROUP, _CONTROLLER_GROUP_RANKS, tensor_parallel_rank)
     set_virtual_rank_info(DELETED_RANKS)
     # print(rank, model_parallel_is_initialized())
     # print(rank, get_pipeline_model_parallel_rank())
@@ -1071,10 +1086,15 @@ def get_pipeline_model_parallel_group(extracted = False):
         _PIPELINE_MODEL_PARALLEL_GROUP is not None or len(_PIPELINE_MODEL_PARALLEL_GROUP_LIST) > 0
     ), 'pipeline_model parallel group is not initialized'
     args = get_args()
-    if not (args.forward_backward_disaggregating and is_forward_stage() and args.ignore_forward_tensor_parallel):
+    if not (args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel):
         return _PIPELINE_MODEL_PARALLEL_GROUP
     else:
-        if not extracted:
+        if not is_forward_stage():
+            if not extracted:
+                return _PIPELINE_MODEL_PARALLEL_GROUP
+            else:
+                return _PIPELINE_MODEL_PARALLEL_GROUP[0]
+        elif not extracted:
             return _PIPELINE_MODEL_PARALLEL_GROUP_LIST[get_thread_index()]
         else:
             return _PIPELINE_MODEL_PARALLEL_GROUP_LIST[get_thread_index()][0]
@@ -1085,10 +1105,15 @@ def get_forward_backward_parallel_group(with_context_parallel=False, extracted =
         _FORWARD_BACKWARD_PARALLEL_GROUP is not None or len(_FORWARD_BACKWARD_PARALLEL_GROUP_LIST) > 0
     ), 'forward-backward parallel group is not initialized'
     args = get_args()
-    if not (args.forward_backward_disaggregating and is_forward_stage() and args.ignore_forward_tensor_parallel):
+    if not (args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel):
         return _FORWARD_BACKWARD_PARALLEL_GROUP
     else:
-        if not extracted:
+        if not is_forward_stage():
+            if not extracted:
+                return _FORWARD_BACKWARD_PARALLEL_GROUP
+            else:
+                return _FORWARD_BACKWARD_PARALLEL_GROUP[0]
+        elif not extracted:
             return _FORWARD_BACKWARD_PARALLEL_GROUP_LIST[get_thread_index()]
         else:
             return _FORWARD_BACKWARD_PARALLEL_GROUP_LIST[get_thread_index()][0]
@@ -1250,7 +1275,7 @@ def get_tensor_model_parallel_world_size():
     global _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE
     if _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE is not None:
         return _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE
-    return dist.get_world_size(group=get_tensor_model_parallel_group())
+    return dist.get_world_size(group=get_tensor_model_parallel_group()[0])
 
 def get_pipeline_model_parallel_world_size():
     """Return world size for the pipeline model parallel group."""
@@ -1261,7 +1286,7 @@ def get_pipeline_model_parallel_world_size():
     if args.ignore_forward_tensor_parallel and is_forward_stage():
         return dist.get_world_size(group=get_pipeline_model_parallel_group()[0])
     else:
-        return dist.get_world_size(group=get_pipeline_model_parallel_group())
+        return dist.get_world_size(group=get_pipeline_model_parallel_group()[0])
 
 
 def set_tensor_model_parallel_rank(rank):
@@ -1294,7 +1319,7 @@ def get_tensor_model_parallel_rank():
     if args.ignore_forward_tensor_parallel and is_forward_stage():
         return get_thread_index()
     else:
-        return dist.get_rank(group=get_tensor_model_parallel_group())
+        return dist.get_rank(group=get_tensor_model_parallel_group()[0])
 
 
 def get_pipeline_model_parallel_rank():
@@ -1306,7 +1331,7 @@ def get_pipeline_model_parallel_rank():
     if args.ignore_forward_tensor_parallel and is_forward_stage():
         return dist.get_rank(group=get_pipeline_model_parallel_group()[0])
     else:
-        return dist.get_rank(group=get_pipeline_model_parallel_group())
+        return dist.get_rank(group=get_pipeline_model_parallel_group()[0])
 
 def get_pipeline_model_parallel_split_rank():
     """Return pipeline model parallel split rank."""
@@ -1535,7 +1560,7 @@ def get_data_parallel_world_size(with_context_parallel=False):
         args = get_args()
         if not (args.ignore_forward_tensor_parallel and is_forward_stage()):
             return dist.get_world_size(
-                group=get_data_parallel_group(with_context_parallel=with_context_parallel)
+                group=get_data_parallel_group(with_context_parallel=with_context_parallel)[0]
             )
         else:
             return dist.get_world_size(
@@ -1551,7 +1576,7 @@ def get_data_parallel_rank(with_context_parallel=False):
         args = get_args()
         if not (args.ignore_forward_tensor_parallel and is_forward_stage()):
             return dist.get_rank(
-                group=get_data_parallel_group(with_context_parallel=with_context_parallel)
+                group=get_data_parallel_group(with_context_parallel=with_context_parallel)[0]
             )
         else:
             return dist.get_rank(

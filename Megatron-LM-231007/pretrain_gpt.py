@@ -4,7 +4,8 @@
 
 import os
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
+import inc.torch
 from functools import partial
 from megatron import get_args
 from megatron import print_rank_0
@@ -19,6 +20,7 @@ from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import average_losses_across_data_parallel_group
 from megatron.arguments import core_transformer_config_from_args
 from inc.torch import increment_statistics, sizeof_tensor
+import time
 
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
@@ -33,6 +35,7 @@ def model_provider(pre_process=True, post_process=True):
         pre_process=pre_process,
         post_process=post_process
     )
+    # print(dist.get_rank(), model)
 
     return model
 
@@ -100,11 +103,10 @@ def forward_step(data_iterator, model):
     timers = get_timers()
 
     # Get the batch.
-    timers('batch-generator', log_level=2).start()
+    # timers('batch-generator', log_level=2).start()
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
         data_iterator)
-    timers('batch-generator').stop()
-
+    # timers('batch-generator').stop()
     output_tensor = model(tokens, position_ids, attention_mask,
                           labels=labels)
 
@@ -141,4 +143,4 @@ if __name__ == "__main__":
              forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
 
-    dist.print_summary()
+    inc.torch.print_summary()

@@ -9,7 +9,7 @@ import math
 import apex
 import einops
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 import numpy as np
 import torch.nn.functional as F
 from torch.nn.init import trunc_normal_

@@ -226,11 +226,10 @@ def pretrain(train_valid_test_dataset_provider,
     set_jit_fusion_options()
     args = get_args()
 
-    print(dist.get_rank(),':',torch.cuda.current_device())
-
-    dist.start_controller()
+    # print(dist.get_rank(),':',torch.cuda.current_device())
 
     if not (args.ignore_forward_tensor_parallel and mpu.is_forward_stage()):
+        dist.start_backward_controller()
         pretrain_body(train_valid_test_dataset_provider,
                     model_provider,
                     model_type,
@@ -239,6 +238,7 @@ def pretrain(train_valid_test_dataset_provider,
                     extra_args_provider,
                     args_defaults,)
     else:
+        dist.start_controller()
         thread_list = []
         for i in range(mpu.get_tensor_model_parallel_world_size()):
             thread_list.append(
@@ -759,7 +759,8 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             # Report memory after optimizer state has been initialized.
             report_memory('(after {} iterations)'.format(iteration))
             report_memory_flag = False
-        # timers.log(timers_to_log, normalizer=args.log_interval)
+        # print(dist.get_rank(),'logging')
+        timers.log(timers_to_log, normalizer=args.log_interval)
 
     return report_memory_flag
 
@@ -870,7 +871,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         #         grad_norm_list.append(grad_norm)
         #         num_zeros_in_grad_list.append(num_zeros_in_grad)
         # else:
-        print("Trainstep")
+        # print("Trainstep")
         loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
             train_step(forward_step_func,
                     train_data_iterator,
@@ -882,9 +883,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         args.consumed_train_samples += mpu.get_data_parallel_world_size() * \
                                        args.micro_batch_size * \
                                        get_num_microbatches()
-
         # Logging.
-        print("Logging")
+        # print("Logging")
         loss_scale = optimizer.get_loss_scale().item()
         params_norm = None
         if args.log_params_norm:
@@ -896,14 +896,14 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                           grad_norm, params_norm, num_zeros_in_grad)
 
         # Autoresume
-        print("Autoresume")
+        # print("Autoresume")
         if args.adlr_autoresume and \
            (iteration % args.adlr_autoresume_interval == 0):
             check_adlr_autoresume_termination(iteration, model, optimizer,
                                               opt_param_scheduler)
 
         # Evaluation
-        print("Evaluation")
+        # print("Evaluation")
         if args.eval_interval and iteration % args.eval_interval == 0 and \
            args.do_valid:
             prefix = 'iteration {}'.format(iteration)
@@ -911,9 +911,10 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                        valid_data_iterator, model,
                                        iteration, process_non_loss_data_func,
                                        config, False)
-
+        # import os
+        # os._exit()
         # Checkpointing
-        print("Checkpointing")
+        # print("Checkpointing")
         saved_checkpoint = False
         if args.exit_signal_handler:
             signal_handler = get_signal_handler()
@@ -953,7 +954,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             print_datetime('exiting program at iteration {}'.format(iteration))
             sys.exit()
 
-        print("Last")
+        # print("Last")
         if args.profile and \
            iteration == args.profile_step_end and \
            dist.get_rank() in args.profile_ranks:

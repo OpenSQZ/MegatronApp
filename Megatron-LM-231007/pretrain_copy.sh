@@ -3,10 +3,11 @@
 # Runs the "345M" parameter model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
+# export CUDA_LAUNCH_BLOCKING=1
 
 GPUS_PER_NODE=3
 # Change for multinode config
-MASTER_ADDR=10.233.105.216
+MASTER_ADDR=192.168.0.11
 MASTER_PORT=6001
 NNODES=2
 NODE_RANK=$1
@@ -49,7 +50,7 @@ GPT_ARGS="
     --recompute-method uniform \
     --recompute-num-layers 1\
     --pipeline-model-parallel-size $PIPELINE_MP_SIZE \
-    --tensor-model-parallel-size $TENSOR_MP_SIZE 
+    --tensor-model-parallel-size $TENSOR_MP_SIZE
     --forward-backward-disaggregating
     --ignore-forward-tensor-parallel
 "
@@ -68,6 +69,12 @@ OUTPUT_ARGS="
     --eval-iters 10
 "
 
+REPORT_NAME="report_baseline$NODE_RANK"
+
+# nsys profile \
+#     --stats=true \
+#     --trace=cuda,nvtx \
+#     -o $REPORT_NAME \
 torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     $GPT_ARGS \
     $DATA_ARGS \
