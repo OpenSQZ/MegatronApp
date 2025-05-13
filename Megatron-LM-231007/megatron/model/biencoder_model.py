@@ -1,6 +1,6 @@
 import os
 import torch
-import inc.torch as dist
+import megatron.virtual_tensor_parallel_communication as dist
 import sys
 
 from megatron import get_args, print_rank_0, get_tokenizer

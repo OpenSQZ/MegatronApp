@@ -139,6 +139,10 @@ class ParallelMLP(MegatronModule):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
+        # import time
+        # start_time = time.time()
+        # import megatron.virtual_tensor_parallel_communication as dist
+        # print('foward_step layer start', dist.get_rank(),self.bias_gelu_fusion)
         if self.bias_gelu_fusion:
             assert self.add_bias is True
             assert self.activation_func == F.gelu
@@ -147,7 +151,8 @@ class ParallelMLP(MegatronModule):
             if bias_parallel is not None:
                 intermediate_parallel = intermediate_parallel + bias_parallel
             intermediate_parallel = self.activation_func(intermediate_parallel)
-
+        # end_time = time.time()
+        # print('foward_step layer time:',end_time-start_time,'at',dist.get_rank())
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         return output, output_bias
@@ -1602,7 +1607,7 @@ class ParallelTransformer(MegatronModule):
         import time
         import megatron.virtual_tensor_parallel_communication as dist
         start_time = time.time()
-        print('foward_step clock start', dist.get_rank())
+        # print('foward_step clock start', dist.get_rank(),self.transformer_impl )
         if self.recompute_method == 'uniform':
             # Uniformly divide the total number of Transformer layers and
             # checkpoint the input activation of each divided chunk.
@@ -1661,7 +1666,7 @@ class ParallelTransformer(MegatronModule):
         else:
             raise ValueError("Invalid activation recompute method.")
         end_time = time.time()
-        print('foward_step time:',end_time-start_time,'at',dist.get_rank(),self.recompute_method)
+        # print('foward_step time:',end_time-start_time,'at',dist.get_rank(),self.recompute_method)
 
         return hidden_states
 

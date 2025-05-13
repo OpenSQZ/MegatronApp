@@ -141,7 +141,7 @@ def _compile_dependencies():
             )
 
     # Always build on rank zero first.
-    print('running barrier')
+    # print('running barrier')
     # print(type(dist.barrier))
     if dist.get_rank() == 0:
         start_time = time.time()
@@ -151,7 +151,7 @@ def _compile_dependencies():
     else:
         dist.barrier()
         fused_kernels.load(args)
-    print(dist.get_rank(),'barrier finished')
+    # print(dist.get_rank(),'barrier finished')
     # Simple barrier to make sure all ranks have passed the
     # compilation phase successfully before moving on to the
     # rest of the program. We think this might ensure that

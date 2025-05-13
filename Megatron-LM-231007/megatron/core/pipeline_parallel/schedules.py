@@ -174,10 +174,10 @@ def forward_step(
     passed-in input_tensor is used.
 
     Returns output tensor."""
-    print('doing foward_step at',dist.get_rank())
+    # dist.donothing = True
+    # print('doing foward_step at',dist.get_rank())
     # if config.timers is not None:
     #     config.timers('forward-compute', log_level=2).start()
-
     unwrap_output_tensor = False
     if not isinstance(input_tensor, list):
         input_tensor = [input_tensor]
@@ -185,6 +185,9 @@ def forward_step(
 
     set_input_tensor = get_attr_wrapped_model(model, "set_input_tensor")
     set_input_tensor(input_tensor)
+    
+    # import time
+    # start_time = time.time()
 
     if config.enable_autocast:
         context_manager = torch.autocast("cuda", dtype=config.autocast_dtype)
@@ -198,6 +201,9 @@ def forward_step(
                 data_iterator, model, checkpoint_activations_microbatch
             )
     
+    # end_time = time.time()
+    # print('forward_step time:',end_time-start_time,dist.get_rank())
+    
     # print('foward_step middle at',dist.get_rank())
 
     # if dist.get_rank() == 6:
@@ -205,6 +211,8 @@ def forward_step(
     #     if config.batch_p2p_comm and config.batch_p2p_sync:
     #         torch.cuda.synchronize()
     #     print('finish waiting of rank',dist.get_rank())
+    
+
     if parallel_state.is_pipeline_last_stage():
         if not collect_non_loss_data:
             output_tensor = loss_func(output_tensor)
