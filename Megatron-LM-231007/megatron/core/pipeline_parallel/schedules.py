@@ -1483,7 +1483,7 @@ def forward_or_backward_pipelining_without_interleaving(
 
         # Run 1F1B in steady state.
         for i in range(num_microbatches):
-            print('running', dist.get_rank(), i)
+            # print('running', dist.get_rank(), i)
             # print(rank,' forward: ',i)
             # print(rank,'reveiving input tensor at',i)
             # if dist.get_rank() == 6:
@@ -1545,7 +1545,7 @@ def forward_or_backward_pipelining_without_interleaving(
             # send_corresponding_forward(output_tensor, send_tensor_shapes, config)
     elif not forward_only:
         for i in range(num_microbatches):
-            print('running', dist.get_rank(), i)
+            # print('running', dist.get_rank(), i)
             # print(rank,' backward: ',i)
             # Enable async grad reduction in the last backward pass
             # Note: If grad sync function is provided, only enable
