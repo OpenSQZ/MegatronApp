@@ -1560,11 +1560,11 @@ def get_data_parallel_world_size(with_context_parallel=False):
         args = get_args()
         if not (args.ignore_forward_tensor_parallel and is_forward_stage()):
             return dist.get_world_size(
-                group=get_data_parallel_group(with_context_parallel=with_context_parallel)[0]
+                group=get_half_data_parallel_group(with_context_parallel=with_context_parallel)[0]
             )
         else:
             return dist.get_world_size(
-                group=get_data_parallel_group(with_context_parallel=with_context_parallel)[0]
+                group=get_half_data_parallel_group(with_context_parallel=with_context_parallel)[0]
             )
     else:
         return 0
@@ -1576,11 +1576,11 @@ def get_data_parallel_rank(with_context_parallel=False):
         args = get_args()
         if not (args.ignore_forward_tensor_parallel and is_forward_stage()):
             return dist.get_rank(
-                group=get_data_parallel_group(with_context_parallel=with_context_parallel)[0]
+                group=get_half_data_parallel_group(with_context_parallel=with_context_parallel)[0]
             )
         else:
             return dist.get_rank(
-                group=get_data_parallel_group(with_context_parallel=with_context_parallel)[0]
+                group=get_half_data_parallel_group(with_context_parallel=with_context_parallel)[0]
             )
     else:
         return 0

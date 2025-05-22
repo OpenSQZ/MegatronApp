@@ -103,6 +103,7 @@ def pretrain_body(train_valid_test_dataset_provider,
         train_data_iterator, valid_data_iterator, test_data_iterator \
             = build_train_valid_test_data_iterators(
                 train_valid_test_dataset_provider)
+    # print(dist.get_rank(), train_data_iterator)
     # if dist.get_thread_index() == 0 or not dist.if_use_thread_communication():
     #     timers('train/valid/test-data-iterators-setup').stop()
     print_datetime('after dataloaders are built')
@@ -1127,8 +1128,8 @@ def build_train_valid_test_data_loaders(
     print_rank_0('> building train, validation, and test datasets ...')
 
     # Backward compatibility, assume fixed batch size.
-    time.sleep(1)
-    print('qwq', dist.get_rank())
+    # time.sleep(1)
+    # print('qwq', dist.get_rank())
     if args.iteration > 0 and args.consumed_train_samples == 0:
         assert args.train_samples is None, \
             'only backward compatiblity support for iteration-based training'
@@ -1139,14 +1140,14 @@ def build_train_valid_test_data_loaders(
                 args.eval_iters * args.global_batch_size
 
     # Data loader only on rank 0 of each model parallel group.
-    print('@@', mpu.get_tensor_model_parallel_rank())
+    # print('@@', mpu.get_tensor_model_parallel_rank())
     if mpu.get_tensor_model_parallel_rank() == 0:
 
         # Build datasets.
-        print('building')
+        # print('building')
         train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
             build_train_valid_test_datasets_provider)
-        print('building finished')
+        # print('building finished')
 
         # Build dataloders.
         train_dataloader = build_pretraining_data_loader(

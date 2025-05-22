@@ -85,3 +85,21 @@ Note: group 1 is full, please add group 2.
 
 ## License
 This project is licensed under the [Apache License (Version 2.0)](https://github.com/alibaba/pai-megatron-patch/blob/master/LICENSE). This toolkit also contains some code modified from other repos under other open-source licenses. See the [NOTICE](https://github.com/alibaba/pai-megatron-patch/blob/master/NOTICE) file for more information.
+
+## Run with forward-backward-disaggregating
+
+Add the following option to args:
+
+```bash
+--forward-backward-disaggregating
+```
+
+And you need to ensure DP is even.
+
+To merge forward tensor parallel, add the following option:
+
+```bash
+--ignore-forward-tensor-parallel
+```
+
+The total number of ranks should be a multiple of TP+1.

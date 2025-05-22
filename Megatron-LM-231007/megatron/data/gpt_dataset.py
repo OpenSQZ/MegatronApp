@@ -28,7 +28,7 @@ def build_train_valid_test_datasets(data_prefix, splits_string,
                                     data_cache_path=None):
     """Build train, valid, and test datasets."""
 
-    print('building ## datasets')
+    # print('building ## datasets')
     if data_prefix:
         print_rank_0("Single data path provided for train, valid & test")
 
