@@ -1,0 +1,9 @@
+{
+    "class": "GPTDataset",
+    "path_prefix": "datasets/gpt-large-cased-vocab-small_text_document",
+    "num_samples": 640,
+    "index_split": "train",
+    "split": "949,50,1",
+    "random_seed": 1234,
+    "sequence_length": 2048
+}
