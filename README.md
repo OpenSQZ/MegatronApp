@@ -74,7 +74,7 @@ pip install six regex nltk
 - Install infiniband prerequisites
 
 ```bash
-bash prerequisites.sh
+bash prerequisite.sh
 ```
 
 - Build the `shm_tensor_new_rdma` module.
