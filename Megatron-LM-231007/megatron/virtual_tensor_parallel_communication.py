@@ -646,7 +646,7 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=None, async_op=False):
         else:
             # print('#############')
             lock.acquire()
-            print(tensor)
+            # print(tensor)
             if op == ReduceOp.SUM:
                 if result is None:
                     result = tensor.clone()
