@@ -1621,7 +1621,7 @@ def forward_or_backward_pipelining_without_interleaving(
         if config.grad_sync_func is not None:
             config.grad_sync_func(model.parameters())
 
-    print('finished iteration', dist.get_rank())
+    # print('finished iteration', dist.get_rank())
 
     dist.barrier()
     # if config.timers is not None:
