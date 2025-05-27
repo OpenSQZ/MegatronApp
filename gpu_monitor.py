@@ -7,7 +7,7 @@ pynvml.nvmlInit()
 device_count = pynvml.nvmlDeviceGetCount()
 
 # Optional: write to a log file
-log_file = open("gpu_usage_log.txt", "a")
+log_file = open("gpu_usage_log2.txt", "w")
 
 try:
     while True:

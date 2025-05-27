@@ -62,9 +62,9 @@ def validate_args(args, defaults={}):
     # Tensor model parallel size.
     args.tensor_model_parallel_size = min(
         args.tensor_model_parallel_size, args.world_size)
-    assert args.world_size % args.tensor_model_parallel_size == 0, 'world size'\
-        ' ({}) is not divisible by tensor model parallel size ({})'.format(
-            args.world_size, args.tensor_model_parallel_size)
+    # assert args.world_size % args.tensor_model_parallel_size == 0, 'world size'\
+    #     ' ({}) is not divisible by tensor model parallel size ({})'.format(
+    #         args.world_size, args.tensor_model_parallel_size)
     # Pipeline model parallel size.
     args.pipeline_model_parallel_size = min(
         args.pipeline_model_parallel_size,

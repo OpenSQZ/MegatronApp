@@ -86,6 +86,14 @@ Note: group 1 is full, please add group 2.
 ## License
 This project is licensed under the [Apache License (Version 2.0)](https://github.com/alibaba/pai-megatron-patch/blob/master/LICENSE). This toolkit also contains some code modified from other repos under other open-source licenses. See the [NOTICE](https://github.com/alibaba/pai-megatron-patch/blob/master/NOTICE) file for more information.
 
+## Install inc.torch(for statistics)
+
+```bash
+cd increment
+python setup.py build
+python setup.py install
+```
+
 ## Run with forward-backward-disaggregating
 
 Add the following option to args:

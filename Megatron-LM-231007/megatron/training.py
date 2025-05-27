@@ -1170,13 +1170,14 @@ def build_train_valid_test_data_loaders(
         flags = torch.cuda.LongTensor([0, 0, 0])
 
     # Broadcast num tokens.
-    if not (mpu.is_forward_stage() and args.ignore_forward_tensor_parallel):
-        dist_thread.broadcast(flags,
-                                    mpu.get_tensor_model_parallel_src_rank(),
-                                    group=mpu.get_tensor_model_parallel_group())
-        args.do_train = flags[0].item()
-        args.do_valid = flags[1].item()
-        args.do_test = flags[2].item()
+    # if not (mpu.is_forward_stage() and args.ignore_forward_tensor_parallel):
+    dist.broadcast(flags,
+                    mpu.get_tensor_model_parallel_src_rank(),
+                    group=mpu.get_tensor_model_parallel_group())
+    
+    args.do_train = flags[0].item()
+    args.do_valid = flags[1].item()
+    args.do_test = flags[2].item()
 
     return train_dataloader, valid_dataloader, test_dataloader
 
