@@ -111,3 +111,5 @@ To merge forward tensor parallel, add the following option:
 ```
 
 The total number of ranks should be a multiple of TP+1.
+
+You can refer to Megatron-LM-231007/pretrain_copy.sh as an example.
