@@ -1,4 +1,0 @@
-datasets
-flax>=0.7.1
-optax
-Pillow

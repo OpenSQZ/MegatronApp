@@ -11,7 +11,7 @@ $\quad$ An integration of an adaptive pipeline-parallel algorithm to the Megatro
 - Create $2$ pods to simulate $2$ nodes with the following configuration
 
 ```yaml
-ContainerImage: harbor-local.ai.iiis.co/llm-course/comfyui:v1
+ContainerImage: nvidia/cuda:11.2.0-base
 GPU: RTX4090
 
 NVMEStorage: 100G
@@ -34,42 +34,7 @@ conda create -n megatron_app python=3.10
 conda activate megatron_app
 ```
 
-- Install torch, torchvision, torchaudio, pybind11
-
-```bash
-pip install torch==2.4.0 torchvision torchaudio pybind11
-```
-
-- Build `transformer_engine`.
-
-```bash
-cd TransformerEngine
-MAX_JOBS=8 pip install .
-```
-
-note that this may take a while to build transformer_engine and flash_attn.
-
-- Build `apex`.
-
-```bash
-cd apex
-python setup.py install --cpp_ext --cuda_ext
-```
-
-and it might take a while, and it might be necessary to comment the line `check_cuda_torch_binary_vs_bare_metal(CUDA_HOME)` in `apex/setup.py`.
-
-```python
-if "--cuda_ext" in sys.argv:
-    sys.argv.remove("--cuda_ext")
-    raise_if_cuda_home_none("--cuda_ext")
-    # check_cuda_torch_binary_vs_bare_metal(CUDA_HOME)
-```
-
-- Install remaining packages
-
-```bash
-pip install six regex nltk
-```
+- Install `torch==2.4.0, torchvision, torchaudio, transformer_engine, apex, nltk, regex, six, pybind11`
 
 - Install infiniband prerequisites
 
