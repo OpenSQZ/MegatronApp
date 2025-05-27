@@ -11,7 +11,7 @@ $\quad$ An integration of an adaptive pipeline-parallel algorithm to the Megatro
 - Create $2$ pods to simulate $2$ nodes with the following configuration
 
 ```yaml
-ContainerImage: nvidia/cuda:11.2.0-base
+ContainerImage: ngc.nju.edu.cn/nvidia/pytorch:23.04-py3
 GPU: RTX4090
 
 NVMEStorage: 100G
