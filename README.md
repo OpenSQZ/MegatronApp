@@ -27,14 +27,11 @@ UseIB: true
 
 note that since attaching Visual Studio Code to multiple pods risks overwriting user profile, which results in being unable to open files/directories, it is recommended to attach to $1$ of the pods and operate on the other using command-line. Of course, you can operate on both via terminal.
 
-- On pod $1$, create conda environment. Here if miniconda is installed under the `home` directory, then it is automatically shared across pods so we only need to set up the environment once
+- The python environment in the image automatically includes almost all of the required packages, to install additional required packages, run
 
 ```bash
-conda create -n megatron_app python=3.10
-conda activate megatron_app
+pip install -r requirements.txt
 ```
-
-- Install `torch==2.4.0, torchvision, torchaudio, transformer_engine, apex, nltk, regex, six, pybind11`
 
 - Install infiniband prerequisites
 
@@ -50,7 +47,7 @@ python setup.py install
 
 ## Run Single Node
 
-- Run the following script to start Megatron on a single node with shared memory transfer.
+- Run the following script to start Megatron on a single node with shared memory transfer. Remembor to change the master ip address in `examples/megatron4.0/pretrain_gpt_distributed_small.sh` to the ip of the pod
 
 ```bash
 bash run_single.sh
