@@ -15,6 +15,7 @@ To run the frontend web page, use
 ```
 cd transformer-visualize
 nvm install --lts
+npm install
 npm run dev
 ```
 In the web page, you can provide a batch of prompts to generate, then it will return the intermediate results and plots.

@@ -14,7 +14,7 @@ torchrun $DISTRIBUTED_ARGS tools/run_text_generation_wsserver.py   \
        --seq-length 4096 \
        --max-position-embeddings 4096 \
        --tokenizer-type Llama2Tokenizer \
-       --tokenizer-model llama2-ckpts/Llama-2-7b-chat-hf/tokenizer.model \
+       --tokenizer-model llama2-ckpts/Llama-2-7b-chat-megatron/tokenizer.model \
        --load llama2-ckpts/Llama-2-7b-chat-megatron \
        --exit-on-missing-checkpoint \
        --use-checkpoint-args \
