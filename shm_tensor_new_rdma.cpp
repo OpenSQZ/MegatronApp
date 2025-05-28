@@ -33,9 +33,9 @@ std::unordered_map<int, sem_t *> f_read_sems;  // forward read semaphores
 std::unordered_map<int, sem_t *> b_write_sems; // backward write semaphores
 std::unordered_map<int, sem_t *> b_read_sems;  // backward read semaphores
 
-std::string ips[] = {"192.168.0.9", "192.168.0.9", "192.168.0.9",
-                     "192.168.0.9", "192.168.0.2", "192.168.0.2",
-                     "192.168.0.2", "192.168.0.2"}; // infiniband IPs
+std::string ips[] = {"192.168.0.2", "192.168.0.2", "192.168.0.2",
+                     "192.168.0.2", "192.168.0.7", "192.168.0.7",
+                     "192.168.0.7", "192.168.0.7"}; // infiniband IPs
 
 // event channels
 rdma_event_channel *forward_send_ec = nullptr;

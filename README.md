@@ -67,4 +67,4 @@ and wait until it fully starts. Then run
 bash run_worker.sh
 ```
 
-using command-line on another pod.
+using command-line on another pod. Remember to edit the `shm_tensor_new_rdma.cpp` file to set the infiniband ip to the real pod infiniband ip.

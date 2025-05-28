@@ -440,8 +440,8 @@ def train_step(forward_step_func, data_iterator,
         model_chunk.zero_grad_buffer(zero_buffer=(not args.use_distributed_optimizer))
     optimizer.zero_grad()
     torch.cuda.empty_cache()
-    with open(f"zero_pp_pipeline_{mpu.get_pipeline_model_parallel_world_size()}_model_chunks_{len(model)}.txt", "a") as file:
-        file.write(f"{torch.distributed.get_rank()}, "+str(torch.cuda.memory_allocated())+"\n") #第一个内存记录点
+    # with open(f"zero_pp_pipeline_{mpu.get_pipeline_model_parallel_world_size()}_model_chunks_{len(model)}.txt", "a") as file:
+    #    file.write(f"{torch.distributed.get_rank()}, "+str(torch.cuda.memory_allocated())+"\n") # first memory checkpoint
     # Forward pass.
     forward_backward_func = get_forward_backward_func()
     losses_reduced = forward_backward_func(
@@ -454,8 +454,8 @@ def train_step(forward_step_func, data_iterator,
         decoder_seq_length=args.decoder_seq_length,
         forward_only=False)
     torch.cuda.empty_cache()
-    with open(f"zero_pp_pipeline_{mpu.get_pipeline_model_parallel_world_size()}_model_chunks_{len(model)}.txt", "a") as file:
-        file.write(f"{torch.distributed.get_rank()}, "+str(torch.cuda.memory_allocated())+"\n") #第二个内存记录点
+    # with open(f"zero_pp_pipeline_{mpu.get_pipeline_model_parallel_world_size()}_model_chunks_{len(model)}.txt", "a") as file:
+    #    file.write(f"{torch.distributed.get_rank()}, "+str(torch.cuda.memory_allocated())+"\n") # second memory checkpoint
     # Empty unused memory.
     if args.empty_unused_memory_level >= 1:
         torch.cuda.empty_cache()
@@ -470,8 +470,8 @@ def train_step(forward_step_func, data_iterator,
     update_successful, grad_norm, num_zeros_in_grad = optimizer.step(args, timers)
     timers('optimizer').stop()
     torch.cuda.empty_cache()
-    with open(f"zero_pp_pipeline_{mpu.get_pipeline_model_parallel_world_size()}_model_chunks_{len(model)}.txt", "a") as file:
-        file.write(f"{torch.distributed.get_rank()}, " + str(torch.cuda.memory_allocated())+"\n") #第五个内存记录点(三，四在optimizer里面)
+    # with open(f"zero_pp_pipeline_{mpu.get_pipeline_model_parallel_world_size()}_model_chunks_{len(model)}.txt", "a") as file:
+    #    file.write(f"{torch.distributed.get_rank()}, " + str(torch.cuda.memory_allocated())+"\n") # fifth memory checkpoint (3, 4 in optimizer)
     # Vision momentum.
     if args.vision_pretraining and args.vision_pretraining_type == "dino":
         unwrapped_model = unwrap_model(model[0])
