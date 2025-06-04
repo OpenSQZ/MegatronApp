@@ -67,6 +67,12 @@ and then run
 python visualize_trace.py --pipeline_parallel <pipeline_parallel_size> --model_chunks <number_of_model_chunks>
 ```
 
+the trace will be stored in `trace_pipeline_<pipeline_parallel>_model_chunks_<number_of_model_chunks>.xlsx`. It looks like
+
+![pipeline](pipeline_sample.png)
+
+which shows the computation order of the pipeline.
+
 ## Run Multiple Nodes
 
 - Attach to a pod (or use command-line) and run:
