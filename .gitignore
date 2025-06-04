@@ -3,3 +3,5 @@ build
 dist
 .hypothesis
 __pycache__/
+trace*
+**/benchmark*

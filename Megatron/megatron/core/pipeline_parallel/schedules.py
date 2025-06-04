@@ -893,7 +893,7 @@ def forward_backward_pipelining_with_interleaving(
                 deallocate_output_tensor(
                     forward_finished_tensors[dual_index], config.deallocate_pipeline_outputs
                 )
-                # print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward start, {time.time()}%") # backward start time，for latency and compute window/ratio
+                print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward start, {time.time()}%") # backward start time，for latency and compute window/ratio
                 # with tra.scope("backward compute"):
                 backward_finished_tensors[index_to_compute] = backward_step(
                     forward_ready_tensors[dual_index],
@@ -907,10 +907,10 @@ def forward_backward_pipelining_with_interleaving(
                 backward_ready_tensors[index_to_compute] = None
                 computed_backward_indices.append(index_to_compute)
                 computed_backward_count += 1
-                # print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward finished, {time.time()}%") # backward finished time，for latency and compute window/ratio
+                print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward finished, {time.time()}%") # backward finished time，for latency and compute window/ratio
                 for model_chunk in range(num_model_chunks):
                     if model_chunk not in reduced_chunks and has_computed_all_microbatchs(model_chunk):
-                        # print(f"{torch.distributed.get_rank()}, {model_chunk}, can reduce, {time.time()}%") # earliest reduce threshold，for reduce window/ratio
+                        print(f"{torch.distributed.get_rank()}, {model_chunk}, can reduce, {time.time()}%") # earliest reduce threshold，for reduce window/ratio
                         reduced_chunks.append(model_chunk)
                         config.grad_sync_func[model_chunk](model[model_chunk].parameters())
                 if not (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and index_to_compute % (num_model_chunks * pipeline_parallel_size) >= (num_model_chunks - 1) * pipeline_parallel_size):
@@ -956,7 +956,7 @@ def forward_backward_pipelining_with_interleaving(
                 checkpoint_activations_microbatch = None
             cur_model_chunk_id = get_model_chunk_id(index_to_compute, forward=True)
             parallel_state.set_virtual_pipeline_model_parallel_rank(cur_model_chunk_id)
-            # print(f"{torch.distributed.get_rank()}, {index_to_compute}, forward start, {time.time()}%") # forward start time，for latency and compute window/ratio
+            print(f"{torch.distributed.get_rank()}, {index_to_compute}, forward start, {time.time()}%") # forward start time，for latency and compute window/ratio
             # with tra.scope("forward compute"):
             forward_finished_tensors[index_to_compute] = forward_step(
                 forward_step_func,
@@ -971,7 +971,7 @@ def forward_backward_pipelining_with_interleaving(
             )
             computed_forward_indices.append(index_to_compute)
             computed_forward_count += 1
-            # print(f"{torch.distributed.get_rank()}, {index_to_compute}, forward finished, {time.time()}%") # forward finished time，for latency and compute window/ratio
+            print(f"{torch.distributed.get_rank()}, {index_to_compute}, forward finished, {time.time()}%") # forward finished time，for latency and compute window/ratio
             if (
                 parallel_state.is_pipeline_last_stage(ignore_virtual=True)
                 and index_to_compute % (num_model_chunks * pipeline_parallel_size)

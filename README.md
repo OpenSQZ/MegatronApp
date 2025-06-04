@@ -50,7 +50,21 @@ python setup.py install
 - Run the following script to start Megatron on a single node with shared memory transfer. Remembor to change the master ip address in `examples/megatron4.0/pretrain_gpt_distributed_small.sh` to the ip of the pod
 
 ```bash
-bash run_single.sh
+bash run_single.sh --pipeline_parallel <pipeline_parallel_size> --model_chunks <number_of_model_chunks>
+```
+
+- It will produce a `trace_pipeline_<pipeline_parallel_size>_model_chunks_<number_of_model_chunks>.txt` that stores the profile of the program.
+
+- To visualize the pipeline, first run
+
+```python
+python process_trace.py --pipeline_parallel <pipeline_parallel_size> --model_chunks <number_of_model_chunks>
+```
+
+and then run
+
+```python
+python visualize_trace.py --pipeline_parallel <pipeline_parallel_size> --model_chunks <number_of_model_chunks>
 ```
 
 ## Run Multiple Nodes

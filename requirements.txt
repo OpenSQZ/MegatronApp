@@ -6,3 +6,4 @@ nltk
 regex
 six
 pybind11
+openpyxl

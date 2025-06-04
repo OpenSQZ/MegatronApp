@@ -767,7 +767,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     while iteration < args.train_iters:
         if is_last_rank:
             tracers.tik("iteration start")
-        # print(f"rank {torch.distributed.get_rank()} iteration starts at timestamp {time.time()}%") # iter start time, compute/reduce ratio
+        print(f"rank {torch.distributed.get_rank()} iteration starts at timestamp {time.time()}%") # iter start time, compute/reduce ratio
         # tra.iteration_begin()
         if args.profile and \
            iteration == args.profile_step_start and \
@@ -790,7 +790,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                        get_num_microbatches()
         if is_last_rank:
             tracers.tik("iteration end")
-        # print(f"rank {torch.distributed.get_rank()} iteration ends at timestamp {time.time()}%") # iter end time, compute/reduce ratio
+        print(f"rank {torch.distributed.get_rank()} iteration ends at timestamp {time.time()}%") # iter end time, compute/reduce ratio
         # tra.iteration_end()
         # Logging.
         loss_scale = optimizer.get_loss_scale().item()
