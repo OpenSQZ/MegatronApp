@@ -14,3 +14,4 @@ onelogger.log
 onelogger.err
 ngc_models/
 tensor_board/
+dist/

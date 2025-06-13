@@ -1,0 +1,9 @@
+torch
+torchvision
+transformer-engine
+apex
+nltk
+regex
+six
+pybind11
+openpyxl
