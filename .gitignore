@@ -12,6 +12,5 @@ local/
 wandb/
 onelogger.log
 onelogger.err
-datasets/
 ngc_models/
 tensor_board/

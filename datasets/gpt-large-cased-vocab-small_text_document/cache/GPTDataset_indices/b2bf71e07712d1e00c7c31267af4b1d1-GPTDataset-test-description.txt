@@ -1,0 +1,30 @@
+{
+    "class": "GPTDataset",
+    "dataset_path": "datasets/gpt-large-cased-vocab-small_text_document",
+    "num_samples": 80,
+    "index_split": "test",
+    "random_seed": 1234,
+    "sequence_length": 2048,
+    "split": "949,50,1",
+    "split_matrix": [
+        [
+            0,
+            0.949
+        ],
+        [
+            0.949,
+            0.999
+        ],
+        [
+            0.999,
+            1.0
+        ]
+    ],
+    "tokenizer": {
+        "class": "_GPT2BPETokenizer",
+        "tokenizer_path": [
+            "datasets/vocab.json",
+            "datasets/merges.txt"
+        ]
+    }
+}
