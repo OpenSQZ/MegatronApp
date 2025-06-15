@@ -8,7 +8,7 @@ GPUS_PER_NODE=4
 # Change for multinode config
 MASTER_ADDR=10.233.103.70
 MASTER_PORT=6000
-NUM_NODES=1
+NUM_NODES=2
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE * $NUM_NODES))
 PIPELINE_PARALLEL=4
@@ -54,7 +54,7 @@ TRAINING_ARGS=(
     --min-lr 6.0e-6
     --lr-warmup-fraction .001
     --lr-decay-iters 430000
-    --use-app
+    # --use-app
 )
 
 MODEL_PARALLEL_ARGS=(

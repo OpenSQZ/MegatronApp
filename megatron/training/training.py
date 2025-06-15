@@ -113,6 +113,7 @@ from . import ft_integration
 
 import numpy as np
 import shm_tensor_new_rdma
+from megatron.core.trace import tracers
 
 stimer = StragglerDetector()
 
@@ -786,6 +787,11 @@ def pretrain(
     print_datetime('after dataloaders are built')
     app_metrics['app_build_dataiters_finish_time'] = one_logger_utils.get_timestamp_in_ms()
 
+    if torch.distributed.get_rank() == 0:
+        pp_name = "app" if args.use_app else "pp"
+        save_dir = f"data-{mpu.get_data_parallel_world_size()}-pipeline-{mpu.get_pipeline_model_parallel_world_size()}-tensor-{mpu.get_tensor_model_parallel_world_size()}-{pp_name}"
+        os.makedirs(save_dir, exist_ok=True)
+
     # Track if training is enabled. Can only be done once args.do_train is assigned after dataloader is built.
     one_logger_utils.track_config_flags(args.train_iters, args.skip_train, args.do_train,
                                         args.do_valid, args.do_test, args.dataloader_type,
@@ -817,6 +823,12 @@ def pretrain(
                 non_loss_data_func)
 
         print_datetime('after training is done')
+        data_parallel_rank = mpu.get_data_parallel_rank()
+        tensor_model_parallel_rank = mpu.get_tensor_model_parallel_rank()
+        pipeline_model_parallel_rank = mpu.get_pipeline_model_parallel_rank()
+        pp_name = "app" if args.use_app else "pp"
+        save_dir = f"data-{mpu.get_data_parallel_world_size()}-pipeline-{mpu.get_pipeline_model_parallel_world_size()}-tensor-{mpu.get_tensor_model_parallel_world_size()}-{pp_name}"
+        tracers.log(f"{save_dir}/benchmark-data-{data_parallel_rank}-pipeline-{pipeline_model_parallel_rank}-tensor-{tensor_model_parallel_rank}.json")
 
         if args.save and iteration != 0 and iteration % args.save_interval != 0:
             save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
@@ -1961,6 +1973,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Run training iterations till done.
     while iteration < args.train_iters:
+        torch.distributed.barrier()
+        tracers.iteration_begin()
         if args.profile and torch.distributed.get_rank() in args.profile_ranks:
             if args.use_pytorch_profiler:
                 prof.step()
@@ -2053,7 +2067,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         num_floating_point_operations_in_batch = num_floating_point_operations(args, batch_size)
         num_floating_point_operations_so_far += num_floating_point_operations_in_batch
         num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
-
+        tracers.iteration_end()
         # Logging.
         if not optimizer.is_stub_optimizer:
             loss_scale = optimizer.get_loss_scale().item()

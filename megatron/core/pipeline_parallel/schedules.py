@@ -21,6 +21,7 @@ from megatron.core.utils import (
 )
 import shm_tensor_new_rdma
 import numpy as np
+from megatron.core.trace import tracers
 
 # Types
 Shape = Union[List[int], torch.Size]
@@ -1005,24 +1006,24 @@ def forward_backward_pipelining_with_interleaving(
         # microbatch_id offset with number of released microbatches that have completed backprop.
         offset = num_released_microbatches(virtual_microbatch_id, model_chunk_id)
         input_tensor = input_tensors[model_chunk_id][microbatch_id - offset]
-
-        output_tensor, num_tokens = forward_step(
-            forward_step_func,
-            data_iterator[model_chunk_id],
-            model[model_chunk_id],
-            num_microbatches,
-            input_tensor,
-            forward_data_store,
-            config,
-            collect_non_loss_data,
-            checkpoint_activations_microbatch,
-            check_first_val_step(
-                first_val_step,
-                forward_only,
-                is_first_microbatch_for_model_chunk(virtual_microbatch_id),
-            ),
-            current_microbatch=microbatch_id,
-        )
+        with tracers.scope("forward", microbatch=microbatch_id_table[virtual_microbatch_id], model_chunk=model_chunk_id, pp_rank=pipeline_parallel_rank):
+            output_tensor, num_tokens = forward_step(
+                forward_step_func,
+                data_iterator[model_chunk_id],
+                model[model_chunk_id],
+                num_microbatches,
+                input_tensor,
+                forward_data_store,
+                config,
+                collect_non_loss_data,
+                checkpoint_activations_microbatch,
+                check_first_val_step(
+                    first_val_step,
+                    forward_only,
+                    is_first_microbatch_for_model_chunk(virtual_microbatch_id),
+                ),
+                current_microbatch=microbatch_id,
+            )
 
         output_tensors[model_chunk_id].append(output_tensor)
 
@@ -1058,10 +1059,10 @@ def forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id].pop(0)
         output_tensor = output_tensors[model_chunk_id].pop(0)
         output_tensor_grad = output_tensor_grads[model_chunk_id].pop(0)
-
-        input_tensor_grad = backward_step(
-            input_tensor, output_tensor, output_tensor_grad, model_type, config
-        )
+        with tracers.scope("backward", microbatch=microbatch_id_table[virtual_microbatch_id], model_chunk=model_chunk_id, pp_rank=pipeline_parallel_rank):
+            input_tensor_grad = backward_step(
+                input_tensor, output_tensor, output_tensor_grad, model_type, config
+            )
 
         # launch grad synchronization (custom grad sync)
         # Note: Asynchronous communication tends to slow down compute.
@@ -1613,7 +1614,7 @@ def forward_backward_pipelining_with_interleaving_app(
     collect_non_loss_data: bool = False,
     first_val_step: bool = None,
 ):
-    """Run interleaved 1F1B schedule (model split into model chunks), with
+    """Run our APP schedule (model split into model chunks), with
     communication between pipeline stages as needed.
 
     Returns dictionary with losses if the last stage, empty dict otherwise."""
@@ -1878,24 +1879,24 @@ def forward_backward_pipelining_with_interleaving_app(
         # microbatch_id offset with number of released microbatches that have completed backprop.
         # offset = num_released_microbatches(virtual_microbatch_id, model_chunk_id)
         # input_tensor = input_tensors[model_chunk_id][microbatch_id - offset]
-
-        forward_finished_tensors[virtual_microbatch_id], num_tokens = forward_step(
-            forward_step_func,
-            data_iterator[model_chunk_id],
-            model[model_chunk_id],
-            num_microbatches,
-            forward_ready_tensors[virtual_microbatch_id],
-            forward_data_store,
-            config,
-            collect_non_loss_data,
-            checkpoint_activations_microbatch,
-            check_first_val_step(
-                first_val_step,
-                forward_only,
-                is_first_microbatch_for_model_chunk(virtual_microbatch_id),
-            ),
-            current_microbatch=microbatch_id,
-        )
+        with tracers.scope("forward", microbatch=microbatch_id_table[virtual_microbatch_id], model_chunk=model_chunk_id, pp_rank=pipeline_parallel_rank):
+            forward_finished_tensors[virtual_microbatch_id], num_tokens = forward_step(
+                forward_step_func,
+                data_iterator[model_chunk_id],
+                model[model_chunk_id],
+                num_microbatches,
+                forward_ready_tensors[virtual_microbatch_id],
+                forward_data_store,
+                config,
+                collect_non_loss_data,
+                checkpoint_activations_microbatch,
+                check_first_val_step(
+                    first_val_step,
+                    forward_only,
+                    is_first_microbatch_for_model_chunk(virtual_microbatch_id),
+                ),
+                current_microbatch=microbatch_id,
+            )
 
         nonlocal total_num_tokens
         total_num_tokens += num_tokens
@@ -1919,10 +1920,10 @@ def forward_backward_pipelining_with_interleaving_app(
         ):
             enable_grad_sync()
             synchronized_model_chunks.add(model_chunk_id)
-
-        backward_finished_tensors[virtual_microbatch_id] = backward_step(
-            forward_ready_tensors[dual_index], forward_finished_tensors[dual_index], backward_ready_tensors[virtual_microbatch_id], model_type, config
-        )
+        with tracers.scope("backward", microbatch=microbatch_id_table[virtual_microbatch_id], model_chunk=model_chunk_id, pp_rank=pipeline_parallel_rank):
+            backward_finished_tensors[virtual_microbatch_id] = backward_step(
+                forward_ready_tensors[dual_index], forward_finished_tensors[dual_index], backward_ready_tensors[virtual_microbatch_id], model_type, config
+            )
 
         forward_ready_tensors[dual_index] = None
         forward_finished_tensors[dual_index] = None

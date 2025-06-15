@@ -41,12 +41,13 @@ bash prerequisite.sh
 - Build the `shm_tensor_new_rdma` module.
 
 ```bash
-python setup_app.py install
+cd megatron
+python setup.py install
 ```
 
 ## Run
 
-$\quad$ To run distributed training, run
+$\quad$ To run distributed training, go to the project root directory and run
 
 ```bash
 bash examples examples/gpt3/train_gpt3_175b_distributed.sh
