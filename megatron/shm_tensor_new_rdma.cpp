@@ -24,14 +24,22 @@ constexpr int NUM_RECV_WR = 10; // wait receive buffers
 
 constexpr int NUM_GPUS = 4; // number of gpus per node
 
-std::unordered_map<int, int> f_shm_fds;        // forward shm files
-std::unordered_map<int, void *> f_shm_ptrs;    // forward shm pointers
-std::unordered_map<int, int> b_shm_fds;        // backward shm files
-std::unordered_map<int, void *> b_shm_ptrs;    // backward shm pointers
-std::unordered_map<int, sem_t *> f_write_sems; // forward write semaphores
-std::unordered_map<int, sem_t *> f_read_sems;  // forward read semaphores
-std::unordered_map<int, sem_t *> b_write_sems; // backward write semaphores
-std::unordered_map<int, sem_t *> b_read_sems;  // backward read semaphores
+int f_shm_fd = 0;
+void *f_shm_ptr = nullptr;
+int f_shm_fd_next = 0;
+void *f_shm_ptr_next = nullptr;
+int b_shm_fd = 0;
+void *b_shm_ptr = nullptr;
+int b_shm_fd_next = 0;
+void *b_shm_ptr_next = nullptr;
+sem_t *f_write_sem = nullptr;
+sem_t *f_read_sem = nullptr;
+sem_t *f_write_sem_next = nullptr;
+sem_t *f_read_sem_next = nullptr;
+sem_t *b_write_sem = nullptr;
+sem_t *b_read_sem = nullptr;
+sem_t *b_write_sem_next = nullptr;
+sem_t *b_read_sem_next = nullptr;
 
 std::string ips[] = {"192.168.0.2", "192.168.0.2", "192.168.0.2",
                      "192.168.0.2", "192.168.0.7", "192.168.0.7",
@@ -110,7 +118,8 @@ size_t shm_size = 0;
 std::mutex print_mutex;
 
 // threads
-std::optional<std::thread> forward_send_thread;
+std::optional<std::thread> forward_send_thread_0;
+std::optional<std::thread> forward_send_thread_1;
 std::optional<std::thread> forward_recv_thread;
 std::optional<std::thread> backward_send_thread;
 std::optional<std::thread> backward_recv_thread;
@@ -138,8 +147,8 @@ void init_shared_memory(size_t numel, int rank, int total_num_microbatches) {
     throw std::runtime_error("Failed to map forward shared memory.");
   }
 
-  f_shm_fds[rank] = shm_fd;
-  f_shm_ptrs[rank] = shm_ptr; // initialize forward shm
+  f_shm_fd = shm_fd;
+  f_shm_ptr = shm_ptr; // initialize forward shm
 
   shm_name = "/backward_tensor_rank_" + std::to_string(rank);
 
@@ -158,8 +167,8 @@ void init_shared_memory(size_t numel, int rank, int total_num_microbatches) {
     throw std::runtime_error("Failed to map backward shared memory");
   }
 
-  b_shm_fds[rank] = shm_fd;
-  b_shm_ptrs[rank] = shm_ptr; // initialize backward shm
+  b_shm_fd = shm_fd;
+  b_shm_ptr = shm_ptr; // initialize backward shm
 
   std::string fw_write_sem_name =
       "/forward_write_sem_rank_" + std::to_string(rank);
@@ -198,10 +207,10 @@ void init_shared_memory(size_t numel, int rank, int total_num_microbatches) {
     throw std::runtime_error("sem_open failed: " + bw_read_sem_name);
   }
 
-  f_write_sems[rank] = fw_write_sem;
-  f_read_sems[rank] = fw_read_sem;
-  b_write_sems[rank] = bw_write_sem;
-  b_read_sems[rank] = bw_read_sem; // initialize semaphores
+  f_write_sem = fw_write_sem;
+  f_read_sem = fw_read_sem;
+  b_write_sem = bw_write_sem;
+  b_read_sem = bw_read_sem; // initialize semaphores
 
   forward_ready_tensors[rank] =
       std::vector<std::optional<torch::Tensor>>(total_num_microbatches);
@@ -487,94 +496,77 @@ void put_backward_tensor(int k, const torch::Tensor &tensor, int rank) {
 
 // send forward using shm
 void forward_create_shared_memory(const torch::Tensor &tensor, int rank,
-                                  int index, int num_threads = 10) {
+                                  int index) {
   if (!tensor.is_cuda())
     throw std::runtime_error("Tensor must be on CUDA device!");
 
-  // wait semaphore
-  if (f_write_sems.find(rank) == f_write_sems.end()) {
+  // initialize the link to the semaphore of next rank (forward target)
+  if (!f_write_sem_next) {
     std::string fw_write_sem_name =
         "/forward_write_sem_rank_" + std::to_string(rank);
-    f_write_sems[rank] = sem_open(fw_write_sem_name.c_str(), 0);
+    f_write_sem_next = sem_open(fw_write_sem_name.c_str(), 0);
   }
-  sem_wait(f_write_sems[rank]);
 
-  // intialize shared memory
+  sem_wait(f_write_sem_next); // wait for write permission (granted by read)
+
   std::string shm_name = "/forward_tensor_rank_" + std::to_string(rank);
-  void *shm_ptr = nullptr;
 
-  if (f_shm_ptrs.find(rank) == f_shm_ptrs.end()) {
+  // initialize the shm link of next rank (forward target)
+  if (!f_shm_ptr_next) {
     int shm_fd = shm_open(shm_name.c_str(), O_RDWR, 0666);
     if (shm_fd == -1)
       throw std::runtime_error("Failed to open shared memory for writing.");
 
-    shm_ptr = mmap(0, tensor.numel() * sizeof(torch::Half) + sizeof(int),
-                   PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    void *shm_ptr = mmap(0, tensor.numel() * sizeof(torch::Half) + sizeof(int),
+                         PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shm_ptr == MAP_FAILED) {
       close(shm_fd);
       throw std::runtime_error("Failed to map shared memory for writing.");
     }
 
-    f_shm_fds[rank] = shm_fd;
-    f_shm_ptrs[rank] = shm_ptr;
-  } else {
-    shm_ptr = f_shm_ptrs[rank];
+    f_shm_fd_next = shm_fd;
+    f_shm_ptr_next = shm_ptr;
   }
 
-  // write index
-  std::memcpy(shm_ptr, &index, sizeof(int));
+  void *shm_ptr = f_shm_ptr_next;
 
-  // divide into chunks
-  int total_rows = tensor.size(0);
-  int rows_per_thread = (total_rows + num_threads - 1) / num_threads;
-  int row_size = tensor.numel() / total_rows;
-  int elem_size = sizeof(torch::Half);
-  size_t tensor_data_offset = sizeof(int);
+  const int num_threads = 10;
+  const int64_t total_elems = tensor.numel();
+  const int64_t chunk_size = (total_elems + num_threads - 1) / num_threads;
 
   std::vector<std::thread> threads;
+  auto *shm_half_ptr =
+      reinterpret_cast<torch::Half *>((char *)shm_ptr + sizeof(int));
 
-  for (int t = 0; t < num_threads; ++t) {
+  for (int i = 0; i < num_threads; ++i) {
+    int64_t start = i * chunk_size;
+    int64_t end = std::min(start + chunk_size, total_elems);
+    if (start >= end)
+      continue;
+
     threads.emplace_back([=, &tensor]() {
-      int start_row = t * rows_per_thread;
-      if (start_row >= total_rows)
-        return;
+      at::Tensor gpu_slice = tensor.view({-1}).narrow(0, start, end - start);
+      at::Tensor cpu_slice = torch::empty(
+          {end - start},
+          torch::TensorOptions().dtype(torch::kFloat16).device(torch::kCPU));
+      cpu_slice.copy_(gpu_slice);
 
-      int this_rows = std::min(rows_per_thread, total_rows - start_row);
-      auto chunk = tensor.narrow(0, start_row, this_rows).contiguous();
-
-      // allocate CPU chunks
-      at::Tensor cpu_chunk =
-          torch::empty(chunk.sizes(), torch::TensorOptions()
-                                          .dtype(torch::kFloat16)
-                                          .device(torch::kCPU)
-                                          .pinned_memory(true));
-
-      cudaStream_t stream;
-      cudaStreamCreate(&stream);
-
-      cudaMemcpyAsync(cpu_chunk.data_ptr(), chunk.data_ptr(),
-                      cpu_chunk.nbytes(), cudaMemcpyDeviceToHost, stream);
-
-      cudaStreamSynchronize(stream);
-      cudaStreamDestroy(stream);
-
-      // write into shm
-      size_t offset = tensor_data_offset + start_row * row_size * elem_size;
-      std::memcpy((char *)shm_ptr + offset, cpu_chunk.data_ptr<torch::Half>(),
-                  cpu_chunk.numel() * elem_size);
+      std::memcpy(shm_half_ptr + start, cpu_slice.data_ptr<torch::Half>(),
+                  (end - start) * sizeof(torch::Half));
     });
   }
 
-  for (auto &th : threads)
-    th.join();
+  for (auto &t : threads)
+    t.join();
 
-  // signal reader
-  if (f_read_sems.find(rank) == f_read_sems.end()) {
+  std::memcpy(shm_ptr, &index, sizeof(int));
+
+  if (!f_read_sem_next) {
     std::string fw_read_sem_name =
         "/forward_read_sem_rank_" + std::to_string(rank);
-    f_read_sems[rank] = sem_open(fw_read_sem_name.c_str(), 0);
+    f_read_sem_next = sem_open(fw_read_sem_name.c_str(), 0);
   }
-  sem_post(f_read_sems[rank]);
+  sem_post(f_read_sem_next); // grant read access to the next rank
 }
 
 // forward send with RDMA
@@ -622,94 +614,75 @@ void forward_send_with_rdma(const torch::Tensor &tensor, int index) {
 
 // send backward using shm
 void backward_create_shared_memory(const torch::Tensor &tensor, int rank,
-                                   int index, int num_threads = 10) {
+                                   int index) {
   if (!tensor.is_cuda())
     throw std::runtime_error("Tensor must be on CUDA device!");
 
-  // wait for semaphore
-  if (b_write_sems.find(rank) == b_write_sems.end()) {
+  if (!b_write_sem_next) {
     std::string bw_write_sem_name =
         "/backward_write_sem_rank_" + std::to_string(rank);
-    b_write_sems[rank] = sem_open(bw_write_sem_name.c_str(), 0);
+    b_write_sem_next = sem_open(bw_write_sem_name.c_str(), 0);
   }
-  sem_wait(b_write_sems[rank]);
 
-  // initialize shm
+  sem_wait(b_write_sem_next);
+
   std::string shm_name = "/backward_tensor_rank_" + std::to_string(rank);
-  void *shm_ptr = nullptr;
 
-  if (b_shm_ptrs.find(rank) == b_shm_ptrs.end()) {
+  if (!b_shm_ptr_next) {
     int shm_fd = shm_open(shm_name.c_str(), O_RDWR, 0666);
     if (shm_fd == -1)
       throw std::runtime_error("Failed to open shared memory for writing.");
 
-    shm_ptr = mmap(0, tensor.numel() * sizeof(torch::Half) + sizeof(int),
-                   PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    void *shm_ptr = mmap(0, tensor.numel() * sizeof(torch::Half) + sizeof(int),
+                         PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shm_ptr == MAP_FAILED) {
       close(shm_fd);
       throw std::runtime_error("Failed to map shared memory for writing.");
     }
 
-    b_shm_fds[rank] = shm_fd;
-    b_shm_ptrs[rank] = shm_ptr;
-  } else {
-    shm_ptr = b_shm_ptrs[rank];
+    b_shm_fd_next = shm_fd;
+    b_shm_ptr_next = shm_ptr;
   }
 
-  // write index
-  std::memcpy(shm_ptr, &index, sizeof(int));
+  void *shm_ptr = b_shm_ptr_next;
 
-  // divide into chunks
-  int total_rows = tensor.size(0);
-  int rows_per_thread = (total_rows + num_threads - 1) / num_threads;
-  int row_size = tensor.numel() / total_rows;
-  int elem_size = sizeof(torch::Half);
-  size_t tensor_data_offset = sizeof(int);
+  const int num_threads = 10;
+  const int64_t total_elems = tensor.numel();
+  const int64_t chunk_size = (total_elems + num_threads - 1) / num_threads;
 
   std::vector<std::thread> threads;
+  auto *shm_half_ptr =
+      reinterpret_cast<torch::Half *>((char *)shm_ptr + sizeof(int));
 
-  for (int t = 0; t < num_threads; ++t) {
+  for (int i = 0; i < num_threads; ++i) {
+    int64_t start = i * chunk_size;
+    int64_t end = std::min(start + chunk_size, total_elems);
+    if (start >= end)
+      continue;
+
     threads.emplace_back([=, &tensor]() {
-      int start_row = t * rows_per_thread;
-      if (start_row >= total_rows)
-        return;
+      at::Tensor gpu_slice = tensor.view({-1}).narrow(0, start, end - start);
+      at::Tensor cpu_slice = torch::empty(
+          {end - start},
+          torch::TensorOptions().dtype(torch::kFloat16).device(torch::kCPU));
+      cpu_slice.copy_(gpu_slice);
 
-      int this_rows = std::min(rows_per_thread, total_rows - start_row);
-      auto chunk = tensor.narrow(0, start_row, this_rows).contiguous();
-
-      // allocate CPU chunks
-      at::Tensor cpu_chunk =
-          torch::empty(chunk.sizes(), torch::TensorOptions()
-                                          .dtype(torch::kFloat16)
-                                          .device(torch::kCPU)
-                                          .pinned_memory(true));
-
-      cudaStream_t stream;
-      cudaStreamCreate(&stream);
-
-      cudaMemcpyAsync(cpu_chunk.data_ptr(), chunk.data_ptr(),
-                      cpu_chunk.nbytes(), cudaMemcpyDeviceToHost, stream);
-
-      cudaStreamSynchronize(stream);
-      cudaStreamDestroy(stream);
-
-      // write into shm
-      size_t offset = tensor_data_offset + start_row * row_size * elem_size;
-      std::memcpy((char *)shm_ptr + offset, cpu_chunk.data_ptr<torch::Half>(),
-                  cpu_chunk.numel() * elem_size);
+      std::memcpy(shm_half_ptr + start, cpu_slice.data_ptr<torch::Half>(),
+                  (end - start) * sizeof(torch::Half));
     });
   }
 
-  for (auto &th : threads)
-    th.join();
+  for (auto &t : threads)
+    t.join();
 
-  // signal reader
-  if (b_read_sems.find(rank) == b_read_sems.end()) {
+  std::memcpy(shm_ptr, &index, sizeof(int));
+
+  if (!b_read_sem_next) {
     std::string bw_read_sem_name =
         "/backward_read_sem_rank_" + std::to_string(rank);
-    b_read_sems[rank] = sem_open(bw_read_sem_name.c_str(), 0);
+    b_read_sem_next = sem_open(bw_read_sem_name.c_str(), 0);
   }
-  sem_post(b_read_sems[rank]);
+  sem_post(b_read_sem_next);
 }
 
 // backward send with RDMA
@@ -758,22 +731,50 @@ void backward_send_with_rdma(const torch::Tensor &tensor, int index) {
 // recv forward using shm
 std::pair<torch::Tensor, int> forward_read_shared_memory(size_t num_elements,
                                                          int rank) {
-  if (f_shm_ptrs.find(rank) == f_shm_ptrs.end())
+  if (!f_shm_ptr)
     throw std::runtime_error(
         "Forward shared memory not initialized for this rank!");
-  sem_wait(f_read_sems[rank]);
+  sem_wait(f_read_sem);
+
   int index = 0;
-  std::memcpy(&index, f_shm_ptrs[rank], sizeof(int));
+  std::memcpy(&index, f_shm_ptr, sizeof(int));
 
-  auto tensor =
-      torch::from_blob((char *)f_shm_ptrs[rank] + sizeof(int),
-                       {static_cast<long>(num_elements)}, torch::kFloat16)
-          .clone()
-          .to(torch::Device(torch::kCUDA, rank % NUM_GPUS))
-          .set_requires_grad(true);
+  auto cpu_tensor = torch::from_blob((char *)f_shm_ptr + sizeof(int),
+                                     {static_cast<long>(num_elements)},
+                                     torch::TensorOptions()
+                                         .dtype(torch::kFloat16)
+                                         .device(torch::kCPU)
+                                         .pinned_memory(true));
 
-  sem_post(f_write_sems[rank]);
-  return {tensor, index};
+  auto gpu_tensor =
+      torch::empty({static_cast<long>(num_elements)},
+                   torch::TensorOptions()
+                       .dtype(torch::kFloat16)
+                       .device(torch::Device(torch::kCUDA, rank % NUM_GPUS)));
+
+  const int num_threads = 10;
+  const int64_t chunk_size = (num_elements + num_threads - 1) / num_threads;
+  std::vector<std::thread> threads;
+
+  for (int i = 0; i < num_threads; ++i) {
+    int64_t start = i * chunk_size;
+    int64_t end = std::min(start + chunk_size, (int64_t)num_elements);
+    if (start >= end)
+      continue;
+
+    threads.emplace_back([=, &cpu_tensor, &gpu_tensor]() {
+      auto cpu_slice = cpu_tensor.slice(0, start, end).contiguous();
+      auto gpu_slice = gpu_tensor.slice(0, start, end);
+      gpu_slice.copy_(cpu_slice, true);
+    });
+  }
+
+  for (auto &t : threads)
+    t.join();
+
+  gpu_tensor.set_requires_grad(true);
+  sem_post(f_write_sem);
+  return {gpu_tensor, index};
 }
 
 // forward receiving with RDMA
@@ -820,22 +821,50 @@ std::pair<torch::Tensor, int> forward_recv_with_rdma(size_t num_elements,
 // recv backward using shm
 std::pair<torch::Tensor, int> backward_read_shared_memory(size_t num_elements,
                                                           int rank) {
-  if (b_shm_ptrs.find(rank) == b_shm_ptrs.end())
+  if (!b_shm_ptr)
     throw std::runtime_error(
-        "Backward shared memory not initialized for this rank!");
-  sem_wait(b_read_sems[rank]);
+        "Forward shared memory not initialized for this rank!");
+  sem_wait(b_read_sem);
+
   int index = 0;
-  std::memcpy(&index, b_shm_ptrs[rank], sizeof(int));
+  std::memcpy(&index, b_shm_ptr, sizeof(int));
 
-  auto tensor =
-      torch::from_blob((char *)b_shm_ptrs[rank] + sizeof(int),
-                       {static_cast<long>(num_elements)}, torch::kFloat16)
-          .clone()
-          .to(torch::Device(torch::kCUDA, rank % NUM_GPUS))
-          .set_requires_grad(true);
+  auto cpu_tensor = torch::from_blob((char *)b_shm_ptr + sizeof(int),
+                                     {static_cast<long>(num_elements)},
+                                     torch::TensorOptions()
+                                         .dtype(torch::kFloat16)
+                                         .device(torch::kCPU)
+                                         .pinned_memory(true));
 
-  sem_post(b_write_sems[rank]);
-  return {tensor, index};
+  auto gpu_tensor =
+      torch::empty({static_cast<long>(num_elements)},
+                   torch::TensorOptions()
+                       .dtype(torch::kFloat16)
+                       .device(torch::Device(torch::kCUDA, rank % NUM_GPUS)));
+
+  const int num_threads = 10;
+  const int64_t chunk_size = (num_elements + num_threads - 1) / num_threads;
+  std::vector<std::thread> threads;
+
+  for (int i = 0; i < num_threads; ++i) {
+    int64_t start = i * chunk_size;
+    int64_t end = std::min(start + chunk_size, (int64_t)num_elements);
+    if (start >= end)
+      continue;
+
+    threads.emplace_back([=, &cpu_tensor, &gpu_tensor]() {
+      auto cpu_slice = cpu_tensor.slice(0, start, end).contiguous();
+      auto gpu_slice = gpu_tensor.slice(0, start, end);
+      gpu_slice.copy_(cpu_slice, true);
+    });
+  }
+
+  for (auto &t : threads)
+    t.join();
+
+  gpu_tensor.set_requires_grad(true);
+  sem_post(b_write_sem);
+  return {gpu_tensor, index};
 }
 
 // backward receiving with RDMA
@@ -882,7 +911,7 @@ std::pair<torch::Tensor, int> backward_recv_with_rdma(size_t num_elements,
 void forward_send(int num_model_chunks, int pipeline_parallel_size,
                   int total_num_microbatches, bool is_last_stage,
                   int forward_next_rank, int cur_rank,
-                  int total_num_microbatches_to_send_forward) {
+                  int total_num_microbatches_to_send_forward, bool offset) {
   std::vector<int> forward_sent_indices;
   int forward_sent_count = 0;
   while (1) {
@@ -891,7 +920,7 @@ void forward_send(int num_model_chunks, int pipeline_parallel_size,
     for (int i = 0; i < num_model_chunks; i++) {
       for (int j = i * pipeline_parallel_size; j < total_num_microbatches;
            j += pipeline_parallel_size * num_model_chunks) {
-        for (k = j; k < j + pipeline_parallel_size; k++) {
+        for (k = j + offset; k < j + pipeline_parallel_size; k += 2) {
           forward_finished_tensors_mutex.lock();
           if (forward_finished_tensors[cur_rank][k].has_value() &&
               std::find(forward_sent_indices.begin(),
@@ -924,7 +953,7 @@ void forward_send(int num_model_chunks, int pipeline_parallel_size,
             index);
       forward_finished_tensors[cur_rank][k].reset();
       forward_sent_count++;
-      if (forward_sent_count == total_num_microbatches_to_send_forward)
+      if (forward_sent_count == total_num_microbatches_to_send_forward / 2)
         return;
     }
   }
@@ -1033,10 +1062,14 @@ void thread_pool(int num_model_chunks, int pipeline_parallel_size,
                  int total_num_microbatches_to_send_backward,
                  int total_num_microbatches_to_recv_backward, int tensor_shape,
                  bool forward_only) {
-  forward_send_thread =
+  forward_send_thread_0 =
       std::thread(forward_send, num_model_chunks, pipeline_parallel_size,
                   total_num_microbatches, is_last_stage, forward_next_rank,
-                  cur_rank, total_num_microbatches_to_send_forward);
+                  cur_rank, total_num_microbatches_to_send_forward, 0);
+  forward_send_thread_1 =
+      std::thread(forward_send, num_model_chunks, pipeline_parallel_size,
+                  total_num_microbatches, is_last_stage, forward_next_rank,
+                  cur_rank, total_num_microbatches_to_send_forward, 1);
   forward_recv_thread =
       std::thread(forward_recv, cur_rank,
                   total_num_microbatches_to_recv_forward, tensor_shape);
@@ -1054,9 +1087,13 @@ void thread_pool(int num_model_chunks, int pipeline_parallel_size,
 }
 
 void join_threads() {
-  if (forward_send_thread && forward_send_thread->joinable()) {
-    forward_send_thread->join();
-    forward_send_thread.reset();
+  if (forward_send_thread_0 && forward_send_thread_0->joinable()) {
+    forward_send_thread_0->join();
+    forward_send_thread_0.reset();
+  }
+  if (forward_send_thread_1 && forward_send_thread_1->joinable()) {
+    forward_send_thread_1->join();
+    forward_send_thread_1.reset();
   }
   if (forward_recv_thread && forward_recv_thread->joinable()) {
     forward_recv_thread->join();
