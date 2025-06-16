@@ -27,7 +27,7 @@ from megatron.core.trace import tracers
 Shape = Union[List[int], torch.Size]
 
 
-def get_forward_backward_func(use_app):
+def get_forward_backward_func(use_dpp):
     """Retrieves the appropriate forward_backward function given the
     configuration of parallel_state.
 
@@ -108,8 +108,8 @@ def get_forward_backward_func(use_app):
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
     if pipeline_model_parallel_size > 1:
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-            if use_app:
-                forward_backward_func = forward_backward_pipelining_with_interleaving_app
+            if use_dpp:
+                forward_backward_func = forward_backward_pipelining_with_interleaving_dpp
             else:
                 forward_backward_func = forward_backward_pipelining_with_interleaving
         else:
@@ -1601,7 +1601,7 @@ def forward_backward_pipelining_with_interleaving(
     return forward_data_store
 
 
-def forward_backward_pipelining_with_interleaving_app(
+def forward_backward_pipelining_with_interleaving_dpp(
     *,
     forward_step_func,
     data_iterator: Union[Iterator, List[Iterator]],

@@ -166,5 +166,5 @@ if __name__ == "__main__":
         files = collect_benchmark_files(os.path.join(benchmark_dir, 'Megatron'))
     contents = [read_benchmark_file(rank, content) for rank, content in files]
     aggregated = aggregate_benchmark_data(contents)
-    with open(f"{benchmark_dir}/{benchmark_dir}-aggregated.json", 'w') as f:
+    with open(f"{benchmark_dir}/benchmark-{benchmark_dir.split("/")[-1]}-aggregated.json", 'w') as f:
         json.dump(benchmark_to_chrome_trace(aggregated), f, indent=2)

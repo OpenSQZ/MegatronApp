@@ -1,12 +1,12 @@
-# MegatronAPP
+# MegatronDPP (Megatron with Dynamic Pipeline-Parallel)
 
-$\quad$ An integration of an adaptive pipeline-parallel algorithm to the Megatron distributive training framework.
+$\quad$ An integration of a dynamic pipeline-parallel algorithm to the Megatron distributed training framework.
 
-- Supports an adaptive pipeline-parallel algorithm that selects the next microbatch to compute via a greedy rule.
+- Supports a dynamic pipeline-parallel algorithm that selects the next microbatch to compute via a greedy rule.
 
 - Supports tensor transfer between GPUs locally via shared memory.
 
-- Supports a flag `--use-app` to switch between adaptive algorithm and original pipeline algorithm.
+- Supports a flag `--use-dpp` to switch between dynamic algorithm and original pipeline algorithm.
 
 ## Environment Configuration
 
@@ -47,10 +47,32 @@ python setup.py install
 
 ## Run
 
-$\quad$ To run distributed training, go to the project root directory and run
+$\quad$ To run distributed training on a single node, go to the project root directory and run
 
 ```bash
-bash examples examples/gpt3/train_gpt3_175b_distributed.sh
+bash run_single.sh
 ```
 
-note that there is a flag `--use-app` in `TRAINING_ARGS`. Remove it to use original pipeline algorithm.
+note that there is a flag `--use-dpp` in `TRAINING_ARGS`. Remove it to use original pipeline algorithm.
+
+$\quad$ To run distributed training on multi nodes, go to the root directory. First run
+
+```bash
+bash run_master.sh
+```
+
+and then start another pod and run
+
+```bash
+bash run_worker.sh
+```
+
+## Profiling
+
+$\quad$ Each run will generate a trace dir in `benchmark`. Run
+
+```python
+python aggregate.py --benchmark_dir benchmark/your-benchmark-dir
+```
+
+in the root dir to produce an aggregated trace file.

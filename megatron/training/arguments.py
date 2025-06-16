@@ -2192,7 +2192,7 @@ def _add_distributed_args(parser):
                        "and must be consistent across all ranks.")
     group.add_argument('--replication-factor', default=2, type=int,
                        help="Number of machines storing the replica of a given rank's data.")
-    group.add_argument("--use-app", action='store_true', default=False, help="use adaptive pipeline or not")
+    group.add_argument("--use-dpp", action='store_true', default=False, help="use dynamic pipeline or not")
     return parser
 
 
