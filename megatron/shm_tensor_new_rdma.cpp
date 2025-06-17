@@ -118,8 +118,7 @@ size_t shm_size = 0;
 std::mutex print_mutex;
 
 // threads
-std::optional<std::thread> forward_send_thread_0;
-std::optional<std::thread> forward_send_thread_1;
+std::optional<std::thread> forward_send_thread;
 std::optional<std::thread> forward_recv_thread;
 std::optional<std::thread> backward_send_thread;
 std::optional<std::thread> backward_recv_thread;
@@ -911,7 +910,7 @@ std::pair<torch::Tensor, int> backward_recv_with_rdma(size_t num_elements,
 void forward_send(int num_model_chunks, int pipeline_parallel_size,
                   int total_num_microbatches, bool is_last_stage,
                   int forward_next_rank, int cur_rank,
-                  int total_num_microbatches_to_send_forward, bool offset) {
+                  int total_num_microbatches_to_send_forward) {
   std::vector<int> forward_sent_indices;
   int forward_sent_count = 0;
   while (1) {
@@ -920,7 +919,7 @@ void forward_send(int num_model_chunks, int pipeline_parallel_size,
     for (int i = 0; i < num_model_chunks; i++) {
       for (int j = i * pipeline_parallel_size; j < total_num_microbatches;
            j += pipeline_parallel_size * num_model_chunks) {
-        for (k = j + offset; k < j + pipeline_parallel_size; k += 2) {
+        for (k = j; k < j + pipeline_parallel_size; k++) {
           forward_finished_tensors_mutex.lock();
           if (forward_finished_tensors[cur_rank][k].has_value() &&
               std::find(forward_sent_indices.begin(),
@@ -953,7 +952,7 @@ void forward_send(int num_model_chunks, int pipeline_parallel_size,
             index);
       forward_finished_tensors[cur_rank][k].reset();
       forward_sent_count++;
-      if (forward_sent_count == total_num_microbatches_to_send_forward / 2)
+      if (forward_sent_count == total_num_microbatches_to_send_forward)
         return;
     }
   }
@@ -1062,14 +1061,10 @@ void thread_pool(int num_model_chunks, int pipeline_parallel_size,
                  int total_num_microbatches_to_send_backward,
                  int total_num_microbatches_to_recv_backward, int tensor_shape,
                  bool forward_only) {
-  forward_send_thread_0 =
+  forward_send_thread =
       std::thread(forward_send, num_model_chunks, pipeline_parallel_size,
                   total_num_microbatches, is_last_stage, forward_next_rank,
-                  cur_rank, total_num_microbatches_to_send_forward, 0);
-  forward_send_thread_1 =
-      std::thread(forward_send, num_model_chunks, pipeline_parallel_size,
-                  total_num_microbatches, is_last_stage, forward_next_rank,
-                  cur_rank, total_num_microbatches_to_send_forward, 1);
+                  cur_rank, total_num_microbatches_to_send_forward);
   forward_recv_thread =
       std::thread(forward_recv, cur_rank,
                   total_num_microbatches_to_recv_forward, tensor_shape);
@@ -1087,13 +1082,9 @@ void thread_pool(int num_model_chunks, int pipeline_parallel_size,
 }
 
 void join_threads() {
-  if (forward_send_thread_0 && forward_send_thread_0->joinable()) {
-    forward_send_thread_0->join();
-    forward_send_thread_0.reset();
-  }
-  if (forward_send_thread_1 && forward_send_thread_1->joinable()) {
-    forward_send_thread_1->join();
-    forward_send_thread_1.reset();
+  if (forward_send_thread && forward_send_thread->joinable()) {
+    forward_send_thread->join();
+    forward_send_thread.reset();
   }
   if (forward_recv_thread && forward_recv_thread->joinable()) {
     forward_recv_thread->join();
