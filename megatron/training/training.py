@@ -1974,6 +1974,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Run training iterations till done.
     while iteration < args.train_iters:
+        # torch.cuda.empty_cache()
+        # torch.cuda.reset_peak_memory_stats()
         torch.distributed.barrier()
         tracers.iteration_begin()
         tracers.tick("iteration begin")
@@ -2071,6 +2073,10 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
         tracers.tick("iteration end")
         tracers.iteration_end()
+        # peak_mem = torch.cuda.max_memory_allocated() / 1024**2
+        # suffix = "dpp" if args.use_dpp else "pp"
+        # with open(f"benchmark/data-{mpu.get_data_parallel_world_size()}-pipeline-{mpu.get_pipeline_model_parallel_world_size()}-tensor-{mpu.get_tensor_model_parallel_world_size()}-peak-memory-{suffix}.txt", "a") as f:
+        #    f.write(f"rank {torch.distributed.get_rank()} allocated peak memory {peak_mem}MB\n")
         # Logging.
         if not optimizer.is_stub_optimizer:
             loss_scale = optimizer.get_loss_scale().item()
