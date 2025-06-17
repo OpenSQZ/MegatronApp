@@ -1976,6 +1976,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     while iteration < args.train_iters:
         torch.distributed.barrier()
         tracers.iteration_begin()
+        tracers.tick("iteration begin")
         if args.profile and torch.distributed.get_rank() in args.profile_ranks:
             if args.use_pytorch_profiler:
                 prof.step()
@@ -2068,6 +2069,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         num_floating_point_operations_in_batch = num_floating_point_operations(args, batch_size)
         num_floating_point_operations_so_far += num_floating_point_operations_in_batch
         num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
+        tracers.tick("iteration end")
         tracers.iteration_end()
         # Logging.
         if not optimizer.is_stub_optimizer:

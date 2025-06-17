@@ -1567,7 +1567,7 @@ def forward_backward_pipelining_with_interleaving(
                 if model_chunk_id not in synchronized_model_chunks:
                     config.grad_sync_func[model_chunk_id](model[model_chunk_id].parameters())
                     synchronized_model_chunks.add(model_chunk_id)
-
+    tracers.tick("reduce") # reduce start
     assert (
         not recv_prev_wait_handles
     ), 'recv_prev_wait_handles should be cleared at the end of a step'
@@ -2073,7 +2073,7 @@ def forward_backward_pipelining_with_interleaving_dpp(
                 assert forward_finished_tensors[index_to_compute].numel() == 1
 
     shm_tensor_new_rdma.join_threads()
-
+    tracers.tick("reduce") # reduce start
     if config.finalize_model_grads_func is not None and not forward_only:
 
         # If defer_embedding_wgrad_compute is enabled we need to do the
