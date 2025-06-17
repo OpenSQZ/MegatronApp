@@ -54,4 +54,4 @@ for rank in range(pp_ranks):
         compute_times += (backward_compute_ends_by_rank[rank][i]["ts"] - backward_compute_starts_by_rank[rank][i]["ts"])
     avg_compute_windows.append(compute_times / (len(forward_compute_starts_by_rank[rank]) + len(backward_compute_starts_by_rank[rank])))
 plt.bar(ranks, avg_compute_windows)
-plt.savefig(f"plots/{trace_file.split("/")[-1][:-4]}-computing-windows.png")
+plt.savefig(f"plots/{trace_file.split("/")[-1][:-5]}-computing-windows.png")

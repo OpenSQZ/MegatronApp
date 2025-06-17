@@ -63,4 +63,4 @@ for backward_send_rank in range(pp_ranks):
     avg_sending_windows.append(sum(sending_windows) / len(sending_windows))
 pairs = ["0-1", "1-2", "2-3", "3-0", "0-3", "1-0", "2-1", "3-2"]
 plt.bar(pairs, avg_sending_windows)
-plt.savefig(f"plots/{trace_file.split("/")[-1][:-4]}-sending-windows.png")
+plt.savefig(f"plots/{trace_file.split("/")[-1][:-5]}-sending-windows.png")
