@@ -15,7 +15,7 @@ def run(rank, world_size, tensor_mb=10, use_cuda=False):
     tensor_size = tensor_mb * 1024 * 1024 // 2  # float16: 2 bytes
     tensor = torch.ones(tensor_size, dtype=torch.float16, device=device)
 
-    dist.barrier()  # 确保两个进程都准备好
+    dist.barrier()
 
     if rank == 0:
         # sender

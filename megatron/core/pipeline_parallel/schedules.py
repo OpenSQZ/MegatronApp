@@ -1980,7 +1980,7 @@ def forward_backward_pipelining_with_interleaving_dpp(
                         can_backward_compute = True
                         break # no need backward tensors since it is the initial backward rank
                     else:
-                        recved_tensor = shm_tensor_new_rdma.get_backward_tensor(k, torch.distributed.get_rank()) # try to get the kth tensor
+                        recved_tensor = shm_tensor_new_rdma.get_backward_tensor(k) # try to get the kth tensor
                         if recved_tensor is not None: # success
                             backward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
                             index_to_compute = k
@@ -2013,12 +2013,12 @@ def forward_backward_pipelining_with_interleaving_dpp(
                 # print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward finished, {time.time()}%") # backward finished time，for latency and compute window/ratio
                 """for model_chunk in range(num_model_chunks):
                     if model_chunk not in reduced_chunks and has_computed_all_microbatchs(model_chunk):
-                        # print(f"{torch.distributed.get_rank()}, {model_chunk}, can reduce, {time.time()}%") # earliest reduce threshold，for reduce window/ratio
+                        # print(f"{torch.distributed.get_rank()}, {model_chunk}, can reduce, {time.time()}%") # earliest reduce threshold, for reduce window/ratio
                         reduced_chunks.append(model_chunk)
                         if config.grad_sync_func is not None:
                             config.grad_sync_func[model_chunk](model[model_chunk].parameters())"""
                 if not (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and index_to_compute % (num_model_chunks * pipeline_parallel_size) >= (num_model_chunks - 1) * pipeline_parallel_size):
-                    shm_tensor_new_rdma.put_backward_tensor(index_to_compute, backward_finished_tensors[index_to_compute], torch.distributed.get_rank())
+                    shm_tensor_new_rdma.put_backward_tensor(index_to_compute, backward_finished_tensors[index_to_compute])
         can_forward_compute = False
         for k in index_list:
             if k not in computed_forward_indices:
@@ -2027,7 +2027,7 @@ def forward_backward_pipelining_with_interleaving_dpp(
                     can_forward_compute = True
                     break # the input is None in this case
                 else:
-                    recved_tensor = shm_tensor_new_rdma.get_forward_tensor(k, torch.distributed.get_rank()) # try to get the kth tensor and store locally for backward
+                    recved_tensor = shm_tensor_new_rdma.get_forward_tensor(k) # try to get the kth tensor and store locally for backward
                     if recved_tensor is not None: # success
                         forward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
                         index_to_compute = k
@@ -2065,7 +2065,7 @@ def forward_backward_pipelining_with_interleaving_dpp(
                 or index_to_compute % (num_model_chunks * pipeline_parallel_size)
                 < (num_model_chunks - 1) * pipeline_parallel_size
             ):
-                shm_tensor_new_rdma.put_forward_tensor(index_to_compute, forward_finished_tensors[index_to_compute], torch.distributed.get_rank()) # put the tensor into C
+                shm_tensor_new_rdma.put_forward_tensor(index_to_compute, forward_finished_tensors[index_to_compute]) # put the tensor into C
             else:
                 deallocate_output_tensor(
                     forward_finished_tensors[index_to_compute], config.deallocate_pipeline_outputs

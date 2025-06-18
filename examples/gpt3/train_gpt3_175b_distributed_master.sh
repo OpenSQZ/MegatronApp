@@ -30,7 +30,7 @@ DISTRIBUTED_ARGS=(
 )
 
 GPT_MODEL_ARGS=(
-    --num-layers 32
+    --num-layers 16
     --hidden-size 2048
     --num-attention-heads 32
     --seq-length 2048

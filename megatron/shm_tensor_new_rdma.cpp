@@ -100,18 +100,16 @@ char *backward_recv_buffers[NUM_RECV_WR] = {};
 int rdma_size = 0;
 
 // the "queue"s
-std::unordered_map<int, std::vector<std::optional<torch::Tensor>>>
-    forward_ready_tensors;
+std::vector<std::optional<torch::Tensor>> forward_ready_tensors;
 std::mutex forward_ready_tensors_mutex;
-std::unordered_map<int, std::vector<std::optional<torch::Tensor>>>
-    forward_finished_tensors;
+std::vector<std::optional<torch::Tensor>> forward_finished_tensors;
 std::mutex forward_finished_tensors_mutex;
-std::unordered_map<int, std::vector<std::optional<torch::Tensor>>>
-    backward_ready_tensors;
+std::vector<std::optional<torch::Tensor>> backward_ready_tensors;
 std::mutex backward_ready_tensors_mutex;
-std::unordered_map<int, std::vector<std::optional<torch::Tensor>>>
-    backward_finished_tensors;
+std::vector<std::optional<torch::Tensor>> backward_finished_tensors;
 std::mutex backward_finished_tensors_mutex;
+
+// configurations
 size_t shm_size = 0;
 
 // debugging
@@ -211,13 +209,13 @@ void init_shared_memory(size_t numel, int rank, int total_num_microbatches) {
   b_write_sem = bw_write_sem;
   b_read_sem = bw_read_sem; // initialize semaphores
 
-  forward_ready_tensors[rank] =
+  forward_ready_tensors =
       std::vector<std::optional<torch::Tensor>>(total_num_microbatches);
-  forward_finished_tensors[rank] =
+  forward_finished_tensors =
       std::vector<std::optional<torch::Tensor>>(total_num_microbatches);
-  backward_ready_tensors[rank] =
+  backward_ready_tensors =
       std::vector<std::optional<torch::Tensor>>(total_num_microbatches);
-  backward_finished_tensors[rank] =
+  backward_finished_tensors =
       std::vector<std::optional<torch::Tensor>>(total_num_microbatches);
 }
 
@@ -462,34 +460,34 @@ void init_backward_rdma(size_t numel, int rank, int next_rank, int prev_rank) {
 }
 
 // retrieve tensor from queue
-std::optional<torch::Tensor> get_forward_tensor(int k, int rank) {
+std::optional<torch::Tensor> get_forward_tensor(int k) {
   forward_ready_tensors_mutex.lock();
-  auto result = std::move(forward_ready_tensors[rank][k]);
-  forward_ready_tensors[rank][k].reset();
+  auto result = std::move(forward_ready_tensors[k]);
+  forward_ready_tensors[k].reset();
   forward_ready_tensors_mutex.unlock();
   return result;
 }
 
 // put tensor into queue
-void put_forward_tensor(int k, const torch::Tensor &tensor, int rank) {
+void put_forward_tensor(int k, const torch::Tensor &tensor) {
   forward_finished_tensors_mutex.lock();
-  forward_finished_tensors[rank][k] = std::move(tensor);
+  forward_finished_tensors[k] = std::move(tensor);
   forward_finished_tensors_mutex.unlock();
 }
 
 // retrieve tensor from queue
-std::optional<torch::Tensor> get_backward_tensor(int k, int rank) {
+std::optional<torch::Tensor> get_backward_tensor(int k) {
   backward_ready_tensors_mutex.lock();
-  auto result = std::move(backward_ready_tensors[rank][k]);
-  backward_ready_tensors[rank][k].reset();
+  auto result = std::move(backward_ready_tensors[k]);
+  backward_ready_tensors[k].reset();
   backward_ready_tensors_mutex.unlock();
   return result;
 }
 
 // put tensor into queue
-void put_backward_tensor(int k, const torch::Tensor &tensor, int rank) {
+void put_backward_tensor(int k, const torch::Tensor &tensor) {
   backward_finished_tensors_mutex.lock();
-  backward_finished_tensors[rank][k] = std::move(tensor);
+  backward_finished_tensors[k] = std::move(tensor);
   backward_finished_tensors_mutex.unlock();
 }
 
@@ -909,7 +907,7 @@ std::pair<torch::Tensor, int> backward_recv_with_rdma(size_t num_elements,
 
 void forward_send(int num_model_chunks, int pipeline_parallel_size,
                   int total_num_microbatches, bool is_last_stage,
-                  int forward_next_rank, int cur_rank,
+                  int forward_next_rank,
                   int total_num_microbatches_to_send_forward) {
   std::vector<int> forward_sent_indices;
   int forward_sent_count = 0;
@@ -921,7 +919,7 @@ void forward_send(int num_model_chunks, int pipeline_parallel_size,
            j += pipeline_parallel_size * num_model_chunks) {
         for (k = j; k < j + pipeline_parallel_size; k++) {
           forward_finished_tensors_mutex.lock();
-          if (forward_finished_tensors[cur_rank][k].has_value() &&
+          if (forward_finished_tensors[k].has_value() &&
               std::find(forward_sent_indices.begin(),
                         forward_sent_indices.end(),
                         k) == forward_sent_indices.end() &&
@@ -944,13 +942,11 @@ void forward_send(int num_model_chunks, int pipeline_parallel_size,
     if (has_tensor_to_send) {
       int index = k + is_last_stage * pipeline_parallel_size;
       if (forward_send_rdma)
-        forward_send_with_rdma(forward_finished_tensors[cur_rank][k].value(),
-                               index);
+        forward_send_with_rdma(forward_finished_tensors[k].value(), index);
       else
-        forward_create_shared_memory(
-            forward_finished_tensors[cur_rank][k].value(), forward_next_rank,
-            index);
-      forward_finished_tensors[cur_rank][k].reset();
+        forward_create_shared_memory(forward_finished_tensors[k].value(),
+                                     forward_next_rank, index);
+      forward_finished_tensors[k].reset();
       forward_sent_count++;
       if (forward_sent_count == total_num_microbatches_to_send_forward)
         return;
@@ -965,12 +961,12 @@ void forward_recv(int cur_rank, int total_num_microbatches_to_recv_forward,
     if (forward_recv_rdma) {
       auto [tensor, index] = forward_recv_with_rdma(tensor_shape, cur_rank);
       forward_ready_tensors_mutex.lock();
-      forward_ready_tensors[cur_rank][index] = tensor;
+      forward_ready_tensors[index] = tensor;
       forward_ready_tensors_mutex.unlock();
     } else {
       auto [tensor, index] = forward_read_shared_memory(tensor_shape, cur_rank);
       forward_ready_tensors_mutex.lock();
-      forward_ready_tensors[cur_rank][index] = tensor;
+      forward_ready_tensors[index] = tensor;
       forward_ready_tensors_mutex.unlock();
     }
     forward_recved_count++;
@@ -981,7 +977,7 @@ void forward_recv(int cur_rank, int total_num_microbatches_to_recv_forward,
 
 void backward_send(int num_model_chunks, int pipeline_parallel_size,
                    int total_num_microbatches, bool is_first_stage,
-                   int backward_next_rank, int cur_rank,
+                   int backward_next_rank,
                    int total_num_microbatches_to_send_backward) {
   std::vector<int> backward_sent_indices;
   int backward_sent_count = 0;
@@ -993,7 +989,7 @@ void backward_send(int num_model_chunks, int pipeline_parallel_size,
            j += pipeline_parallel_size * num_model_chunks) {
         for (k = j; k < j + pipeline_parallel_size; k++) {
           backward_finished_tensors_mutex.lock();
-          if (backward_finished_tensors[cur_rank][k].has_value() &&
+          if (backward_finished_tensors[k].has_value() &&
               std::find(backward_sent_indices.begin(),
                         backward_sent_indices.end(),
                         k) == backward_sent_indices.end() &&
@@ -1016,13 +1012,11 @@ void backward_send(int num_model_chunks, int pipeline_parallel_size,
     if (has_tensor_to_send) {
       auto index = k + is_first_stage * pipeline_parallel_size;
       if (backward_send_rdma)
-        backward_send_with_rdma(backward_finished_tensors[cur_rank][k].value(),
-                                index);
+        backward_send_with_rdma(backward_finished_tensors[k].value(), index);
       else
-        backward_create_shared_memory(
-            backward_finished_tensors[cur_rank][k].value(), backward_next_rank,
-            index);
-      backward_finished_tensors[cur_rank][k].reset();
+        backward_create_shared_memory(backward_finished_tensors[k].value(),
+                                      backward_next_rank, index);
+      backward_finished_tensors[k].reset();
       backward_sent_count++;
       if (backward_sent_count == total_num_microbatches_to_send_backward)
         return;
@@ -1037,13 +1031,13 @@ void backward_recv(int cur_rank, int total_num_microbatches_to_recv_backward,
     if (backward_recv_rdma) {
       auto [tensor, index] = backward_recv_with_rdma(tensor_shape, cur_rank);
       backward_ready_tensors_mutex.lock();
-      backward_ready_tensors[cur_rank][index] = tensor;
+      backward_ready_tensors[index] = tensor;
       backward_ready_tensors_mutex.unlock();
     } else {
       auto [tensor, index] =
           backward_read_shared_memory(tensor_shape, cur_rank);
       backward_ready_tensors_mutex.lock();
-      backward_ready_tensors[cur_rank][index] = tensor;
+      backward_ready_tensors[index] = tensor;
       backward_ready_tensors_mutex.unlock();
     }
     backward_recved_count++;
@@ -1064,7 +1058,7 @@ void thread_pool(int num_model_chunks, int pipeline_parallel_size,
   forward_send_thread =
       std::thread(forward_send, num_model_chunks, pipeline_parallel_size,
                   total_num_microbatches, is_last_stage, forward_next_rank,
-                  cur_rank, total_num_microbatches_to_send_forward);
+                  total_num_microbatches_to_send_forward);
   forward_recv_thread =
       std::thread(forward_recv, cur_rank,
                   total_num_microbatches_to_recv_forward, tensor_shape);
@@ -1072,7 +1066,7 @@ void thread_pool(int num_model_chunks, int pipeline_parallel_size,
     backward_send_thread =
         std::thread(backward_send, num_model_chunks, pipeline_parallel_size,
                     total_num_microbatches, is_first_stage, backward_next_rank,
-                    cur_rank, total_num_microbatches_to_send_backward);
+                    total_num_microbatches_to_send_backward);
     backward_recv_thread =
         std::thread(backward_recv, cur_rank,
                     total_num_microbatches_to_recv_backward, tensor_shape);
@@ -1110,15 +1104,13 @@ PYBIND11_MODULE(shm_tensor_new_rdma, m) {
         "Initialize backward shared rdma", py::arg("numel"), py::arg("rank"),
         py::arg("next_rank"), py::arg("prev_rank"));
   m.def("put_forward_tensor", &put_forward_tensor,
-        "Put forward tensor into slot", py::arg("k"), py::arg("tensor"),
-        py::arg("rank"));
+        "Put forward tensor into slot", py::arg("k"), py::arg("tensor"));
   m.def("get_forward_tensor", &get_forward_tensor,
-        "Get forward tensor from slot", py::arg("k"), py::arg("rank"));
+        "Get forward tensor from slot", py::arg("k"));
   m.def("put_backward_tensor", &put_backward_tensor,
-        "Put backward tensor into slot", py::arg("k"), py::arg("tensor"),
-        py::arg("rank"));
+        "Put backward tensor into slot", py::arg("k"), py::arg("tensor"));
   m.def("get_backward_tensor", &get_backward_tensor,
-        "Get backward tensor from slot", py::arg("k"), py::arg("rank"));
+        "Get backward tensor from slot", py::arg("k"));
   m.def("thread_pool", &thread_pool, "Thread pool for pipeline parallelism",
         py::arg("num_model_chunks"), py::arg("pipeline_parallel_size"),
         py::arg("total_num_microbatches"), py::arg("is_last_stage"),
