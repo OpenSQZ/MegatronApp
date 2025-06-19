@@ -62,6 +62,10 @@ class Tracer:
         self._pending_pad_before: int
         self._pendings: Optional[List[_Pending]] = None
         self._scopes: List[_TracerScope] = []
+        self.iter = 0
+        self.global_args = None
+        self.interval = None
+        self.continuous_trace_iters = None
 
     def _calibrate(self) -> int:
         """Reset the clock and get delta."""
@@ -91,6 +95,10 @@ class Tracer:
 
     def iteration_begin(self) -> None:
         """Start tracing an iteration. Note that this performs synchronization."""
+        self.iter += 1
+        idx = self.iter % self.interval
+        if not 0 <= idx < self.continuous_trace_iters:
+            return
         pad_before = self._calibrate()
         self._pending_pad_before = pad_before
         self._pendings = []
@@ -157,6 +165,9 @@ class Tracer:
 
     def iteration_end(self) -> None:
         """End tracing an iteration. Note that this performs synchronization."""
+        idx = self.iter % self.interval
+        if not 0 <= idx < self.continuous_trace_iters:
+            return
         # Mark the end of the iteration
         self._add_cuda_event("iteration", "E", {})
         # Wait for all events to finish

@@ -140,6 +140,13 @@ def unset_global_variables():
 def set_args(args):
     global _GLOBAL_ARGS
     _GLOBAL_ARGS = args
+    _GLOBAL_TRACER.global_args = args
+    if args.trace_interval is not None and args.continuous_trace_iterations is not None:
+        _GLOBAL_TRACER.interval = args.trace_interval
+        _GLOBAL_TRACER.continuous_trace_iters = args.continuous_trace_iterations
+    else:
+        _GLOBAL_TRACER.interval = 1
+        _GLOBAL_TRACER.continuous_trace_iters = 100
 
 
 def _build_tokenizer(args):
