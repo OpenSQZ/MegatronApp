@@ -7,10 +7,13 @@ from megatron.core.parallel_state import (
     get_tensor_model_parallel_group,
     get_tensor_model_parallel_rank,
     get_tensor_model_parallel_world_size,
+    get_tensor_and_data_parallel_group
 )
 from megatron.core.utils import is_torch_min_version
 
 from .utils import split_tensor_along_last_dim
+# from megatron.training.global_vars import get_args
+# from megatron.training.global_vars import get_tracer
 
 if is_torch_min_version("1.13.0"):
     dist_all_gather_func = torch.distributed.all_gather_into_tensor
@@ -22,6 +25,27 @@ else:
 
 def _reduce(input_):
     """All-reduce the input tensor across model parallel group."""
+
+    from megatron.training.global_vars import get_args, get_tracer
+    args = get_args()
+    if args.trace:
+        tracers = get_tracer()
+        
+        with tracers.scope(
+            name="_reduce",
+            slots=["group"],
+            expect="_reduce"
+        ):
+            # Bypass the function if we are using only 1 GPU.
+            if get_tensor_model_parallel_world_size() == 1:
+                return input_
+
+            # All-reduce.
+            torch.distributed.all_reduce(input_.contiguous(), group=get_tensor_model_parallel_group())
+            tracers.set_group(get_tensor_and_data_parallel_group())
+            # print(f"rank: {torch.distributed.get_rank()}, get_tensor_and_data_parallel_group(): {torch.distributed.get_process_group_ranks(get_tensor_and_data_parallel_group())}")
+        
+        return input_
 
     # Bypass the function if we are using only 1 GPU.
     if get_tensor_model_parallel_world_size() == 1:

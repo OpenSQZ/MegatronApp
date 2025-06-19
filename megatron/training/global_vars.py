@@ -10,6 +10,7 @@ from megatron.core import Timers
 from megatron.core.num_microbatches_calculator import init_num_microbatches_calculator, unset_num_microbatches_calculator
 from megatron.training import dist_signal_handler
 from megatron.training.tokenizer import build_tokenizer
+from megatron.training.trace import Tracer
 
 _GLOBAL_ARGS = None
 _GLOBAL_TOKENIZER = None
@@ -19,6 +20,7 @@ _GLOBAL_ONE_LOGGER = None
 _GLOBAL_ADLR_AUTORESUME = None
 _GLOBAL_TIMERS = None
 _GLOBAL_SIGNAL_HANDLER = None
+_GLOBAL_TRACER = Tracer()
 
 def get_args():
     """Return arguments."""
@@ -64,6 +66,11 @@ def get_timers():
 def get_signal_handler():
     _ensure_var_is_initialized(_GLOBAL_SIGNAL_HANDLER, 'signal handler')
     return _GLOBAL_SIGNAL_HANDLER
+
+
+def get_tracer():
+    """Return tracer."""
+    return _GLOBAL_TRACER
 
 
 def _set_signal_handler():
