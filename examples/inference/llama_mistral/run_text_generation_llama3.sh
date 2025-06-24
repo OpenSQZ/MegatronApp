@@ -21,15 +21,13 @@ fi
 CHECKPOINT=$1
 TOKENIZER_MODEL=$2
 
-pip install flask-restful
-
 torchrun $DISTRIBUTED_ARGS tools/run_text_generation_server.py   \
       --use-checkpoint-args \
       --disable-bias-linear \
       --tokenizer-type HuggingFaceTokenizer \
       --tokenizer-model ${TOKENIZER_MODEL} \
-      --transformer-impl transformer_engine \
-      --normalization RMSNorm \
+      --transformer-impl local \
+      --normalization LayerNorm \
       --group-query-attention \
       --num-query-groups 8 \
       --no-masked-softmax-fusion \

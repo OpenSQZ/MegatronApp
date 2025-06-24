@@ -504,6 +504,8 @@ class TextGenerationController:
                 not self.inference_wrapped_model.inference_context.is_decode_only()
             ), f"Generation must start in prefill mode"
 
+            from megatron.core.tensor_tracer import get_tensor_tracers
+
             context_start_position = 0
             # Pick the context window that we need to pass through the network.
             for context_end_position in range(min_prompt_length_in_batch, max_sequence_length):
@@ -577,6 +579,7 @@ class TextGenerationController:
                 batch_prompt_tokens[generation_started, context_end_position] = sampled_logits[
                     generation_started
                 ]
+                get_tensor_tracers().tik_result(last_token_logits, batch_prompt_tokens[:, context_end_position])
                 if sampling_params.return_log_probs:
                     log_probs = F.log_softmax(logits, dim=2)
                     indices = torch.unsqueeze(
@@ -632,6 +635,8 @@ class TextGenerationController:
                 # Change to decode mode if all prefill is complete
                 if torch.all(generation_started):
                     self.inference_wrapped_model.inference_context.enable_decode_mode()
+            
+            get_tensor_tracers().tik_end()
 
         # Close all streams
         if streaming_enabled:

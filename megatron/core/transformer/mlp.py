@@ -97,10 +97,16 @@ class MLP(MegatronModule):
             tp_comm_buffer_name='fc2',
         )
 
+    def set_layer_number(self, layer_number: int):
+        self.layer_number = layer_number
+
     def forward(self, hidden_states, per_token_scale=None):
         """Perform the forward pass through the MLP block."""
         # [s, b, 4 * h/p]
         intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
+        from megatron.core.tensor_tracer import get_tt_flags, FlagType, get_tensor_tracers
+        if get_tt_flags().get_flag(FlagType.MLP1_mat_mul, self.layer_number):
+            get_tensor_tracers().tik_tensor((self.layer_number, FlagType.MLP1_mat_mul), intermediate_parallel.transpose(0, 1))
 
         if self.config.bias_activation_fusion:
             if per_token_scale is not None:
@@ -151,6 +157,8 @@ class MLP(MegatronModule):
 
         # [s, b, h]
         output, output_bias = self.linear_fc2(intermediate_parallel)
+        if get_tt_flags().get_flag(FlagType.MLP2_mat_mul, self.layer_number):
+            get_tensor_tracers().tik_tensor((self.layer_number, FlagType.MLP2_mat_mul), output.transpose(0, 1))
 
         if per_token_scale is not None:
             assert output_bias is None, "Bias is not supported with per_token_scale"

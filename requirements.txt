@@ -7,3 +7,6 @@ regex
 six
 pybind11
 openpyxl
+transformers
+websockets
+flask-restful

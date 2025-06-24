@@ -97,6 +97,13 @@ def set_global_variables(args, build_tokenizer=True):
     _set_adlr_autoresume(args)
     _set_timers(args)
 
+    from megatron.core.tensor_tracer import _set_tensor_tracers, _set_tt_flags, _set_compressor
+    from megatron.core.tensor_disturbance import _set_disturbance
+    _set_tensor_tracers()
+    _set_tt_flags(args)
+    _set_disturbance(args)
+    _set_compressor()
+
     if args.exit_signal_handler:
         _set_signal_handler()
 

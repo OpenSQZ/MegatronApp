@@ -34,7 +34,7 @@ from megatron.inference.text_generation.mcore_engine_server import (
     ModelInferenceWrapperServer,
     run_mcore_engine,
 )
-from megatron.inference.text_generation_server import MegatronServer
+from megatron.inference.text_generation_server import MegatronWSServer
 from megatron.training import print_rank_0
 from megatron.training.arguments import core_transformer_config_from_args
 from megatron.training.yaml_arguments import core_transformer_config_from_yaml
@@ -224,10 +224,17 @@ if __name__ == "__main__":
         )
 
     if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
-        server = MegatronServer(inference_engine, args)
+        server = MegatronWSServer(inference_engine, args)
         server.run("0.0.0.0", port=args.port)
 
     while True:
+        from megatron.core.tensor_tracer import get_tt_flags
+        from megatron.core.tensor_disturbance import get_disturbance
+        obj_list = [None]
+        torch.distributed.broadcast_object_list(obj_list, 0)
+        get_tt_flags().set_by_configs(obj_list[0])
+        torch.distributed.broadcast_object_list(obj_list, 0)
+        get_disturbance().set_by_configs(obj_list[0])
         choice = torch.tensor(1, dtype=torch.long, device='cuda')
         torch.distributed.broadcast(choice, 0)
         if choice.item() == 0:
