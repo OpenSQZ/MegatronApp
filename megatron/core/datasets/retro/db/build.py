@@ -19,6 +19,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from tqdm import tqdm
 
 from megatron.core.datasets.indexed_dataset import IndexedDataset
@@ -91,7 +92,7 @@ def build_partial_db(
     doc_end_id = min(doc_range[1], doc_start_id + n_docs_per_proc)
 
     # Print progress.
-    progress_proc_ids = set(range(n_procs)) if torch.distributed.get_rank() == 0 else set()
+    progress_proc_ids = set(range(n_procs)) if dist.get_rank() == 0 else set()
     if proc_id in progress_proc_ids:
         log_retro_rank_0(
             " > building partial chunk db, proc %d / %d, docs %d:%d / %d."
@@ -302,7 +303,7 @@ def build_individual_db(
         active_blocks = blocks.existing
 
     # Prevent missing-path-write race condition.
-    torch.distributed.barrier()
+    dist.barrier()
 
     # Nothing to do?
     if config.retro_task_validate is None and not active_blocks:
@@ -364,7 +365,7 @@ def build_individual_db(
 
             # Wait for all ranks to finish block.
             log_retro_rank_0(" > waiting for all ranks to finish block.")
-            torch.distributed.barrier()
+            dist.barrier()
 
     log_retro_rank_0(" > finished saving individual db.")
 
@@ -403,7 +404,7 @@ def update_chunk_counts(
         indexed_dataset_infos (List[Dict]): Preprocessing metadata for each dataset (i.e., 'prefix', 'ratio', 'n_chunks', etc.).
     """
 
-    if torch.distributed.get_rank() != 0:
+    if dist.get_rank() != 0:
         return
 
     # Data ratio sum (for setting index training chunks).
@@ -461,7 +462,7 @@ def merge_dbs(project_dir: str, indexed_dataset_infos: List[Dict], db_type: str)
         db_type (str): DB type (e.g., 'sampled', 'train', or 'valid').
     """
 
-    if torch.distributed.get_rank() != 0:
+    if dist.get_rank() != 0:
         return
 
     log_retro_rank_0(" > build %s chunk db." % db_type)
@@ -620,7 +621,7 @@ def build_db(config: RetroPreprocessingConfig) -> None:
         return
 
     # Single-process going forward.
-    if torch.distributed.get_rank() != 0:
+    if dist.get_rank() != 0:
         return
 
     # Update n_chunks & save indexed dataset infos.

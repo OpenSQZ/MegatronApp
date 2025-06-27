@@ -3,6 +3,7 @@
 from typing import Tuple
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.jit import jit_fuser
 from megatron.core.tensor_parallel.cross_entropy import VocabParallelCrossEntropy
@@ -91,7 +92,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         Forward implementation for the cross entropy loss.
         """
         vocab_parallel_logits, logits_max = calculate_logits_max(vocab_parallel_logits)
-        torch.distributed.all_reduce(logits_max, op=torch.distributed.ReduceOp.MAX, group=tp_group)
+        dist.all_reduce(logits_max, op=dist.ReduceOp.MAX, group=tp_group)
 
         # Get the partition's vocab indices
         get_vocab_range = VocabUtility.vocab_range_from_per_partition_vocab_size
@@ -109,8 +110,8 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # All reduce is needed to get the chunks from other GPUs.
         # In the fused case, tensors are batches to invoke a single
         # AllReduce call
-        torch.distributed.all_reduce(
-            predicted_logits_sum_exp_logits, op=torch.distributed.ReduceOp.SUM, group=tp_group
+        dist.all_reduce(
+            predicted_logits_sum_exp_logits, op=dist.ReduceOp.SUM, group=tp_group
         )
 
         exp_logits, loss = calculate_cross_entropy_loss(exp_logits, predicted_logits_sum_exp_logits)

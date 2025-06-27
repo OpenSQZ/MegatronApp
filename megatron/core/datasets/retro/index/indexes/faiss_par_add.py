@@ -15,6 +15,7 @@ from typing import Tuple
 import numpy as np
 import psutil
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from tqdm import tqdm
 
 from megatron.core.datasets.retro.config import Embedder, RetroPreprocessingConfig
@@ -128,7 +129,7 @@ class FaissParallelAddIndex(FaissBaseIndex):
 
             # Synchronize progress across all ranks. (for easier observation)
             log_retro_rank_0(" > waiting for other ranks to finish block.")
-            torch.distributed.barrier()
+            dist.barrier()
 
     def add_codes(self, config: RetroPreprocessingConfig) -> None:
         """Read codes from disk, and add them to the index.
@@ -137,7 +138,7 @@ class FaissParallelAddIndex(FaissBaseIndex):
             config (RetroPreprocessingConfig): Retro preprocessing config.
         """
 
-        if torch.distributed.get_rank() != 0:
+        if dist.get_rank() != 0:
             return
 
         added_index_path = self.get_added_index_path(config)
@@ -179,7 +180,7 @@ class FaissParallelAddIndex(FaissBaseIndex):
         Args:
             config (RetroPreprocessingConfig): Retro preprocessing config.
         """
-        if torch.distributed.get_rank() != 0:
+        if dist.get_rank() != 0:
             return
         assert os.path.isfile(self.get_added_index_path(config))
 
@@ -202,7 +203,7 @@ class FaissParallelAddIndex(FaissBaseIndex):
         self.add_codes(config)
 
         # Wait for (single-process) adding to complete.
-        torch.distributed.barrier()
+        dist.barrier()
 
         # Remove codes.
         self.remove_codes(config)

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict, StateDict
 from megatron.core.dist_checkpointing.strategies.base import (
@@ -37,7 +38,7 @@ class TorchCommonSaveStrategy(SaveCommonStrategy):
 
     def save_common(self, common_state_dict: StateDict, checkpoint_dir: Path):
         """Save common part of the state dict."""
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             torch.save(common_state_dict, checkpoint_dir / COMMON_STATE_FNAME)
 
     def save_sharded_objects(

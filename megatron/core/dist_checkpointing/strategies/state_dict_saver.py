@@ -7,7 +7,7 @@ from time import time
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import torch
-import torch.distributed as dist
+import megatron.virtual_tensor_parallel_communication as dist
 from torch.distributed.checkpoint import CheckpointException
 from torch.distributed.checkpoint.default_planner import DefaultSavePlanner
 from torch.distributed.checkpoint.metadata import STATE_DICT_TYPE, Metadata
@@ -41,7 +41,7 @@ def _compare_dataclasses(obj1, obj2):
 def save_state_dict_async_plan(
     state_dict: STATE_DICT_TYPE,
     storage_writer: 'FileSystemWriterAsync',
-    process_group: Optional[dist.ProcessGroup] = None,
+    process_group: Optional[torch.distributed.ProcessGroup] = None,
     coordinator_rank: int = 0,
     planner: Optional[Union[SavePlanner, 'MCoreSavePlanner']] = None,
     cached_ckpt_structure: Optional[Tuple[SavePlan, SavePlan, bool]] = None,
@@ -89,7 +89,7 @@ def save_state_dict_async_plan(
     if cached_ckpt_structure:
         cached_central_plan, cached_local_plan, validated_cache_reuse = cached_ckpt_structure
 
-    rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+    rank = dist.get_rank() if torch.distributed.is_initialized() else 0
     dist_wrapper = _DistWrapper(process_group, True, coordinator_rank)
     if planner is None:
         planner = DefaultSavePlanner()
@@ -202,7 +202,7 @@ def verify_global_md_reuse(
                 f" {_compare_dataclasses(local_plan, loaded_all_plans[rank])}"
             )
         all_results = torch.tensor([local_verify_reuse], dtype=torch.int, device='cuda')
-        torch.distributed.all_reduce(all_results, op=torch.distributed.ReduceOp.MIN)
+        dist.all_reduce(all_results, op=dist.ReduceOp.MIN)
         # Check if all reduced results are True
         global_md_verify_reuse = all_results.item() == 1
     else:
@@ -232,7 +232,7 @@ def save_state_dict_async_finalize(
     gather_start = time()
     all_results = dist_wrapper.gather_object(write_results)
     gather_end = time()
-    logger.debug(f"{gather_end}, {torch.distributed.get_rank()}, gather: {gather_end-gather_start}")
+    logger.debug(f"{gather_end}, {dist.get_rank()}, gather: {gather_end-gather_start}")
 
     # Store the metadata on coordinator rank
     if dist_wrapper.is_coordinator:

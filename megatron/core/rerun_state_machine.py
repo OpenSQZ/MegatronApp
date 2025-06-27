@@ -13,6 +13,7 @@ from typing import Any, Callable, Iterable, NamedTuple, Optional, Set, Tuple, Un
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 import megatron.core.parallel_state as mpu
 from megatron.core.dist_checkpointing.mapping import ShardedObject
@@ -31,6 +32,7 @@ Also note that experimental features may break existing APIs.
 logger = logging.getLogger(__name__)
 
 _GLOBAL_RERUN_STATE_MACHINE: Optional["RerunStateMachine"] = None
+_GLOBAL_RERUN_STATE_MACHINE_LIST = None
 
 # Exit code returned when job needs to be restarted to disambiguate the results.
 EXIT_CODE_RESUME_TO_DISAMBIGUATE: int = 16
@@ -310,7 +312,7 @@ class RerunStateMachine:
             will_rerun_tensor: torch.Tensor = torch.tensor(
                 [self.rerun_requested], dtype=torch.int32, device='cuda'
             )
-            torch.distributed.all_reduce(will_rerun_tensor)
+            dist.all_reduce(will_rerun_tensor)
             if will_rerun_tensor.item() == 0:
                 self.state = RerunState.NOT_RUNNING_YET
                 return False
@@ -334,7 +336,7 @@ class RerunStateMachine:
             will_checkpoint_tensor: torch.Tensor = torch.tensor(
                 [self.checkpoint_requested], dtype=torch.int32, device='cuda'
             )
-            torch.distributed.all_reduce(will_checkpoint_tensor)
+            dist.all_reduce(will_checkpoint_tensor)
             if will_checkpoint_tensor.item() > 0:
                 self.state = RerunState.WILL_RERUN_FROM_CHECKPOINT
             self._restore_state()
@@ -351,7 +353,7 @@ class RerunStateMachine:
             will_restart_again_tensor: torch.Tensor = torch.tensor(
                 [self.restart_again_requested], dtype=torch.int32, device='cuda'
             )
-            torch.distributed.all_reduce(will_restart_again_tensor)
+            dist.all_reduce(will_restart_again_tensor)
             if will_restart_again_tensor.item() > 0:
                 if _safe_get_rank() == 0:
                     logger.warning(
@@ -363,7 +365,7 @@ class RerunStateMachine:
                 will_continue_tensor: torch.Tensor = torch.tensor(
                     [self.continue_requested], dtype=torch.int32, device='cuda'
                 )
-                torch.distributed.all_reduce(will_continue_tensor)
+                dist.all_reduce(will_continue_tensor)
                 if will_continue_tensor.item() > 0:
                     if _safe_get_rank() == 0:
                         logger.warning(
@@ -907,10 +909,10 @@ class RerunStateMachine:
 
         if self.current_iteration % RerunStateMachine.REPORTING_INTERVAL_ITERATIONS == 0:
             if torch.distributed.is_initialized():
-                world_size: int = torch.distributed.get_world_size()
+                world_size: int = dist.get_world_size()
                 stats_list = [None for _ in range(world_size)]
-                rank = torch.distributed.get_rank()
-                torch.distributed.gather_object(dict(self.stats), stats_list if rank == 0 else None)
+                rank = dist.get_rank()
+                dist.gather_object(dict(self.stats), stats_list if rank == 0 else None)
                 if rank == 0:
                     callers: Set[Caller] = {c for s in stats_list for c in s.keys()}
                     logger.info("Stats on computation determinism in validation calls")
@@ -1247,23 +1249,40 @@ def initialize_rerun_state_machine(**kwargs) -> None:
     """
 
     rerun_state_machine: RerunStateMachine = RerunStateMachine(**kwargs)
-    _set_rerun_state_machine(rerun_state_machine)
+    from megatron.training import get_args
+    args = get_args()
+    if args.ignore_forward_tensor_parallel:
+        _set_rerun_state_machine_list(rerun_state_machine)
+    else:
+        _set_rerun_state_machine(rerun_state_machine)
 
 
 def destroy_rerun_state_machine() -> None:
     """Helper function to shut down the rerun machine instance."""
 
     global _GLOBAL_RERUN_STATE_MACHINE
+    global _GLOBAL_RERUN_STATE_MACHINE_LIST
     _GLOBAL_RERUN_STATE_MACHINE = None
+    _GLOBAL_RERUN_STATE_MACHINE_LIST = None
 
 
 def get_rerun_state_machine() -> RerunStateMachine:
     """Helper function to return the singleton instance of the rerun machine."""
 
-    if _GLOBAL_RERUN_STATE_MACHINE is None:
+    if _GLOBAL_RERUN_STATE_MACHINE is None and _GLOBAL_RERUN_STATE_MACHINE_LIST is None:
         logger.warning("Implicit initialization of Rerun State Machine!")
         initialize_rerun_state_machine()
-    return _GLOBAL_RERUN_STATE_MACHINE
+    from megatron.training import get_args
+    import megatron.virtual_tensor_parallel_communication as dist
+    from megatron.core.parallel_state import is_forward_stage
+    args = get_args()
+    if args.ignore_forward_tensor_parallel:
+        if is_forward_stage():
+            return _GLOBAL_RERUN_STATE_MACHINE_LIST[dist.get_thread_index()]
+        else:
+            return _GLOBAL_RERUN_STATE_MACHINE_LIST[0]
+    else:
+        return _GLOBAL_RERUN_STATE_MACHINE
 
 
 def _set_rerun_state_machine(rerun_state_machine) -> None:
@@ -1273,12 +1292,25 @@ def _set_rerun_state_machine(rerun_state_machine) -> None:
     assert _GLOBAL_RERUN_STATE_MACHINE is None, 'Rerun state machine is already initialized'
     _GLOBAL_RERUN_STATE_MACHINE = rerun_state_machine
 
+def _set_rerun_state_machine_list(rerun_state_machine) -> None:
+    """Internal function to set the singleton instance of the rerun machine."""
+
+    global _GLOBAL_RERUN_STATE_MACHINE_LIST
+    assert _GLOBAL_RERUN_STATE_MACHINE_LIST is None, 'Rerun state machine is already initialized'
+    from megatron.training import get_args
+    args = get_args()
+    import copy
+    _GLOBAL_RERUN_STATE_MACHINE_LIST = []
+    for i in range(0, args.tensor_model_parallel_size):
+        _GLOBAL_RERUN_STATE_MACHINE_LIST.append(copy.deepcopy(rerun_state_machine))
+        # print('%', id(_GLOBAL_RERUN_STATE_MACHINE_LIST[i]))
+
 
 def _safe_get_rank() -> int:
     """Internal function that safely checks and returns the rank of the caller."""
 
     if torch.distributed.is_initialized():
-        return torch.distributed.get_rank()
+        return dist.get_rank()
 
     # If torch.distributed is not initialized, try to read environment variables.
     try:

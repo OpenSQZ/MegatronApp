@@ -16,6 +16,7 @@ import numpy as np
 from time import time
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core import mpu, tensor_parallel, dist_checkpointing
 from megatron.core.dist_checkpointing.mapping import ShardedObject
@@ -245,14 +246,14 @@ def read_metadata(tracker_filename):
     # Get the max iteration retrieved across the ranks.
     if torch.distributed.is_initialized():
         iters_cuda = torch.tensor([iteration], dtype=torch.long, device='cuda')
-        torch.distributed.all_reduce(iters_cuda, op=torch.distributed.ReduceOp.MAX)
+        dist.all_reduce(iters_cuda, op=dist.ReduceOp.MAX)
         max_iter = iters_cuda[0].item()
 
         # We should now have all the same iteration.
         # If not, print a warning and chose the maximum
         # iteration across all ranks.
         if iteration != max_iter:
-            rank = torch.distributed.get_rank()
+            rank = dist.get_rank()
             print('WARNING: on rank {} found iteration {} in the '
                   'metadata while max iteration across the ranks '
                   'is {}, replacing it with max iteration.'.format(
@@ -280,7 +281,7 @@ def get_rng_state(ckpt_format: str):
             mpu.get_data_parallel_world_size() > 1:
         rng_state_list = \
             [None for i in range(mpu.get_data_parallel_world_size())]
-        torch.distributed.all_gather_object(
+        dist.all_gather_object(
             rng_state_list,
             rng_state,
             group=mpu.get_data_parallel_group())
@@ -398,7 +399,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
         elif ckpt_type == CheckpointType.GLOBAL and args.ckpt_format != 'torch_dist':
             raise NotImplementedError(f'Async checkpoint save not implemented for {args.ckpt_format} distributed checkpoint format')
 
-    rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+    rank = dist.get_rank() if torch.distributed.is_initialized() else 0
 
     # Collect args, model, RNG.
     if not torch.distributed.is_initialized() \
@@ -423,7 +424,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
 
         state_dict['num_floating_point_operations_so_far'] = num_floating_point_operations_so_far
         if ckpt_type == CheckpointType.GLOBAL and ckpt_format == "torch_dist":
-            if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            if not torch.distributed.is_initialized() or dist.get_rank() == 0:
                 # TODO Handle non-empty directories (e.g., after a crash during saving).
                 ensure_directory_exists(checkpoint_name, check_parent=False)
             if checkpointing_context is not None and 'save_strategy' in checkpointing_context:
@@ -459,7 +460,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
             if has_nvidia_modelopt:
                 save_sharded_modelopt_state(model, checkpoint_name, (args.ckpt_format, 1))
         elif ckpt_type == CheckpointType.GLOBAL and ckpt_format == "torch_dcp":
-            if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            if not torch.distributed.is_initialized() or dist.get_rank() == 0:
                 # TODO Handle non-empty directories (e.g., after a crash during saving).
                 ensure_directory_exists(checkpoint_name, check_parent=False)
 
@@ -508,11 +509,11 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
             assert async_save_request is None
             # Wait so everyone is done (necessary)
             if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+                dist.barrier()
 
     # And update the latest iteration
     if not torch.distributed.is_initialized() \
-            or torch.distributed.get_rank() == 0:
+            or dist.get_rank() == 0:
         tracker_filename = get_checkpoint_tracker_filename(save_dir)
 
         if ckpt_type == CheckpointType.LOCAL:
@@ -568,7 +569,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
 
     # Wait so everyone is done (not necessary)
     if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        dist.barrier()
 
     end_misc = time()
     logger.debug(f"rank: {rank}, takes {end_misc - start_misc} to finalize ckpt save ")
@@ -576,7 +577,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
     ft_integration.on_checkpointing_end(is_async_finalization=False)
 
 def cleanup_old_non_persistent_checkpoint(save_dir, leave_ckpt_num=1, do_async=False):
-    if torch.distributed.is_initialized() and torch.distributed.get_rank() != 0:
+    if torch.distributed.is_initialized() and dist.get_rank() != 0:
         return
     save_dir = Path(save_dir)
 
@@ -634,12 +635,12 @@ def maybe_save_dataloader_state(train_iterator, iteration, dataloader_save_path)
         basename=f'train_dataloader_dprank{dp_rank:03d}.pt'
     )
 
-    torch.distributed.barrier(group=mpu.get_data_parallel_group())
+    dist.barrier(group=mpu.get_data_parallel_group())
 
     if mpu.get_data_parallel_rank() == 0:
         ensure_directory_exists(data_state_save_path)
 
-    torch.distributed.barrier(group=mpu.get_data_parallel_group())
+    dist.barrier(group=mpu.get_data_parallel_group())
 
     dataloader_save_dict = {}
     dataloader_save_dict['dataloader_state_dict'] = train_dataloader_state_dict
@@ -929,7 +930,7 @@ def _load_base_checkpoint(
         if args.exit_on_missing_checkpoint:
             print_rank_0(">> '--exit-on-missing-checkpoint' set ... exiting. <<")
             if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+                dist.barrier()
             sys.exit()
 
         return None, "", False, None
@@ -1471,7 +1472,7 @@ def load_checkpoint(ddp_model, optimizer, opt_param_scheduler, load_arg='load', 
 
     # Some utilities want to load a checkpoint without distributed being initialized
     if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        dist.barrier()
 
     print_rank_0(f'  successfully loaded checkpoint from {load_dir} '
                  f'[ t {mpu.get_tensor_model_parallel_rank() + 1}/{mpu.get_tensor_model_parallel_world_size()}, '
@@ -1530,7 +1531,7 @@ def load_biencoder_checkpoint(model, only_query_model=False,
 
     if mpu.get_data_parallel_rank() == 0:
         print('global rank {} is loading checkpoint {}'.format(
-            torch.distributed.get_rank(), checkpoint_name))
+            dist.get_rank(), checkpoint_name))
 
     state_dict = torch.load(checkpoint_name, map_location='cpu', weights_only=False)
     ret_state_dict = state_dict['model']
@@ -1542,7 +1543,7 @@ def load_biencoder_checkpoint(model, only_query_model=False,
 
     assert len(model) == 1
     model[0].load_state_dict(ret_state_dict)
-    torch.distributed.barrier()
+    dist.barrier()
 
     if mpu.get_data_parallel_rank() == 0:
         print(' successfully loaded {}'.format(checkpoint_name))

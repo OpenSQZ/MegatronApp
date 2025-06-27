@@ -4,7 +4,7 @@
 
 
 import torch
-
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core import parallel_state
 from megatron.training import get_args, get_tokenizer
@@ -62,7 +62,7 @@ def tokenize_prompts(prompts=None, tokens_to_generate=None,
     prompts_length_cuda_long_tensor = None
 
     # On the specified rank, build the above.
-    src_rank = torch.distributed.get_rank()
+    src_rank = dist.get_rank()
     if data_parallel:
         src_rank = parallel_state.get_data_parallel_src_rank()
 

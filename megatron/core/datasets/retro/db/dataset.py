@@ -10,6 +10,7 @@ from typing import List
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from tqdm import tqdm
 
 from megatron.core.datasets.indexed_dataset import IndexedDataset
@@ -99,7 +100,7 @@ class DBDataset(torch.utils.data.Dataset):
             range(0, len(self), block_size),
             "load doc tuples",
             miniters=(len(self) // block_size) // 10,
-            disable=torch.distributed.get_rank() != 0,
+            disable=dist.get_rank() != 0,
         ):
             end_idx = min(len(self), start_idx + block_size)
             self.doc_tuples[start_idx:end_idx] = self.chunks[start_idx:end_idx, :2]

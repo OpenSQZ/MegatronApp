@@ -5,6 +5,7 @@ from functools import partial
 from typing import List, Optional
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core import tensor_parallel
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
@@ -157,7 +158,7 @@ class LLaVAModel(MegatronModule):
             if self.context_parallel_lm > 1:
                 self.cp_group = get_context_parallel_group() if cp_group is None else cp_group
                 assert (
-                    torch.distributed.get_world_size(self.cp_group) == self.context_parallel_lm
+                    dist.get_world_size(self.cp_group) == self.context_parallel_lm
                 ), "CP Group size should match the Language Model CP size"
                 assert is_te_min_version(
                     "1.10.0"

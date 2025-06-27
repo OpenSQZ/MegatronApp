@@ -11,6 +11,7 @@ import os
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from tqdm import tqdm
 
 from megatron.core.datasets.retro.config import RetroPreprocessingConfig
@@ -39,7 +40,7 @@ class FaissBaseIndex(Index):
             config (RetroPreprocessingConfig): Retro preprocessing config.
         """
 
-        assert torch.distributed.get_rank() == 0
+        assert dist.get_rank() == 0
 
         # Set num threads (torch.distributed reset it to 1).
         faiss.omp_set_num_threads(64)
@@ -82,10 +83,10 @@ class FaissBaseIndex(Index):
         """
 
         # Single process only.
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             self._train(config)
 
-        torch.distributed.barrier()
+        dist.barrier()
 
     def _add(self, config: RetroPreprocessingConfig, text_dataset: GPTToTextDataset) -> None:
         """Add to index (rank 0's method).
@@ -95,7 +96,7 @@ class FaissBaseIndex(Index):
             text_dataset (GPTToTextDataset): Text dataset that will be embedded and added to the index.
         """
 
-        assert torch.distributed.get_rank() == 0
+        assert dist.get_rank() == 0
 
         dataset_sample_ranges = num_samples_to_block_ranges(len(text_dataset))
 
@@ -140,11 +141,11 @@ class FaissBaseIndex(Index):
         """
 
         # Single process only.
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             self._add(config, text_dataset)
 
         # Wait for rank 0.
-        torch.distributed.barrier()
+        dist.barrier()
 
         # Get output index path, for return.
         return self.get_added_index_path(config)

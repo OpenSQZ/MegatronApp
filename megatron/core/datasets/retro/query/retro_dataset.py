@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.datasets.retro.db.dataset import DBDataset
 from megatron.core.datasets.retro.db.utils import get_merged_train_dataset as get_db_dataset
@@ -202,18 +203,18 @@ def get_retro_datasets(
         n_neighbor_chunks = neighbor_path_map.max_idx
 
         if not os.path.isdir(neighbor_dir):
-            if torch.distributed.get_rank() == 0:
+            if dist.get_rank() == 0:
                 raise Exception(
                     "neighbor directory '%s' not found; please "
                     "compare --train-samples, --seq-length, --seed, "
                     "--eval-iters, and --eval-interval, with "
                     "retro preprocessing args." % neighbor_dir
                 )
-            torch.distributed.barrier()
+            dist.barrier()
             exit()
 
         if config.retro_verify_neighbor_count and n_active_chunks != n_neighbor_chunks:
-            if torch.distributed.get_rank() == 0:
+            if dist.get_rank() == 0:
                 log_retro_rank_0("neighbor_dir : %s" % neighbor_dir)
                 log_retro_rank_0("neighbor_path_map : %s" % neighbor_path_map)
                 raise Exception(
@@ -221,7 +222,7 @@ def get_retro_datasets(
                     "(%d); did you complete querying the entire "
                     "pretraining dataset?" % (n_active_chunks, n_neighbor_chunks)
                 )
-            torch.distributed.barrier()
+            dist.barrier()
             exit()
 
         # Retro dataset.

@@ -7,13 +7,14 @@ from abc import ABC, abstractmethod
 from typing import List
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.utils import is_torch_min_version
 
-if is_torch_min_version("1.13.0"):
-    dist_all_gather_func = torch.distributed.all_gather_into_tensor
-else:
-    dist_all_gather_func = torch.distributed._all_gather_base
+# if is_torch_min_version("1.13.0"):
+#     dist_all_gather_func = torch.distributed.all_gather_into_tensor
+# else:
+dist_all_gather_func = dist._all_gather_base
 
 
 class TimerBase(ABC):
@@ -132,7 +133,7 @@ class Timer(TimerBase):
         """
         assert not self._started, 'timer has already been started'
         if barrier:
-            torch.distributed.barrier(group=self._barrier_group)
+            dist.barrier(group=self._barrier_group)
         torch.cuda.synchronize()
         self._start_time = time.time()
         self._started = True
@@ -145,7 +146,7 @@ class Timer(TimerBase):
         """
         assert self._started, 'timer is not started'
         if barrier:
-            torch.distributed.barrier(group=self._barrier_group)
+            dist.barrier(group=self._barrier_group)
         torch.cuda.synchronize()
         elapsed = time.time() - self._start_time
         self._elapsed += elapsed
@@ -259,10 +260,10 @@ class Timers:
 
         # First make sure all the callers are in sync.
         if barrier:
-            torch.distributed.barrier()
+            dist.barrier()
 
-        world_size = torch.distributed.get_world_size()
-        rank = torch.distributed.get_rank()
+        world_size = dist.get_world_size()
+        rank = dist.get_rank()
 
         # Here we can use gather on the rank we want to print the
         # timing, however, there is no gather_base support in
@@ -329,7 +330,7 @@ class Timers:
         no_reported_timing = True
         for i, name in enumerate(names):
             not_yet_found = True
-            for rank in range(torch.distributed.get_world_size()):
+            for rank in range(dist.get_world_size()):
                 if rank_name_to_time[rank, i] > 0:
                     no_reported_timing = False
                     if not_yet_found:
@@ -412,8 +413,8 @@ class Timers:
         output_string = self.get_all_timers_string(names, normalizer, reset, barrier)
         # If no input rank is provided, log on last rank.
         if rank is None:
-            rank = torch.distributed.get_world_size() - 1
-        if rank == torch.distributed.get_rank() and output_string is not None:
+            rank = dist.get_world_size() - 1
+        if rank == dist.get_rank() and output_string is not None:
             print(output_string, flush=True)
 
     def write(

@@ -7,6 +7,7 @@ from typing import Any, Callable, Iterable, List, Optional, Type, Union
 
 import numpy
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.datasets.blended_dataset import BlendedDataset
 from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
@@ -74,7 +75,7 @@ class BlendedMegatronDatasetBuilder(object):
                     ), f"size_is_none => weights_are_none fails for {split.name} split"
 
         if torch.distributed.is_initialized():
-            gb_rank = torch.distributed.get_rank()
+            gb_rank = dist.get_rank()
             vp_rank = get_virtual_pipeline_model_parallel_rank()
             if gb_rank == 0 and (vp_rank == 0 or vp_rank is None):
                 assert (
@@ -390,7 +391,7 @@ class BlendedMegatronDatasetBuilder(object):
         num_dataset_builder_threads = self.config.num_dataset_builder_threads
 
         if torch.distributed.is_initialized():
-            rank = torch.distributed.get_rank()
+            rank = dist.get_rank()
             # First, build on rank 0
             if rank == 0:
                 num_workers = num_dataset_builder_threads
@@ -404,7 +405,7 @@ class BlendedMegatronDatasetBuilder(object):
                     megatron_datasets, num_workers, prefixes, split, sizes_per_dataset
                 )
 
-            torch.distributed.barrier()
+            dist.barrier()
 
             # Then, build on other ranks; guaranteed to be data_cache hit
             if rank != 0:
@@ -449,7 +450,7 @@ class BlendedMegatronDatasetBuilder(object):
         if torch.distributed.is_initialized() and not self.is_built_on_rank():
             for i in range(len(Split)):
                 if split[i] is not None and synchronize_ranks:
-                    torch.distributed.barrier()
+                    dist.barrier()
             return [None] * len(Split)
 
         # Build the low level dataset
@@ -519,7 +520,7 @@ class BlendedMegatronDatasetBuilder(object):
                 Iterable instantiation, or None
         """
         if torch.distributed.is_initialized():
-            rank = torch.distributed.get_rank()
+            rank = dist.get_rank()
 
             dataset = None
 
@@ -537,7 +538,7 @@ class BlendedMegatronDatasetBuilder(object):
                     raise Exception(log) from err
 
             if synchronize_ranks:
-                torch.distributed.barrier()
+                dist.barrier()
 
             # After, build on other ranks
             if rank != 0 and is_built_on_rank():

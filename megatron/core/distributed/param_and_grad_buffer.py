@@ -9,6 +9,7 @@ from functools import partial
 from typing import Dict, List, Optional
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from torch.distributed import _coalescing_manager
 
 from megatron.core.rerun_state_machine import get_rerun_state_machine
@@ -20,12 +21,12 @@ from .distributed_data_parallel_config import DistributedDataParallelConfig
 logger = logging.getLogger(__name__)
 
 
-if is_torch_min_version("1.13.0"):
-    dist_all_gather_func = torch.distributed.all_gather_into_tensor
-    dist_reduce_scatter_func = torch.distributed.reduce_scatter_tensor
-else:
-    dist_all_gather_func = torch.distributed._all_gather_base
-    dist_reduce_scatter_func = torch.distributed._reduce_scatter_base
+# if is_torch_min_version("1.13.0"):
+#     dist_all_gather_func = torch.distributed.all_gather_into_tensor
+#     dist_reduce_scatter_func = torch.distributed.reduce_scatter_tensor
+# else:
+dist_all_gather_func = dist._all_gather_base
+dist_reduce_scatter_func = dist._reduce_scatter_base
 
 
 class BufferType(Enum):
@@ -117,7 +118,7 @@ class _ParamAndGradBucketGroup:
         if self.ddp_config.use_distributed_optimizer:
             self.intra_distributed_optimizer_instance_group = collective_group
             self.intra_distributed_optimizer_instance_size = collective_group_size
-            self.intra_distributed_optimizer_instance_rank = torch.distributed.get_rank(
+            self.intra_distributed_optimizer_instance_rank = dist.get_rank(
                 group=collective_group
             )
         else:
@@ -302,9 +303,9 @@ class _ParamAndGradBucketGroup:
                 bucket.grad_data *= bucket.gradient_scaling_factor
 
         # Decide reduce_op.
-        reduce_op = torch.distributed.ReduceOp.SUM
+        reduce_op = dist.ReduceOp.SUM
         if self.ddp_config.average_in_collective:
-            reduce_op = torch.distributed.ReduceOp.AVG
+            reduce_op = dist.ReduceOp.AVG
 
         # We use the following stream synchronization for the gradient reduction
         # within and across DistOpt instances.
@@ -339,23 +340,23 @@ class _ParamAndGradBucketGroup:
             communication_group = self.data_parallel_group
 
         # Coalesce communication kernels across buckets in the bucket group.
-        with stream_context, _coalescing_manager(communication_group, async_ops=async_op) as cm:
-            for bucket in self.buckets:
-                if self.ddp_config.use_distributed_optimizer:
-                    local_data_view = shard_buffer(
-                        bucket.grad_data, self.intra_distributed_optimizer_instance_size
-                    )[self.intra_distributed_optimizer_instance_rank]
-                    dist_reduce_scatter_func(
-                        local_data_view,
-                        bucket.grad_data,
-                        op=reduce_op,
-                        group=communication_group,
-                        async_op=async_op,
-                    )
-                else:
-                    torch.distributed.all_reduce(
-                        bucket.grad_data, op=reduce_op, group=communication_group, async_op=async_op
-                    )
+        # with stream_context, _coalescing_manager(communication_group, async_ops=async_op) as cm:
+        for bucket in self.buckets:
+            if self.ddp_config.use_distributed_optimizer:
+                local_data_view = shard_buffer(
+                    bucket.grad_data, self.intra_distributed_optimizer_instance_size
+                )[self.intra_distributed_optimizer_instance_rank]
+                dist_reduce_scatter_func(
+                    local_data_view,
+                    bucket.grad_data,
+                    op=reduce_op,
+                    group=communication_group,
+                    async_op=async_op,
+                )
+            else:
+                dist.all_reduce(
+                    bucket.grad_data, op=reduce_op, group=communication_group, async_op=async_op
+                )
 
         # With multiple DistOpt instances, we need to all-reduce across instances.
         if (
@@ -373,7 +374,7 @@ class _ParamAndGradBucketGroup:
                         bucket.grad_data, self.intra_distributed_optimizer_instance_size
                     )[self.intra_distributed_optimizer_instance_rank]
 
-                    torch.distributed.all_reduce(
+                    dist.all_reduce(
                         local_data_view,
                         op=reduce_op,
                         group=self.inter_distributed_optimizer_instance_group,
@@ -485,7 +486,7 @@ class _ParamAndGradBuffer:
         self.param_dtype = param_dtype
         self.grad_dtype = grad_dtype
         self.data_parallel_group = data_parallel_group
-        self.data_parallel_world_size = torch.distributed.get_world_size(
+        self.data_parallel_world_size = dist.get_world_size(
             group=self.data_parallel_group
         )
         self.gradient_scaling_factor = gradient_scaling_factor

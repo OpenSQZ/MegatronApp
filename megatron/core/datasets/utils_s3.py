@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, NamedTuple, Protocol, Tuple
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 try:
     import boto3
@@ -130,7 +131,7 @@ def maybe_download_file(s3_path: str, local_path: str) -> None:
     """
 
     if torch.distributed.is_initialized():
-        rank = torch.distributed.get_rank()
+        rank = dist.get_rank()
         local_rank = rank % torch.cuda.device_count()
     else:
         rank = 0
@@ -142,7 +143,7 @@ def maybe_download_file(s3_path: str, local_path: str) -> None:
         _download_file(s3_client, s3_path, local_path)
 
     if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        dist.barrier()
 
     # If the `local_path` is in a file system that is not
     # shared across all the ranks, then we assume it's in the
@@ -151,7 +152,7 @@ def maybe_download_file(s3_path: str, local_path: str) -> None:
         _download_file(s3_client, s3_path, local_path)
 
     if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        dist.barrier()
 
     # If the `local_path` still does not exist, then we assume
     # each rank is saving to a separate location.
@@ -159,6 +160,6 @@ def maybe_download_file(s3_path: str, local_path: str) -> None:
         _download_file(s3_client, s3_path, local_path)
 
     if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        dist.barrier()
 
     assert os.path.exists(local_path)

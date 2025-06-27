@@ -5,7 +5,7 @@ from time import time
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar
 
 import torch
-import torch.distributed as dist
+import megatron.virtual_tensor_parallel_communication as dist
 from torch.distributed.checkpoint import Metadata
 
 from megatron.core.dist_checkpointing import ShardedObject, ShardedTensor
@@ -214,7 +214,7 @@ class FullyParallelLoadStrategyWrapper(LoadShardedStrategy):
 
         loaded_state_dict = {}
 
-        if torch.distributed.get_world_size(self.parallelization_group) <= 1:
+        if dist.get_world_size(self.parallelization_group) <= 1:
             return self.base_strategy.load(sharded_state_dict, checkpoint_dir)
 
         # Step 1 and 2: exchange load metadata and distribute the load
@@ -432,7 +432,7 @@ def distribute_main_replicas_with_precomputed_distribution(
     rank1: A: 1, B: 0, C: 1
     rank2: A: 1, B: 1, C: 0
     """
-    if torch.distributed.get_world_size(group=parallelization_group) <= 1:
+    if dist.get_world_size(group=parallelization_group) <= 1:
         return
     if precomputed_distribution is None:
         raise ValueError(
@@ -445,7 +445,7 @@ def distribute_main_replicas_with_precomputed_distribution(
         if isinstance(sh_base, ShardedTensor)
     )
 
-    rank_within_dp_group = torch.distributed.get_rank(parallelization_group)
+    rank_within_dp_group = dist.get_rank(parallelization_group)
     for sh_ten in local_shards:
         shard_id = _sharded_tensor_shard_id(sh_ten)
         if (

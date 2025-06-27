@@ -1,6 +1,7 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.parallel_state import (
     get_global_memory_buffer,
@@ -16,8 +17,8 @@ if is_torch_min_version("1.13.0"):
     dist_all_gather_func = torch.distributed.all_gather_into_tensor
     dist_reduce_scatter_func = torch.distributed.reduce_scatter_tensor
 else:
-    dist_all_gather_func = torch.distributed._all_gather_base
-    dist_reduce_scatter_func = torch.distributed._reduce_scatter_base
+    dist_all_gather_func = dist._all_gather_base
+    dist_reduce_scatter_func = dist._reduce_scatter_base
 
 
 def _reduce(input_):
@@ -28,7 +29,7 @@ def _reduce(input_):
         return input_
 
     # All-reduce.
-    torch.distributed.all_reduce(input_.contiguous(), group=get_tensor_model_parallel_group())
+    dist.all_reduce(input_.contiguous(), group=get_tensor_model_parallel_group())
 
     return input_
 
@@ -57,7 +58,7 @@ def _split_along_first_dim(input_, group=None):
     corresponding slice."""
     if group is None:
         group = get_tensor_model_parallel_group()
-    world_size = torch.distributed.get_world_size(group)
+    world_size = dist.get_world_size(group)
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -68,7 +69,7 @@ def _split_along_first_dim(input_, group=None):
         dim_size % world_size == 0
     ), "First dimension of the tensor should be divisible by tensor parallel size"
     local_dim_size = dim_size // world_size
-    rank = torch.distributed.get_rank(group)
+    rank = dist.get_rank(group)
     dim_offset = rank * local_dim_size
 
     output = input_[dim_offset : dim_offset + local_dim_size].contiguous()
@@ -88,7 +89,7 @@ def _gather_along_last_dim(input_):
     dim_size[0] = dim_size[0] * world_size
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed.all_gather_into_tensor(
+    dist.all_gather_into_tensor(
         output, input_.contiguous(), group=get_tensor_model_parallel_group()
     )
     tensor_list = output.chunk(world_size, dim=0)
@@ -127,7 +128,7 @@ def _gather_along_first_dim(input_, group=None, output_split_sizes=None, use_glo
 
     if group is None:
         group = get_tensor_model_parallel_group()
-    world_size = torch.distributed.get_world_size(group)
+    world_size = dist.get_world_size(group)
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -148,7 +149,7 @@ def _gather_along_first_dim(input_, group=None, output_split_sizes=None, use_glo
         else:
             output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
         output_tensor_list = list(torch.split(output, output_split_sizes, dim=0))
-        torch.distributed.all_gather(output_tensor_list, input_, group=group)
+        dist.all_gather(output_tensor_list, input_, group=group)
 
     return output
 
@@ -166,7 +167,7 @@ def _reduce_scatter_along_first_dim(
     """
     if group is None:
         group = get_tensor_model_parallel_group()
-    world_size = torch.distributed.get_world_size(group)
+    world_size = dist.get_world_size(group)
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -185,7 +186,7 @@ def _reduce_scatter_along_first_dim(
             output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
         dist_reduce_scatter_func(output, input_.contiguous(), group=group)
     else:
-        rank = torch.distributed.get_rank(group)
+        rank = dist.get_rank(group)
         input_tensor_list = list(torch.split(input_, input_split_sizes, dim=0))
 
         if use_global_buffer:
@@ -194,7 +195,7 @@ def _reduce_scatter_along_first_dim(
             )
         else:
             output = torch.empty_like(input_tensor_list[rank])
-        torch.distributed.reduce_scatter(output, input_tensor_list, group=group)
+        dist.reduce_scatter(output, input_tensor_list, group=group)
     return output
 
 
@@ -423,7 +424,7 @@ class _AllToAll(torch.autograd.Function):
         ctx.output_split_sizes = output_split_sizes
         ctx.input_split_sizes = input_split_sizes
 
-        world_size = torch.distributed.get_world_size(group=group)
+        world_size = dist.get_world_size(group=group)
         # Bypass the function if we are using only 1 GPU.
         if world_size == 1:
             return input
@@ -439,7 +440,7 @@ class _AllToAll(torch.autograd.Function):
                 dtype=input.dtype,
                 device=torch.cuda.current_device(),
             )
-        torch.distributed.all_to_all_single(
+        dist.all_to_all_single(
             output,
             input,
             output_split_sizes=output_split_sizes,

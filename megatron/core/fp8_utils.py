@@ -5,6 +5,7 @@ from contextlib import nullcontext
 from typing import List, Optional
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from packaging.version import Version as PkgVersion
 
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -188,8 +189,8 @@ elif HAVE_TE and is_te_min_version("2.0"):
         packed_amaxes = torch.empty(len(amaxes), dtype=torch.float32, device=amaxes[0].device)
         packed_amax_views = [packed_amaxes[i].view(1) for i in range(len(amaxes))]
         _multi_tensor_copy_this_to_that(amaxes, packed_amax_views, dummy_overflow_buf)
-        torch.distributed.all_reduce(
-            packed_amaxes, op=torch.distributed.ReduceOp.MAX, group=data_parallel_group
+        dist.all_reduce(
+            packed_amaxes, op=dist.ReduceOp.MAX, group=data_parallel_group
         )
         _multi_tensor_copy_this_to_that(packed_amax_views, amaxes, dummy_overflow_buf)
 
@@ -275,8 +276,8 @@ elif HAVE_TE and is_te_min_version("1.0"):
         packed_amaxes = torch.empty(len(amaxes), dtype=torch.float32, device=amaxes[0].device)
         packed_amax_views = [packed_amaxes[i].view(1) for i in range(len(amaxes))]
         _multi_tensor_copy_this_to_that(amaxes, packed_amax_views, dummy_overflow_buf)
-        torch.distributed.all_reduce(
-            packed_amaxes, op=torch.distributed.ReduceOp.MAX, group=data_parallel_group
+        dist.all_reduce(
+            packed_amaxes, op=dist.ReduceOp.MAX, group=data_parallel_group
         )
         _multi_tensor_copy_this_to_that(packed_amax_views, amaxes, dummy_overflow_buf)
 

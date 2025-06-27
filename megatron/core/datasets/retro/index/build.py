@@ -13,6 +13,7 @@ import shutil
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from tqdm import tqdm
 
 from megatron.core.datasets.retro.config import RetroPreprocessingConfig
@@ -78,7 +79,7 @@ def merge_embedding_blocks(config: RetroPreprocessingConfig) -> None:
         config (RetroPreprocessingConfig): Retro preprocessing config.
     """
 
-    if torch.distributed.get_rank() != 0:
+    if dist.get_rank() != 0:
         return
 
     # Get block, merged paths.
@@ -98,7 +99,7 @@ def merge_embedding_blocks(config: RetroPreprocessingConfig) -> None:
                 block_paths,
                 "merge train embeddings",
                 miniters=len(block_paths) // 10,
-                disable=torch.distributed.get_rank() != 0,
+                disable=dist.get_rank() != 0,
             )
         ):
             with h5py.File(block_path) as fi:
@@ -172,8 +173,8 @@ def remove_embeddings(config: RetroPreprocessingConfig) -> None:
     Args:
         config (RetroPreprocessingConfig): Retro preprocessing config.
     """
-    torch.distributed.barrier()
-    if torch.distributed.get_rank() != 0:
+    dist.barrier()
+    if dist.get_rank() != 0:
         return
     empty_index_path = get_empty_index_path(config)
     assert os.path.isfile(empty_index_path)
@@ -197,7 +198,7 @@ def _train_index(config: RetroPreprocessingConfig) -> None:
         train_on_embeddings(config)
 
     # Wait for (single-process) training to complete.
-    torch.distributed.barrier()
+    dist.barrier()
 
     # Remove embeddings.
     if config.retro_index_delete_training_embeddings:

@@ -3,6 +3,7 @@
 from typing import Optional
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from tqdm import tqdm
 
 from megatron.core import parallel_state
@@ -220,7 +221,7 @@ class DistributedTRTLLMModelWeightsConverter:
                 dim_size, dtype=val.dtype, device=torch.cuda.current_device()
             )
             gathered_val[vocab_start_index:vocab_end_index] = val
-            torch.distributed.all_reduce(gathered_val, group=self.tp_group)
+            dist.all_reduce(gathered_val, group=self.tp_group)
             val = gathered_val
         unpadded = val[:tokenizer_vocab_size]
         if self.inference_tp_size > 1:  # Split gathered val for val parallel embedding

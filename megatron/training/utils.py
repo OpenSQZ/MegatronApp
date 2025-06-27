@@ -7,6 +7,7 @@ import sys
 from datetime import datetime
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 try:
     from transformer_engine.pytorch.optimizers import multi_tensor_applier, multi_tensor_l2norm
@@ -128,8 +129,8 @@ def calc_params_l2_norm(model, force_create_fp32_copy=False):
         norm_2 = torch.zeros((1,), dtype=torch.float32, device='cuda')
 
     if data_parallel_group is not None:
-        torch.distributed.all_reduce(norm_2,
-                                     op=torch.distributed.ReduceOp.SUM,
+        dist.all_reduce(norm_2,
+                                     op=dist.ReduceOp.SUM,
                                      group=data_parallel_group)
 
     # Add norm contribution from params with sharded main_params. These norms need to be
@@ -145,16 +146,16 @@ def calc_params_l2_norm(model, force_create_fp32_copy=False):
         )
         sharded_norm_2 = sharded_norm * sharded_norm
         # Sum over all DP groups.
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             sharded_norm_2,
-            op=torch.distributed.ReduceOp.SUM,
+            op=dist.ReduceOp.SUM,
             group=mpu.get_data_parallel_group()
         )
         norm_2 += sharded_norm_2
 
     if custom_fsdp_all_param_is_shared:
-        torch.distributed.all_reduce(norm_2,
-                                     op=torch.distributed.ReduceOp.SUM,
+        dist.all_reduce(norm_2,
+                                     op=dist.ReduceOp.SUM,
                                      group=mpu.get_data_parallel_group())
 
     # Add norm contribution from expert layers in MoEs.
@@ -168,8 +169,8 @@ def calc_params_l2_norm(model, force_create_fp32_copy=False):
         moe_norm_2 = moe_norm * moe_norm
 
         if custom_fsdp_all_param_is_shared:
-            torch.distributed.all_reduce(moe_norm_2,
-                                        op=torch.distributed.ReduceOp.SUM,
+            dist.all_reduce(moe_norm_2,
+                                        op=dist.ReduceOp.SUM,
                                         group=mpu.get_expert_data_parallel_group())
     # Account for MoE norm even if current rank doesn't have any expert params to prevent
     # hang in models with un-even numbers of MoE layers.
@@ -180,29 +181,29 @@ def calc_params_l2_norm(model, force_create_fp32_copy=False):
     # Reduce norm across model parallel groups (dense and expert).
     # Dense params should sum across all model-parallel GPUs (tensor + pipeline).
     dense_reduce_group = mpu.get_model_parallel_group()
-    ranks_in_dense_reduce_group = torch.distributed.get_process_group_ranks(dense_reduce_group)
+    ranks_in_dense_reduce_group = dist.get_process_group_ranks(dense_reduce_group)
     # Expert params should sum across all model-parallel GPUs (expert + tensor + pipeline).
     expert_reduce_group = mpu.get_expert_tensor_model_pipeline_parallel_group()
-    ranks_in_expert_reduce_group = torch.distributed.get_process_group_ranks(expert_reduce_group)
+    ranks_in_expert_reduce_group = dist.get_process_group_ranks(expert_reduce_group)
 
     # If dense and expert reduce groups are the same, sum then reduce.
     if ranks_in_dense_reduce_group == ranks_in_expert_reduce_group:
         norm_2 += moe_norm_2
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             norm_2,
-            op=torch.distributed.ReduceOp.SUM,
+            op=dist.ReduceOp.SUM,
             group=dense_reduce_group
         )
     # If dense and expert reduce groups are different, reduce then sum.
     else:
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             norm_2,
-            op=torch.distributed.ReduceOp.SUM,
+            op=dist.ReduceOp.SUM,
             group=dense_reduce_group
         )
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             moe_norm_2,
-            op=torch.distributed.ReduceOp.SUM,
+            op=dist.ReduceOp.SUM,
             group=expert_reduce_group
         )
         norm_2 += moe_norm_2
@@ -214,10 +215,10 @@ def average_losses_across_data_parallel_group(losses):
     """Reduce a tensor of losses across all GPUs."""
     averaged_losses = torch.cat(
         [loss.clone().detach().view(1) for loss in losses])
-    torch.distributed.all_reduce(averaged_losses,
+    dist.all_reduce(averaged_losses,
                                  group=mpu.get_data_parallel_group())
     averaged_losses = averaged_losses / \
-        torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
+        dist.get_world_size(group=mpu.get_data_parallel_group())
 
     return averaged_losses
 
@@ -233,8 +234,8 @@ def reduce_max_stat_across_model_parallel_group(stat: float) -> float:
     if stat is None:
         stat = -1.0
     stat = torch.tensor([stat], dtype=torch.float32, device=torch.cuda.current_device())
-    torch.distributed.all_reduce(
-        stat, op=torch.distributed.ReduceOp.MAX, group=mpu.get_model_parallel_group()
+    dist.all_reduce(
+        stat, op=dist.ReduceOp.MAX, group=mpu.get_model_parallel_group()
     )
     if stat.item() == -1.0:
         return None
@@ -251,8 +252,8 @@ def logical_and_across_model_parallel_group(input: bool) -> bool:
     else:
         input = 0
     input = torch.tensor([input], dtype=torch.int, device=torch.cuda.current_device())
-    torch.distributed.all_reduce(
-        input, op=torch.distributed.ReduceOp.MIN, group=mpu.get_model_parallel_group()
+    dist.all_reduce(
+        input, op=dist.ReduceOp.MIN, group=mpu.get_model_parallel_group()
     )
     return bool(input.item())
 
@@ -270,14 +271,14 @@ def report_memory(name):
     string += ' | max reserved: {}'.format(
         torch.cuda.max_memory_reserved() / mega_bytes)
     if mpu.get_data_parallel_rank() == 0:
-        print("[Rank {}] {}".format(torch.distributed.get_rank(), string),
+        print("[Rank {}] {}".format(dist.get_rank(), string),
               flush=True)
 
 
 def print_params_min_max_norm(optimizer, iteration):
     """Print min, max, and norm of all parameters."""
     index = 0
-    rank = torch.distributed.get_rank()
+    rank = dist.get_rank()
     string = 'iteration, rank, index, tensor-model-parallel, min, max, norm\n'
     optimizer_ = optimizer.optimizer
     for param_group in optimizer_.param_groups:
@@ -300,12 +301,12 @@ def check_adlr_autoresume_termination(iteration, model,
     args = get_args()
     autoresume = get_adlr_autoresume()
     # Add barrier to ensure consistnecy.
-    torch.distributed.barrier()
+    dist.barrier()
     if autoresume.termination_requested():
         if args.save:
             save_checkpoint(iteration, model, optimizer, opt_param_scheduler)
         print_rank_0(">>> autoresume termination request found!")
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             autoresume.request_resume()
         print_rank_0(">>> training terminated. Returning")
         sys.exit(0)
@@ -374,18 +375,18 @@ def get_ltor_masks_and_position_ids(data,
 def print_rank_0(message):
     """If distributed is initialized, print only on rank 0."""
     if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             print(message, flush=True)
     else:
         print(message, flush=True)
 
 def is_rank0():
     """Returns true if called in the rank0, false otherwise"""
-    return torch.distributed.is_initialized() and torch.distributed.get_rank() == 0
+    return torch.distributed.is_initialized() and dist.get_rank() == 0
 
 def is_last_rank():
-    return torch.distributed.get_rank() == (
-        torch.distributed.get_world_size() - 1)
+    return dist.get_rank() == (
+        dist.get_world_size() - 1)
 
 def print_rank_last(message):
     """If distributed is initialized, print only on last rank."""
@@ -406,8 +407,8 @@ def append_to_progress_log(string, barrier=True):
         return
     progress_log_filename = os.path.join(args.save, "progress.txt")
     if barrier:
-        torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
+        dist.barrier()
+    if dist.get_rank() == 0:
         with open(progress_log_filename, 'a') as f:
             job_id = os.getenv('SLURM_JOB_ID', '')
             num_gpus = args.world_size
@@ -469,7 +470,7 @@ def get_batch_on_this_tp_rank(data_iterator):
 
     def _broadcast(item):
        if item is not None:
-           torch.distributed.broadcast(item, mpu.get_tensor_model_parallel_src_rank(), group=mpu.get_tensor_model_parallel_group())
+           dist.broadcast(item, mpu.get_tensor_model_parallel_src_rank(), group=mpu.get_tensor_model_parallel_group())
 
     if mpu.get_tensor_model_parallel_rank() == 0:
 

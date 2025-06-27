@@ -15,6 +15,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import psutil
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from torch import multiprocessing as mp
 from torch.distributed.checkpoint import FileSystemWriter
 from torch.distributed.checkpoint.filesystem import DEFAULT_SUFFIX, _StoragePrefix, _write_item
@@ -175,7 +176,7 @@ class FileSystemWriterAsync(FileSystemWriter):
         return (
             partial(self.write_preloaded_data_multiproc, transform_list),
             partial(self.preload_tensors, self.write_buckets, True),
-            [torch.distributed.get_rank(), self.write_buckets, self.results_queue],
+            [dist.get_rank(), self.write_buckets, self.results_queue],
         )
 
     @staticmethod
@@ -389,7 +390,7 @@ class FileSystemWriterAsync(FileSystemWriter):
                 created by the coordinator
         """
         return dataclasses.replace(
-            local_plan, storage_data=_StoragePrefix(f"__{torch.distributed.get_rank()}_")
+            local_plan, storage_data=_StoragePrefix(f"__{dist.get_rank()}_")
         )
 
 

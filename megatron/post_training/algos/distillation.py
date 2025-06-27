@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import modelopt.torch.distill as mtd
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import yaml
@@ -237,9 +238,9 @@ class LogitsKLLoss(BaseLoss):
 
             # Maximum value along vocab dimension across all GPUs.
             teacher_logits_max, _ = torch.max(output_teacher, dim=-1)
-            torch.distributed.all_reduce(
+            dist.all_reduce(
                 teacher_logits_max,
-                op=torch.distributed.ReduceOp.MAX,
+                op=dist.ReduceOp.MAX,
                 group=get_tensor_model_parallel_group(),
             )
             output_teacher = output_teacher - teacher_logits_max.unsqueeze(dim=-1)
@@ -253,9 +254,9 @@ class LogitsKLLoss(BaseLoss):
 
             # Maximum value along vocab dimension across all GPUs.
             student_logits_max, _ = torch.max(output_student, dim=-1)
-            torch.distributed.all_reduce(
+            dist.all_reduce(
                 student_logits_max,
-                op=torch.distributed.ReduceOp.MAX,
+                op=dist.ReduceOp.MAX,
                 group=get_tensor_model_parallel_group(),
             )
             output_student = output_student - student_logits_max.unsqueeze(dim=-1).detach()
@@ -415,7 +416,7 @@ class _AllReduce(torch.autograd.Function):
     def forward(ctx, op, group, tensor):
         ctx.group, ctx.op = group, op
         tensor = tensor.clone()
-        torch.distributed.all_reduce(tensor, op=op, group=group)
+        dist.all_reduce(tensor, op=op, group=group)
         return tensor
 
     @staticmethod

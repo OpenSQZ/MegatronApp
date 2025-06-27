@@ -3,6 +3,7 @@
 from typing import List, Sequence
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core import parallel_state
 from megatron.core.utils import divide, is_torch_min_version
@@ -10,7 +11,7 @@ from megatron.core.utils import divide, is_torch_min_version
 if is_torch_min_version("1.13.0"):
     dist_all_gather_func = torch.distributed.all_gather_into_tensor
 else:
-    dist_all_gather_func = torch.distributed._all_gather_base
+    dist_all_gather_func = dist._all_gather_base
 
 
 def split_tensor_along_last_dim(

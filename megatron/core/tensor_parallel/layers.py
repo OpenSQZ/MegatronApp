@@ -9,6 +9,7 @@ from functools import partial
 from typing import Any, Callable, List, Optional, Tuple
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
@@ -62,8 +63,8 @@ if is_torch_min_version("1.13.0"):
     dist_all_gather_func = torch.distributed.all_gather_into_tensor
     dist_reduce_scatter_func = torch.distributed.reduce_scatter_tensor
 else:
-    dist_all_gather_func = torch.distributed._all_gather_base
-    dist_reduce_scatter_func = torch.distributed._reduce_scatter_base
+    dist_all_gather_func = dist._all_gather_base
+    dist_reduce_scatter_func = dist._reduce_scatter_base
 
 
 def param_is_not_tensor_parallel_duplicate(param):
@@ -320,7 +321,7 @@ class LinearWithFrozenWeight(torch.autograd.Function):
 
         if ctx.allreduce_dgrad:
             # All-reduce. Note: here async and sync are effectively the same.
-            torch.distributed.all_reduce(grad_input, group=get_tensor_model_parallel_group())
+            dist.all_reduce(grad_input, group=get_tensor_model_parallel_group())
 
         return grad_input, None, None, None
 
@@ -486,7 +487,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
 
         if ctx.allreduce_dgrad:
             # Asynchronous all-reduce
-            handle = torch.distributed.all_reduce(
+            handle = dist.all_reduce(
                 grad_input, group=get_tensor_model_parallel_group(), async_op=True
             )
             # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the

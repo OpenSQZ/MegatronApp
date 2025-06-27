@@ -22,6 +22,7 @@ from types import TracebackType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from packaging.version import Version as PkgVersion
 
 from megatron.core import config
@@ -528,7 +529,7 @@ def log_single_rank(logger: logging.Logger, *args: Any, rank: int = 0, **kwargs:
         kwargs (Dict[str, Any]): All logging.Logger.log keyword arguments
     """
     if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == rank:
+        if dist.get_rank() == rank:
             logger.log(*args, **kwargs)
     else:
         logger.log(*args, **kwargs)
@@ -608,16 +609,16 @@ def check_param_hashes_across_dp_replicas(
         local_param_hashes = torch.stack(local_param_hashes).cuda()
         all_param_hashes = [
             torch.zeros_like(local_param_hashes)
-            for _ in range(torch.distributed.get_world_size(all_gather_group))
+            for _ in range(dist.get_world_size(all_gather_group))
         ]
-        torch.distributed.all_gather(all_param_hashes, local_param_hashes, group=all_gather_group)
+        dist.all_gather(all_param_hashes, local_param_hashes, group=all_gather_group)
 
         # Make sure local per-parameter hash matches DP rank 0.
         param_hashes_match = torch.equal(local_param_hashes, all_param_hashes[0])
         if not param_hashes_match:
             for i, (model_chunk_id, param_name, param) in enumerate(params):
                 if not torch.equal(local_param_hashes[i], all_param_hashes[0][i]):
-                    rank = torch.distributed.get_rank()
+                    rank = dist.get_rank()
                     logger.info(
                         f"[Rank {rank}] Hash not matching for {param_name} in model chunk"
                         f"{model_chunk_id}"
@@ -808,7 +809,7 @@ def prepare_input_tensors_for_wgrad_compute(grad_output, all_gathered_input):
 if is_torch_min_version("1.13.0"):
     dist_all_gather_func = torch.distributed.all_gather_into_tensor
 else:
-    dist_all_gather_func = torch.distributed._all_gather_base
+    dist_all_gather_func = dist._all_gather_base
 
 
 def drain_embedding_wgrad_compute(config, embedding_activation_buffer, grad_output_buffer, weight):
@@ -1400,7 +1401,7 @@ class StragglerDetector:
             off = not self._off
             self.toggle = False
         st = torch.tensor(off, dtype=torch.bool, device=self.dev)
-        torch.distributed.broadcast(st, 0)  # Blocking
+        dist.broadcast(st, 0)  # Blocking
         # save old switch
         off = self._off
         self._off = bool(st.item())
@@ -1514,7 +1515,7 @@ class StragglerDetector:
             data_list = [prof_data] * self.world
 
         # this is blocking by default
-        torch.distributed.gather_object(prof_data, object_gather_list=data_list, dst=0)
+        dist.gather_object(prof_data, object_gather_list=data_list, dst=0)
 
         if self.rank == 0:
             min_ctime = min(data_list, key=lambda k: k["time"])  # elapsed
@@ -1583,7 +1584,7 @@ class StragglerDetector:
             ]
             o_dt.aflops.sort(key=lambda val_with_rank: val_with_rank()[0])
         # wait for everyone here
-        torch.distributed.barrier()
+        dist.barrier()
 
         return o_dt
 

@@ -18,6 +18,7 @@ import typing
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from torch.utils.data import Subset
 
 from megatron.core.datasets.retro.config import RetroPreprocessingConfig
@@ -91,7 +92,7 @@ def validate_training_embeddings(config: RetroPreprocessingConfig) -> None:
 
         # Synchronize progress across all ranks. (for easier observation)
         log_retro_rank_0(" > waiting for other ranks to finish block.")
-        torch.distributed.barrier()
+        dist.barrier()
 
     log_retro_rank_0(" > finished validating training embeddings.")
 
@@ -163,7 +164,7 @@ def validate_added_encodings(config: RetroPreprocessingConfig) -> None:
 
         # Synchronize progress across all ranks. (for easier observation)
         log_retro_rank_0(" > waiting for other ranks to finish block.")
-        torch.distributed.barrier()
+        dist.barrier()
 
     log_retro_rank_0(" > finished validating added encodings.")
 

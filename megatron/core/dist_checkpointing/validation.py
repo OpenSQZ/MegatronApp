@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.dist_checkpointing import ShardedTensor
 from megatron.core.dist_checkpointing.core import CheckpointingException, maybe_load_config
@@ -374,9 +375,9 @@ def _validate_common_state_dict(common_state_dict: CommonStateDict) -> None:
     """
 
     # Gather the common state dict across ranks onto rank 0 for comparison
-    rank = torch.distributed.get_rank()
-    other_rank_state_dicts = [None] * torch.distributed.get_world_size() if rank == 0 else None
-    torch.distributed.gather_object(common_state_dict, other_rank_state_dicts)
+    rank = dist.get_rank()
+    other_rank_state_dicts = [None] * dist.get_world_size() if rank == 0 else None
+    dist.gather_object(common_state_dict, other_rank_state_dicts)
     common_state_dict_diff = {}
     if rank == 0:
         main_rank_state_dict = common_state_dict
@@ -415,7 +416,7 @@ def validate_sharding_integrity(
     if common_state_dict is not None:
         _validate_common_state_dict(common_state_dict)
 
-    if torch.distributed.get_rank() != 0:
+    if dist.get_rank() != 0:
         return
 
     key_shardings = defaultdict(list)
@@ -529,8 +530,8 @@ def determine_global_metadata(
         Tuple[_LocalMetadata, _GlobalMetadata]: local and global ShardedBase objects with stripped data
     """
     local_metadata = [ten.without_data() for ten in nested_values(sharded_state_dict)]
-    global_metadata = [None] * torch.distributed.get_world_size()
-    torch.distributed.all_gather_object(global_metadata, local_metadata)
+    global_metadata = [None] * dist.get_world_size()
+    dist.all_gather_object(global_metadata, local_metadata)
     return local_metadata, global_metadata
 
 

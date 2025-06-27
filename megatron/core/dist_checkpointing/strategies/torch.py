@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from packaging.version import Version as PkgVersion
 from torch.distributed import checkpoint
 from torch.distributed._shard.metadata import ShardMetadata
@@ -164,7 +165,7 @@ def sharded_tensor_to_torch_sharded_tensor(
 
     """
     if rank is None:
-        rank = torch.distributed.get_rank()
+        rank = dist.get_rank()
 
     some_sh_ten = sh_tens[0]
     has_flattened_range = some_sh_ten.flattened_range is not None
@@ -226,7 +227,7 @@ def sharded_tensor_to_torch_sharded_tensor(
         ]
 
     # Create a ShardedTensor without invoking communication. Determine global shards
-    world_size = torch.distributed.get_world_size()
+    world_size = dist.get_world_size()
     shard_metadata = []
     # NOTE: here we assume a regular grid of shards
     for fragment_offsets in product(*map(range, some_sh_ten.axis_fragmentations)):
@@ -305,7 +306,7 @@ def mcore_to_pyt_state_dict(
         converted either into PyT ShardedTensors or io.BytesIO.
 
     """
-    rank = torch.distributed.get_rank()
+    rank = dist.get_rank()
     pyt_state_dict = {}
 
     def _mcore_to_torch_sharded_tensor(sh_tens: List[ShardedTensor]) -> TorchShardedTensor:
@@ -752,7 +753,7 @@ class TorchDistSaveShardedStrategy(AsyncSaveShardedStrategy):
             cached_ckpt_structure=args_cached_plans,
             loaded_all_plans=loaded_all_plans,
         )
-        rank = torch.distributed.get_rank()
+        rank = dist.get_rank()
         if self.use_cached_ckpt_structure:
             if (
                 loaded_all_plans
@@ -789,7 +790,7 @@ class TorchDistSaveShardedStrategy(AsyncSaveShardedStrategy):
 
         def finalize_fn():
             save_state_dict_async_finalize(*save_state_dict_ret)
-            torch.distributed.barrier()
+            dist.barrier()
 
         return AsyncRequest(save_fn, save_args, [finalize_fn], preload_fn=preload_fn)
 

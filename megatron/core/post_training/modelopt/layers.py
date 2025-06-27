@@ -3,6 +3,7 @@
 from typing import Callable, List, Optional
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 import transformer_engine as te
 
 from megatron.core.extensions.transformer_engine import _get_extra_te_kwargs
@@ -220,8 +221,8 @@ class RealQuantTransformerLayer(TransformerLayer):
                 self._original_tensor_info[k] = (str(v.dtype), str(v.shape))
 
     def _report_quantize_tensor_info(self):
-        torch.distributed.barrier()
-        if torch.distributed.get_rank() == 0:
+        dist.barrier()
+        if dist.get_rank() == 0:
             for k, v in self.state_dict().items():
                 if not isinstance(v, torch.Tensor):
                     continue
@@ -231,7 +232,7 @@ class RealQuantTransformerLayer(TransformerLayer):
                         k, original_dtype, original_shape, str(v.dtype), str(v.shape)
                     )
                 )
-        torch.distributed.barrier()
+        dist.barrier()
 
 
 class FP8WeightTransformerLayer(RealQuantTransformerLayer):

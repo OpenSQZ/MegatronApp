@@ -14,6 +14,7 @@ from megatron.training import get_tokenizer, get_args
 from megatron.core.tensor_tracer import set_report, set_filter, get_tt_flags, FlagType
 from megatron.core.tensor_disturbance import get_disturbance
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 import threading
 from websockets.sync.server import serve
 
@@ -181,9 +182,9 @@ class MegatronGenerate:
         with LOCK:  # Need to get lock to keep multiple threads from hitting code
 
             get_tt_flags().set_by_configs(visualization_flags_config)
-            torch.distributed.broadcast_object_list([visualization_flags_config], 0)
+            dist.broadcast_object_list([visualization_flags_config], 0)
             get_disturbance().set_by_configs(disturbance_configs)
-            torch.distributed.broadcast_object_list([disturbance_configs], 0)
+            dist.broadcast_object_list([disturbance_configs], 0)
 
             set_filter()
 

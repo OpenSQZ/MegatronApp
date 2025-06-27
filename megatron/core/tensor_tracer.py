@@ -1,4 +1,5 @@
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from megatron.training import get_args, get_tokenizer
 from enum import Enum
 from typing import Dict, Any
@@ -76,8 +77,8 @@ class TensorTracers:
     @staticmethod
     def report(name, tensor_data):
         device = torch.cuda.current_device()
-        world_size = torch.distributed.get_world_size()
-        rank = torch.distributed.get_rank()
+        world_size = dist.get_world_size()
+        rank = dist.get_rank()
 
         tensor_data_cont = tensor_data.contiguous()
         if rank == 0:
@@ -85,7 +86,7 @@ class TensorTracers:
         else:
             tensor_list = None
         from megatron.core.parallel_state import get_tensor_model_parallel_group
-        torch.distributed.gather(tensor_data_cont, tensor_list, dst=0, group=get_tensor_model_parallel_group())
+        dist.gather(tensor_data_cont, tensor_list, dst=0, group=get_tensor_model_parallel_group())
 
         if rank == 0:
             aggregated_tensor = None
@@ -156,7 +157,7 @@ class TensorTracers:
 
     @staticmethod
     def tik_end():
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             if mlp2_record is not None:
                 args = get_args()
                 for i in range(1, args.num_layers + 1):

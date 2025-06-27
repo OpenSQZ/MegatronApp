@@ -3,6 +3,7 @@
 from typing import List, Optional, Union
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 try:
@@ -104,7 +105,7 @@ def _allreduce_conditional_embedding_grads(model: List[torch.nn.Module], config:
             # All-reduce the gradient on the first VPP rank.
             grads = [param_grad[0] for _, param_grad in grads_dict.items()]
             coalesced = _flatten_dense_tensors(grads)
-            torch.distributed.all_reduce(
+            dist.all_reduce(
                 coalesced, group=parallel_state.get_pipeline_model_parallel_group()
             )
             for buf, synced in zip(grads, _unflatten_dense_tensors(coalesced, grads)):
@@ -126,7 +127,7 @@ def _allreduce_word_embedding_grads(model: List[torch.nn.Module], config: Transf
 
     if (
         parallel_state.is_rank_in_embedding_group(ignore_virtual=True)
-        and torch.distributed.get_world_size(parallel_state.get_embedding_group()) > 1
+        and dist.get_world_size(parallel_state.get_embedding_group()) > 1
     ):
         if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             model_module = model[0]
@@ -147,7 +148,7 @@ def _allreduce_word_embedding_grads(model: List[torch.nn.Module], config: Transf
             grad_attr = _get_main_grad_attr(weight, ddp_config.use_custom_fsdp)
             orig_grad = getattr(weight, grad_attr)
             grad = _unshard_if_dtensor(orig_grad)
-            torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+            dist.all_reduce(grad, group=parallel_state.get_embedding_group())
             setattr(weight, grad_attr, _reshard_if_dtensor(grad, orig_grad))
 
 
@@ -158,7 +159,7 @@ def _allreduce_position_embedding_grads(model: List[torch.nn.Module], config: Tr
     """
     if (
         parallel_state.is_rank_in_position_embedding_group()
-        and torch.distributed.get_world_size(parallel_state.get_position_embedding_group()) > 1
+        and dist.get_world_size(parallel_state.get_position_embedding_group()) > 1
     ):
         if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             model_module = model[0]
@@ -174,7 +175,7 @@ def _allreduce_position_embedding_grads(model: List[torch.nn.Module], config: Tr
         grad_attr = _get_main_grad_attr(weight, ddp_config.use_custom_fsdp)
         orig_grad = getattr(weight, grad_attr)
         grad = _unshard_if_dtensor(orig_grad)
-        torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+        dist.all_reduce(grad, group=parallel_state.get_position_embedding_group())
         setattr(weight, grad_attr, _reshard_if_dtensor(grad, orig_grad))
 
 
@@ -213,7 +214,7 @@ def _allreduce_layernorm_grads(model: List[torch.nn.Module], config: Transformer
                     grads.append(grad.data)
         if grads:
             coalesced = _flatten_dense_tensors(grads)
-            torch.distributed.all_reduce(
+            dist.all_reduce(
                 coalesced, group=parallel_state.get_tensor_model_parallel_group()
             )
             for param, buf, synced in zip(
@@ -319,12 +320,12 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
         # need to do a broadcast for every pp group, even though num_tokens should be the same.
         num_tokens_list = []
         for lr, group in zip(last_rank, pp_group):
-            torch.distributed.broadcast(num_tokens, src=lr, group=group)
+            dist.broadcast(num_tokens, src=lr, group=group)
             num_tokens_list.append(torch.clone(num_tokens))
         assert all(x.item() == num_tokens_list[0] for x in num_tokens_list)
 
         # all-reduce across DP ranks.
-        torch.distributed.all_reduce(num_tokens, group=parallel_state.get_data_parallel_group())
+        dist.all_reduce(num_tokens, group=parallel_state.get_data_parallel_group())
         for model_chunk in model:
             if num_tokens > 0:
                 scaling = 1.0 / num_tokens

@@ -9,6 +9,7 @@ from logging import getLogger
 from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 HAVE_APEX_OR_TE = True
 try:
@@ -156,7 +157,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         reduce-scatter and all-gather.
         """
 
-        data_parallel_rank = torch.distributed.get_rank(param_and_grad_buffer.data_parallel_group)
+        data_parallel_rank = dist.get_rank(param_and_grad_buffer.data_parallel_group)
         data_parallel_world_size = param_and_grad_buffer.data_parallel_group.size()
 
         bucket = param_and_grad_buffer.buckets[bucket_index]
@@ -933,7 +934,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                         main_param = mbuf.get_item(item_id)
                         optim_state = self.optimizer.state[main_param]
                         object_list = [None] * mbuf.dp_world_size
-                        torch.distributed.all_gather_object(
+                        dist.all_gather_object(
                             object_list, optim_state, group=mbuf.data_parallel_group
                         )
 
@@ -952,9 +953,9 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         # Data parallelism variables.
         assert self.data_parallel_group_gloo is not None
         data_parallel_world_size = self.data_parallel_group_gloo.size()
-        data_parallel_rank = torch.distributed.get_rank(self.data_parallel_group_gloo)
+        data_parallel_rank = dist.get_rank(self.data_parallel_group_gloo)
         data_parallel_group_gloo = self.data_parallel_group_gloo
-        data_parallel_global_ranks = torch.distributed.get_process_group_ranks(
+        data_parallel_global_ranks = dist.get_process_group_ranks(
             self.data_parallel_group_gloo
         )
 
@@ -1020,7 +1021,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                             recv_tensors = None
 
                         # Gather.
-                        torch.distributed.gather(
+                        dist.gather(
                             send_tensor,
                             recv_tensors,
                             data_parallel_global_ranks[0],
@@ -1055,7 +1056,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         """
 
         state_dict = self.get_parameter_state_dp_zero()
-        if torch.distributed.get_rank(self.data_parallel_group) == 0:
+        if dist.get_rank(self.data_parallel_group) == 0:
             torch.save(state_dict, filename)
 
     def sharded_state_dict(
@@ -1090,7 +1091,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                     v,
                     (1,),
                     (0,),
-                    replica_id=torch.distributed.get_rank(self.data_parallel_group),
+                    replica_id=dist.get_rank(self.data_parallel_group),
                 )
                 for k, v in state_dict.items()
             }
@@ -1135,7 +1136,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                 param_state_data = self.get_parameter_state_dp_zero()
 
         if (
-            torch.distributed.get_rank(self.data_parallel_group) == 0
+            dist.get_rank(self.data_parallel_group) == 0
             and self.distributed_optimizer_instance_id == 0
         ):
             # Fixed TPxPP. Save on DP rank 0 only
@@ -1159,8 +1160,8 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         Results in fully parallel save and load without any inter-process
         communication or intermediate buffers/copies.
         """
-        data_parallel_rank = torch.distributed.get_rank(self.data_parallel_group)
-        data_parallel_world_size = torch.distributed.get_world_size(self.data_parallel_group)
+        data_parallel_rank = dist.get_rank(self.data_parallel_group)
+        data_parallel_world_size = dist.get_world_size(self.data_parallel_group)
 
         state = self.get_parameter_state_fs_bucket_space()
         # per_bucket_numel metadata is saved separately for each TPxPP domain.
@@ -1486,9 +1487,9 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         # Data parallelism variables.
         assert self.data_parallel_group_gloo is not None
         data_parallel_world_size = self.data_parallel_group_gloo.size()
-        data_parallel_rank = torch.distributed.get_rank(self.data_parallel_group_gloo)
+        data_parallel_rank = dist.get_rank(self.data_parallel_group_gloo)
         data_parallel_group_gloo = self.data_parallel_group_gloo
-        data_parallel_global_ranks = torch.distributed.get_process_group_ranks(
+        data_parallel_global_ranks = dist.get_process_group_ranks(
             self.data_parallel_group_gloo
         )
 
@@ -1554,7 +1555,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                             send_tensors = None
 
                         # Scatter.
-                        torch.distributed.scatter(
+                        dist.scatter(
                             recv_tensor,
                             send_tensors,
                             data_parallel_global_ranks[0],
@@ -1602,9 +1603,9 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         # Data parallelism variables.
         assert self.data_parallel_group_gloo is not None
         data_parallel_world_size = self.data_parallel_group_gloo.size()
-        data_parallel_rank = torch.distributed.get_rank(self.data_parallel_group_gloo)
+        data_parallel_rank = dist.get_rank(self.data_parallel_group_gloo)
         data_parallel_group_gloo = self.data_parallel_group_gloo
-        data_parallel_global_ranks = torch.distributed.get_process_group_ranks(
+        data_parallel_global_ranks = dist.get_process_group_ranks(
             self.data_parallel_group_gloo
         )
 
@@ -1666,7 +1667,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                             send_tensors = None
 
                         # Scatter.
-                        torch.distributed.scatter(
+                        dist.scatter(
                             recv_tensor,
                             send_tensors,
                             data_parallel_global_ranks[0],
@@ -1828,7 +1829,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         if self.is_stub_optimizer:
             return
         state_dict = None
-        if torch.distributed.get_rank(self.data_parallel_group) == 0:
+        if dist.get_rank(self.data_parallel_group) == 0:
             state_dict = torch.load(filename)
 
         self.load_parameter_state_from_dp_zero(

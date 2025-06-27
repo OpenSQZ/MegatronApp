@@ -5,6 +5,7 @@
 from typing import List, Optional, Union
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from torch import inf
 
 try:
@@ -90,11 +91,11 @@ def get_grad_norm_fp32(
         total_norm_cuda = torch.tensor([float(total_norm)], dtype=torch.float, device='cuda')
         # Take max across all data-parallel GPUs if using FSDP and then all model-parallel GPUs.
         if data_parallel_group:
-            torch.distributed.all_reduce(
-                total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=data_parallel_group
+            dist.all_reduce(
+                total_norm_cuda, op=dist.ReduceOp.MAX, group=data_parallel_group
             )
-        torch.distributed.all_reduce(
-            total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=grad_stats_parallel_group
+        dist.all_reduce(
+            total_norm_cuda, op=dist.ReduceOp.MAX, group=grad_stats_parallel_group
         )
         total_norm = total_norm_cuda[0].item()
 
@@ -124,11 +125,11 @@ def get_grad_norm_fp32(
 
         # Sum across all data-parallel GPUs if using FSDP and then all model-parallel GPUs.
         if data_parallel_group:
-            torch.distributed.all_reduce(
-                total_norm, op=torch.distributed.ReduceOp.SUM, group=data_parallel_group
+            dist.all_reduce(
+                total_norm, op=dist.ReduceOp.SUM, group=data_parallel_group
             )
-        torch.distributed.all_reduce(
-            total_norm, op=torch.distributed.ReduceOp.SUM, group=grad_stats_parallel_group
+        dist.all_reduce(
+            total_norm, op=dist.ReduceOp.SUM, group=grad_stats_parallel_group
         )
         total_norm = total_norm.item() ** (1.0 / norm_type)
 
@@ -219,12 +220,12 @@ def count_zeros_fp32(
 
     # Sum across all data-parallel GPUs if using FSDP.
     if data_parallel_group:
-        torch.distributed.all_reduce(
-            total_num_zeros, op=torch.distributed.ReduceOp.SUM, group=data_parallel_group
+        dist.all_reduce(
+            total_num_zeros, op=dist.ReduceOp.SUM, group=data_parallel_group
         )
     # Sum across all model-parallel GPUs.
-    torch.distributed.all_reduce(
-        total_num_zeros, op=torch.distributed.ReduceOp.SUM, group=grad_stats_parallel_group
+    dist.all_reduce(
+        total_num_zeros, op=dist.ReduceOp.SUM, group=grad_stats_parallel_group
     )
 
     total_num_zeros = total_num_zeros.item()

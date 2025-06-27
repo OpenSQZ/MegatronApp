@@ -4,6 +4,7 @@ import math
 from typing import List, Optional, Union
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.mappings import gather_from_sequence_parallel_region
@@ -54,8 +55,8 @@ def switch_load_balancing_loss_func(
     if sequence_partition_group is not None:
         # We can keep `aggregated_probs_per_expert` local since we don't need the gradient for
         # `tokens_per_expert`, saving one allreduce operation for `aggregated_probs_per_expert`.
-        num_sub_sequence = torch.distributed.get_world_size(sequence_partition_group)
-        torch.distributed.all_reduce(tokens_per_expert, group=sequence_partition_group)
+        num_sub_sequence = dist.get_world_size(sequence_partition_group)
+        dist.all_reduce(tokens_per_expert, group=sequence_partition_group)
 
     num_tokens = probs.shape[0] * num_sub_sequence
     num_experts = probs.shape[1]
@@ -110,7 +111,7 @@ def sequence_load_balancing_loss_func(
     # or Context Parallelism, compute the gradient of the auxiliary loss with respect to the full
     # sequence.
     if sequence_partition_group is not None:
-        num_sub_sequence = torch.distributed.get_world_size(sequence_partition_group)
+        num_sub_sequence = dist.get_world_size(sequence_partition_group)
         seq_length *= num_sub_sequence
         probs_for_aux_loss = gather_from_sequence_parallel_region(
             probs_for_aux_loss, group=sequence_partition_group
@@ -639,15 +640,15 @@ def reduce_aux_losses_tracker_across_ranks(track_names: Optional[List[str]] = No
     for name in track_names:
         values = tracker[name]["values"]
         # Collect aux losses across PP.
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             values, group=parallel_state.get_pipeline_model_parallel_group()
         )
         # Reduce aux losses across ranks.
         if tracker[name].get('reduce_group') is not None:
-            torch.distributed.all_reduce(values, group=tracker[name].get('reduce_group'))
+            dist.all_reduce(values, group=tracker[name].get('reduce_group'))
         if tracker[name].get('avg_group') is not None:
-            torch.distributed.all_reduce(
-                values, group=tracker[name]['avg_group'], op=torch.distributed.ReduceOp.AVG
+            dist.all_reduce(
+                values, group=tracker[name]['avg_group'], op=dist.ReduceOp.AVG
             )
 
 
@@ -733,7 +734,7 @@ def get_updated_expert_bias(tokens_per_expert, expert_bias, expert_bias_update_r
     """
     with torch.no_grad():
         # All Reduce Across TPxCPxDP group
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             tokens_per_expert,
             group=parallel_state.get_tensor_and_data_parallel_group(with_context_parallel=True),
         )

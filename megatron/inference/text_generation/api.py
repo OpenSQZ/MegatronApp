@@ -4,6 +4,7 @@
 
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core import mpu
 from .communication import broadcast_float_list
@@ -147,7 +148,7 @@ def generate(model,
 
     # Tokenize prompts and get the batch.
     # Note that these tensors are broadcasted to all ranks.
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         assert prompts is not None
 
     context_tokens_tensor, context_length_tensor = tokenize_prompts(

@@ -8,6 +8,7 @@ from typing import Dict, Optional, Tuple
 
 import numpy
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
 from megatron.core.datasets.indexed_dataset import IndexedDataset
@@ -351,7 +352,7 @@ class GPTDataset(MegatronDataset):
 
         if not path_to_cache or (
             not cache_hit
-            and (not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0)
+            and (not torch.distributed.is_initialized() or dist.get_rank() == 0)
         ):
 
             log_single_rank(

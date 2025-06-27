@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from ..dict_utils import dict_list_map_inplace, map_reduce, nested_values
 from ..mapping import ShardedStateDict, ShardedTensor
@@ -102,10 +103,10 @@ class TwoStageDataParallelLoadShardedStrategy(LoadShardedStrategy):
         self.data_parallel_group_orig = data_parallel_group
         self.data_parallel_group = None if cpu_transfer else data_parallel_group
         self.dp_group_ranks = tuple(
-            sorted(torch.distributed.get_process_group_ranks(data_parallel_group))
+            sorted(dist.get_process_group_ranks(data_parallel_group))
         )
-        self.dp_group_rank = torch.distributed.get_rank(self.data_parallel_group_orig)
-        self.global_rank = torch.distributed.get_rank()
+        self.dp_group_rank = dist.get_rank(self.data_parallel_group_orig)
+        self.global_rank = dist.get_rank()
 
     def load(self, sharded_state_dict: ShardedStateDict, checkpoint_dir: Path):
         """Main load method."""
@@ -118,17 +119,17 @@ class TwoStageDataParallelLoadShardedStrategy(LoadShardedStrategy):
 
     def summarize_load_times(self):
         """Summarize load times."""
-        torch.distributed.barrier()
+        dist.barrier()
         logger.info('Checkpoint loading finished. Summary:')
         # TODO: `timers` keys are not guaranteed to be the same across ranks which causes hangs
         for key, times in sorted(timers.items()):
             times_sum = sum(times)
             max_times = torch.tensor([times_sum], device='cuda')
             avg_times = torch.tensor([times_sum], device='cuda')
-            torch.distributed.all_reduce(max_times, op=torch.distributed.ReduceOp.MAX)
-            torch.distributed.all_reduce(avg_times, op=torch.distributed.ReduceOp.SUM)
-            avg_times /= torch.distributed.get_world_size()
-            if torch.distributed.get_rank() == 0:
+            dist.all_reduce(max_times, op=dist.ReduceOp.MAX)
+            dist.all_reduce(avg_times, op=dist.ReduceOp.SUM)
+            avg_times /= dist.get_world_size()
+            if dist.get_rank() == 0:
                 logger.info(f'{key}: max {max_times[0]}, avg {avg_times[0]}')
 
     @timed(verbose=False)
@@ -149,8 +150,8 @@ class TwoStageDataParallelLoadShardedStrategy(LoadShardedStrategy):
         """Create Gloo groups."""
         if not self.cpu_transfer:
             return
-        all_groups = [None] * torch.distributed.get_world_size()
-        torch.distributed.all_gather_object(all_groups, self.dp_group_ranks)
+        all_groups = [None] * dist.get_world_size()
+        dist.all_gather_object(all_groups, self.dp_group_ranks)
         all_groups = set(tuple(sorted(gr)) for gr in all_groups)
         for group_ranks in sorted(all_groups):
             # "two_stage" module will be deprecated, so not replace new_group()
@@ -158,7 +159,7 @@ class TwoStageDataParallelLoadShardedStrategy(LoadShardedStrategy):
             gloo_pg = torch.distributed.new_group(ranks=group_ranks, backend='gloo')
             if self.global_rank in group_ranks:
                 self.data_parallel_group = gloo_pg
-                assert self.dp_group_rank == torch.distributed.get_rank(self.data_parallel_group)
+                assert self.dp_group_rank == dist.get_rank(self.data_parallel_group)
 
     def check_backend_compatibility(self, loaded_version):
         pass  # TODO
@@ -179,8 +180,8 @@ class TwoStageDataParallelLoadShardedStrategy(LoadShardedStrategy):
             )
             for sharded_ten in nested_values(sharded_state_dict)
         ]
-        all_meta = [None] * torch.distributed.get_world_size(group=self.data_parallel_group)
-        torch.distributed.all_gather_object(all_meta, local_meta, group=self.data_parallel_group)
+        all_meta = [None] * dist.get_world_size(group=self.data_parallel_group)
+        dist.all_gather_object(all_meta, local_meta, group=self.data_parallel_group)
         all_meta = list(chain.from_iterable(all_meta))
         all_tensors_sorted = self.deduplicate_chunks(all_meta)
         return all_tensors_sorted
@@ -207,7 +208,7 @@ class TwoStageDataParallelLoadShardedStrategy(LoadShardedStrategy):
         logger.debug(f'_exchange_loaded_tensors, num ten_metas: {len(ten_metas)}')
         for ten_meta in ten_metas:
 
-            src_rank = torch.distributed.get_global_rank(
+            src_rank = dist.get_global_rank(
                 self.data_parallel_group, ten_meta.dist_group_rank
             )
 
@@ -227,7 +228,7 @@ class TwoStageDataParallelLoadShardedStrategy(LoadShardedStrategy):
                 f'exchange {ten_meta.sharded_tensor_no_data.key}, {exchange_tensor.shape}\
 ({exchange_tensor.numel()}), broadcast({src_rank} -> {self.dp_group_ranks})'
             )
-            torch.distributed.broadcast(
+            dist.broadcast(
                 exchange_tensor, group=self.data_parallel_group, src=src_rank
             )
             self._distribute_data_to_state_dict(ten_meta, exchange_tensor, sharded_state_dict)

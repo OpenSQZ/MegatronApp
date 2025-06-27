@@ -17,6 +17,7 @@ import typing
 import numpy as np
 import psutil
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from tqdm import tqdm
 
 from megatron.core.datasets.retro.config import RetroPreprocessingConfig
@@ -194,7 +195,7 @@ def query_embedding_block(
         range(0, len(embeddings), partial_block_size),
         "  search",
         miniters=(len(embeddings) // partial_block_size) // 10,
-        disable=torch.distributed.get_rank() != 0,
+        disable=dist.get_rank() != 0,
     ):
         partial_end_idx = min(len(embeddings), partial_start_idx + partial_block_size)
         partial_embeddings = embeddings[partial_start_idx:partial_end_idx]
@@ -348,7 +349,7 @@ def query_dataset_neighbors(
 
         # Synchronize progress across all ranks. (for easier observation)
         log_retro_rank_0(" > waiting for other ranks to finish block.")
-        torch.distributed.barrier()
+        dist.barrier()
 
 
 def query_neighbors(config: RetroPreprocessingConfig) -> None:

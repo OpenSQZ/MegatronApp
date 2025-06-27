@@ -322,9 +322,9 @@ def validate_args(args, defaults={}):
     total_model_size = encoder_model_size + decoder_model_size
 
     # Total model size.
-    assert args.world_size % total_model_size == 0, (
-        f"world size ({args.world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
-    )
+    # assert args.world_size % total_model_size == 0, (
+    #     f"world size ({args.world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
+    # )
 
     if args.attention_backend == AttnBackend.local:
         assert args.spec[0] == 'local' , '--attention-backend local is only supported with --spec local'
@@ -2193,6 +2193,10 @@ def _add_distributed_args(parser):
     group.add_argument('--replication-factor', default=2, type=int,
                        help="Number of machines storing the replica of a given rank's data.")
     group.add_argument("--use-dpp", action='store_true', default=False, help="use dynamic pipeline or not")
+    group.add_argument('--forward-backward-disaggregating', action='store_true',
+                        help='If ranks should be forward or backward only')
+    group.add_argument('--ignore-forward-tensor-parallel', action='store_true',
+                       help='If forward ranks need to do tensor parallel when forward-backward-disaggregating')
     return parser
 
 

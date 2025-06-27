@@ -7,6 +7,7 @@ from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 import torch.nn as nn
 from torch.utils._pytree import tree_flatten, tree_unflatten
 
@@ -679,9 +680,9 @@ class FullyShardedDataParallel(_BaseDataParallel):
                 data_parallel_group = parallel_state.get_data_parallel_group(
                     with_context_parallel=True
                 )
-            torch.distributed.broadcast(
+            dist.broadcast(
                 param.data,
-                src=torch.distributed.get_global_rank(data_parallel_group, 0),
+                src=dist.get_global_rank(data_parallel_group, 0),
                 group=data_parallel_group,
             )
 

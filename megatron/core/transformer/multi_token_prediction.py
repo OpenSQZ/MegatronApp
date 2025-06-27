@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from torch import Tensor
 
 from megatron.core import InferenceParams, mpu, parallel_state, tensor_parallel
@@ -171,10 +172,10 @@ class MTPLossLoggingHelper:
         values = tracker["values"]
         # Reduce mtp losses across ranks.
         if tracker.get('reduce_group') is not None:
-            torch.distributed.all_reduce(values, group=tracker.get('reduce_group'))
+            dist.all_reduce(values, group=tracker.get('reduce_group'))
         if tracker.get('avg_group') is not None:
-            torch.distributed.all_reduce(
-                values, group=tracker['avg_group'], op=torch.distributed.ReduceOp.AVG
+            dist.all_reduce(
+                values, group=tracker['avg_group'], op=dist.ReduceOp.AVG
             )
 
     def track_mtp_metrics(loss_scale, iteration, writer, wandb_writer=None, total_loss_dict=None):

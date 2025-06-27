@@ -13,6 +13,7 @@ from enum import Enum
 from typing import Any, List, Optional, Tuple
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from torch.distributed import _coalescing_manager
 
 from megatron.core import parallel_state
@@ -416,8 +417,8 @@ class DataParallelBuffer:
         self.dtype = dtype if dtype else next(iter(_param_dtype))
         self.device = device
         self.data_parallel_group = data_parallel_group
-        self.dp_rank = torch.distributed.get_rank(group=self.data_parallel_group)
-        self.dp_world_size = torch.distributed.get_world_size(group=self.data_parallel_group)
+        self.dp_rank = dist.get_rank(group=self.data_parallel_group)
+        self.dp_world_size = dist.get_world_size(group=self.data_parallel_group)
         self.temporary_bucket_allocator = (
             temporary_bucket_allocator if temporary_bucket_allocator else TemporaryBucketAllocator()
         )
@@ -982,7 +983,7 @@ class ParamAndGradBuffer:
                 if not group.is_expert_param
                 else self.expert_data_parallel_group
             )
-            group.data_parallel_world_size = torch.distributed.get_world_size(group=dp_group)
+            group.data_parallel_world_size = dist.get_world_size(group=dp_group)
             gradient_scaling_factor = (
                 self.gradient_scaling_factor
                 if not group.is_expert_param
@@ -1457,7 +1458,7 @@ class ParamAndGradBuffer:
         all_gather_ops = []
         for g in self.parameter_groups:
             shard = g.model_weight_buffer.get_shard_from_local_buffer()
-            all_gather_handler = torch.distributed.all_gather_into_tensor(
+            all_gather_handler = dist.all_gather_into_tensor(
                 output_tensor=g.model_weight_buffer.data,
                 input_tensor=shard,
                 group=g.model_weight_buffer.data_parallel_group,
@@ -1486,7 +1487,7 @@ class ParamAndGradBuffer:
                 continue
             scaling_factor = gbuf.gradient_scaling_factor
             reduce_op = gradient_reduce_preprocessing(gbuf.data, scaling_factor, self.ddp_config)
-            reduce_scatter_handler = torch.distributed.reduce_scatter_tensor(
+            reduce_scatter_handler = dist.reduce_scatter_tensor(
                 output=gbuf.get_shard_from_local_buffer(),
                 input=gbuf.data,
                 op=reduce_op,
@@ -1521,7 +1522,7 @@ class ParamAndGradBuffer:
                 continue
             scaling_factor = gbuf.gradient_scaling_factor
             reduce_op = gradient_reduce_preprocessing(gbuf.data, scaling_factor, self.ddp_config)
-            all_reduce_handler = torch.distributed.all_reduce(
+            all_reduce_handler = dist.all_reduce(
                 gbuf.data, op=reduce_op, group=gbuf.data_parallel_group, async_op=async_op
             )
             if async_op:
@@ -1694,7 +1695,7 @@ class GradReducePipeline:
                         gbuf.data, scaling_factor, gbuf.ddp_config
                     )
                     if gbuf.ddp_config.data_parallel_sharding_strategy == 'no_shard':
-                        torch.distributed.all_reduce(
+                        dist.all_reduce(
                             bucket.data, op=reduce_op, group=gbuf.data_parallel_group
                         )
                     else:
@@ -1705,7 +1706,7 @@ class GradReducePipeline:
                         # TORCH_NCCL_AVOID_RECORD_STREAMS=1.
                         # For reference: https://dev-discuss.pytorch.org/t/fsdp-cudacachingallocator-an-outsider-newb-perspective/1486
                         grad_shard = torch.empty_like(grad_shard)
-                        torch.distributed.reduce_scatter_tensor(
+                        dist.reduce_scatter_tensor(
                             output=grad_shard,
                             input=bucket.data,
                             op=reduce_op,
@@ -1958,7 +1959,7 @@ class AllGatherPipeline:
         # Lazy release the unused buckets.
         self.recycle_unused_buckets()
         bucket = wbuf.fetch_bucket(and_allocate_params_data=True)
-        param_gather_event = torch.distributed.all_gather_into_tensor(
+        param_gather_event = dist.all_gather_into_tensor(
             output_tensor=bucket.data,
             input_tensor=wbuf.get_shard_from_local_buffer(),
             group=wbuf.data_parallel_group,
@@ -1987,14 +1988,14 @@ def gradient_reduce_preprocessing(grad_data, scaling_factor, ddp_config):
     """
 
     if scaling_factor is None:
-        reduce_op = torch.distributed.ReduceOp.SUM
+        reduce_op = dist.ReduceOp.SUM
     elif ddp_config.average_in_collective:
-        reduce_op = torch.distributed.ReduceOp.AVG
+        reduce_op = dist.ReduceOp.AVG
     elif ddp_config.gradient_reduce_div_fusion and grad_data.dtype != torch.bfloat16:
         reduce_op = torch.distributed._make_nccl_premul_sum(scaling_factor)
     else:
         grad_data.mul_(scaling_factor)
-        reduce_op = torch.distributed.ReduceOp.SUM
+        reduce_op = dist.ReduceOp.SUM
 
     return reduce_op
 

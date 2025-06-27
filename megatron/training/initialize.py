@@ -152,7 +152,6 @@ def initialize_megatron(
     else:
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
-
         # Autoresume.
         _init_autoresume()
 
@@ -210,8 +209,8 @@ def _compile_dependencies():
                 " back to unfused kernel invocations.",
                 flush=True,
             )
-
     # Always build on rank zero first.
+    # print(args.rank, torch.cuda.current_device())
     if torch.distributed.get_rank() == 0:
         start_time = time.time()
         print("> compiling and loading fused kernels ...", flush=True)
@@ -220,6 +219,7 @@ def _compile_dependencies():
     else:
         torch.distributed.barrier()
         fused_kernels.load(args)
+    print('Rank:', args.rank, 'has', torch.cuda.current_device())
     # Simple barrier to make sure all ranks have passed the
     # compilation phase successfully before moving on to the
     # rest of the program. We think this might ensure that
@@ -327,37 +327,52 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
             'backend': args.distributed_backend,
             'world_size': args.world_size,
             'rank': args.rank,
+            # 'device_id': device_id, 
             'timeout': timedelta(minutes=args.distributed_timeout_minutes),
         }
 
         torch.distributed.init_process_group(**init_process_group_kwargs)
 
+    _ = torch.empty(0,device="cuda")
+    torch.distributed.all_reduce(_)
+    # torch.distributed.barrier()
+    # if torch.distributed.get_rank() in [0,3]:
+    #     torch.distributed.new_group([0,3], backend="gloo")
+    # print('~', torch.distributed.get_rank())
     # Set the tensor model-parallel, pipeline model-parallel, and
     # data-parallel communicators.
     if device_count > 0:
         if mpu.model_parallel_is_initialized():
             print("model parallel is already initialized")
         else:
-            mpu.initialize_model_parallel(
-                args.tensor_model_parallel_size,
-                args.pipeline_model_parallel_size,
-                args.virtual_pipeline_model_parallel_size,
-                args.pipeline_model_parallel_split_rank,
-                pipeline_model_parallel_comm_backend=args.pipeline_model_parallel_comm_backend,
-                context_parallel_size=args.context_parallel_size,
-                hierarchical_context_parallel_sizes=args.hierarchical_context_parallel_sizes,
-                expert_model_parallel_size=args.expert_model_parallel_size,
-                num_distributed_optimizer_instances=args.num_distributed_optimizer_instances,
-                expert_tensor_parallel_size=args.expert_tensor_parallel_size,
-                distributed_timeout_minutes=args.distributed_timeout_minutes,
-                nccl_communicator_config_path=args.nccl_communicator_config_path,
-                order='tp-cp-ep-dp-pp' if not args.use_tp_pp_dp_mapping else 'tp-cp-ep-pp-dp',
-                encoder_tensor_model_parallel_size=args.encoder_tensor_model_parallel_size,
-                encoder_pipeline_model_parallel_size=args.encoder_pipeline_model_parallel_size,
-                get_embedding_ranks=get_embedding_ranks,
-                get_position_embedding_ranks=get_position_embedding_ranks,
-                create_gloo_process_groups=args.enable_gloo_process_groups,
-            )
+            if args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel:
+                mpu.initialize_model_parallel_ignore_forward_tensor_parallel(
+                    args.tensor_model_parallel_size,
+                    args.pipeline_model_parallel_size,
+                    args.virtual_pipeline_model_parallel_size,
+                    args.pipeline_model_parallel_split_rank,
+                )
+            else:
+                mpu.initialize_model_parallel(
+                    args.tensor_model_parallel_size,
+                    args.pipeline_model_parallel_size,
+                    args.virtual_pipeline_model_parallel_size,
+                    args.pipeline_model_parallel_split_rank,
+                    pipeline_model_parallel_comm_backend=args.pipeline_model_parallel_comm_backend,
+                    context_parallel_size=args.context_parallel_size,
+                    hierarchical_context_parallel_sizes=args.hierarchical_context_parallel_sizes,
+                    expert_model_parallel_size=args.expert_model_parallel_size,
+                    num_distributed_optimizer_instances=args.num_distributed_optimizer_instances,
+                    expert_tensor_parallel_size=args.expert_tensor_parallel_size,
+                    distributed_timeout_minutes=args.distributed_timeout_minutes,
+                    nccl_communicator_config_path=args.nccl_communicator_config_path,
+                    order='tp-cp-ep-dp-pp' if not args.use_tp_pp_dp_mapping else 'tp-cp-ep-pp-dp',
+                    encoder_tensor_model_parallel_size=args.encoder_tensor_model_parallel_size,
+                    encoder_pipeline_model_parallel_size=args.encoder_pipeline_model_parallel_size,
+                    get_embedding_ranks=get_embedding_ranks,
+                    get_position_embedding_ranks=get_position_embedding_ranks,
+                    create_gloo_process_groups=args.enable_gloo_process_groups,
+                )
             if args.rank == 0:
                 print(
                     f"> initialized tensor model parallel with size "

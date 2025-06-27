@@ -2,6 +2,7 @@
 """Pretrain GPT."""
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from functools import partial
 from contextlib import nullcontext
 import inspect
@@ -72,7 +73,7 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
             print('saving allocated state during OOM')
             snapshot = torch.cuda.memory._snapshot()
             from pickle import dump
-            dump(snapshot, open(f"oom_rank-{torch.distributed.get_rank()}_{args.memory_snapshot_path}", 'wb'))
+            dump(snapshot, open(f"oom_rank-{dist.get_rank()}_{args.memory_snapshot_path}", 'wb'))
 
         torch._C._cuda_attach_out_of_memory_observer(oom_observer)
 
@@ -176,7 +177,7 @@ def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
     loss = torch.cat([torch.sum(losses.view(-1) * loss_mask).view(1), total_tokens.view(1)])
 
     if args.context_parallel_size > 1:
-        torch.distributed.all_reduce(loss, group=mpu.get_context_parallel_group())
+        dist.all_reduce(loss, group=mpu.get_context_parallel_group())
 
     # Check individual rank losses are not NaN prior to DP all-reduce.
     rerun_state_machine = get_rerun_state_machine()
@@ -210,7 +211,7 @@ def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
         )
     # Reduce loss for logging.
     reporting_loss = loss.clone().detach()
-    torch.distributed.all_reduce(reporting_loss, group=mpu.get_data_parallel_group())
+    dist.all_reduce(reporting_loss, group=mpu.get_data_parallel_group())
 
     # loss[0] is a view of loss, so it has ._base not None, which triggers assert error
     # in core/pipeline_parallel/schedule.py::deallocate_output_tensor, calling .clone()

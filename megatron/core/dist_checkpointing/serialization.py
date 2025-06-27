@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable, Dict, Optional, Set, Tuple, Union
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from . import ShardedTensor
 from .core import CheckpointingConfig, save_config
@@ -344,7 +345,7 @@ def save(
     """
     checkpoint_dir = Path(checkpoint_dir)
 
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         if not checkpoint_dir.exists():
             raise CheckpointingException(
                 f'Checkpoint destination directory does not exist: {checkpoint_dir}'
@@ -353,7 +354,7 @@ def save(
         if next(checkpoint_dir.iterdir(), None) is not None:
             # Don't throw exception here since this could cause a cascade of failures
             # without human intervention in cases where multiple jobs are queued up.
-            if torch.distributed.get_rank() == 0:
+            if dist.get_rank() == 0:
                 logger.warning("Overwriting old incomplete / corrupted checkpoint...")
 
     if common_strategy is not None:
@@ -385,12 +386,12 @@ def save(
         common_strategy.save_sharded_objects(sharded_objects_state_dict, checkpoint_dir)
 
     def metadata_finalize_fn():
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             save_config(
                 CheckpointingConfig(sharded_strategy.backend, sharded_strategy.version),
                 checkpoint_dir,
             )
-        torch.distributed.barrier()
+        dist.barrier()
 
     if not async_sharded_save:
         sharded_strategy.save(sharded_state_dict, checkpoint_dir)

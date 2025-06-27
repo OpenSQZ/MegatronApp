@@ -3,6 +3,7 @@
 from typing import Tuple
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core.parallel_state import (
     get_tensor_model_parallel_group,
@@ -127,8 +128,8 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         vocab_parallel_logits, logits_max = VocabParallelCrossEntropy.calculate_logits_max(
             vocab_parallel_logits
         )
-        torch.distributed.all_reduce(
-            logits_max, op=torch.distributed.ReduceOp.MAX, group=get_tensor_model_parallel_group()
+        dist.all_reduce(
+            logits_max, op=dist.ReduceOp.MAX, group=get_tensor_model_parallel_group()
         )
 
         # Get the partition's vocab indices
@@ -145,15 +146,15 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         )
 
         # All reduce is needed to get the chunks from other GPUs.
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             predicted_logits,
-            op=torch.distributed.ReduceOp.SUM,
+            op=dist.ReduceOp.SUM,
             group=get_tensor_model_parallel_group(),
         )
 
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             sum_exp_logits,
-            op=torch.distributed.ReduceOp.SUM,
+            op=dist.ReduceOp.SUM,
             group=get_tensor_model_parallel_group(),
         )
 

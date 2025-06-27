@@ -11,6 +11,7 @@ from logging import getLogger
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 try:
     from transformer_engine.pytorch.optimizers import multi_tensor_applier, multi_tensor_scale
@@ -112,7 +113,7 @@ class MegatronOptimizer(ABC):
         self.optimizer = optimizer
         if self.optimizer is None:
             warnings.warn(
-                f"WARNING: there is no optimizer on RANK {torch.distributed.get_rank()}. "
+                f"WARNING: there is no optimizer on RANK {dist.get_rank()}. "
                 "This may be expected if you have frozen sub-models."
             )
         self.config = config
@@ -393,9 +394,9 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
             )
 
         # Update across all model parallel instances.
-        torch.distributed.all_reduce(
+        dist.all_reduce(
             self.found_inf,
-            op=torch.distributed.ReduceOp.MAX,
+            op=dist.ReduceOp.MAX,
             group=self.get_grad_stats_parallel_group(),
         )
 
@@ -1164,7 +1165,7 @@ class ChainedOptimizer(MegatronOptimizer):
 
                 # Save checkpoint economically, only when DP rank = 0, state dict
                 # needs to be saved.
-                if torch.distributed.get_rank(optimizer.data_parallel_group) == 0:
+                if dist.get_rank(optimizer.data_parallel_group) == 0:
                     states.append(state_dict)
                     save_states = True
                 else:
@@ -1192,7 +1193,7 @@ class ChainedOptimizer(MegatronOptimizer):
                 continue
 
             # Lazy loading checkpoint, state dict is needed only when DP rank = 0.
-            if torch.distributed.get_rank(optimizer.data_parallel_group) == 0 and states is None:
+            if dist.get_rank(optimizer.data_parallel_group) == 0 and states is None:
                 states = torch.load(filename)
 
             state_dict = states[idx] if states else None

@@ -1,5 +1,6 @@
 # Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from megatron.core import parallel_state
 
@@ -25,17 +26,17 @@ def broadcast_from_last_pipeline_stage(size, dtype, tensor=None):
     # Get the group and corresponding source rank.
     src = parallel_state.get_pipeline_model_parallel_last_rank()
     group = parallel_state.get_pipeline_model_parallel_group()
-    torch.distributed.broadcast(tensor, src, group)
+    dist.broadcast(tensor, src, group)
     return tensor
 
 
 def recv_from_prev_pipeline_rank_(recv_buffer=None):
     """Receive from previous pipeline stage and update the
     input buffer inplace."""
-    recv_prev_op = torch.distributed.P2POp(
-        torch.distributed.irecv, recv_buffer, parallel_state.get_pipeline_model_parallel_prev_rank()
+    recv_prev_op = dist.P2POp(
+        dist.irecv, recv_buffer, parallel_state.get_pipeline_model_parallel_prev_rank()
     )
-    reqs = torch.distributed.batch_isend_irecv([recv_prev_op])
+    reqs = dist.batch_isend_irecv([recv_prev_op])
     for req in reqs:
         req.wait()
     # To protect against race condition when using batch_isend_irecv().
@@ -44,10 +45,10 @@ def recv_from_prev_pipeline_rank_(recv_buffer=None):
 
 def send_to_next_pipeline_rank(tensor=None):
     """Send output to the next pipeline stage."""
-    send_next_op = torch.distributed.P2POp(
-        torch.distributed.isend, tensor, parallel_state.get_pipeline_model_parallel_next_rank()
+    send_next_op = dist.P2POp(
+        dist.isend, tensor, parallel_state.get_pipeline_model_parallel_next_rank()
     )
-    reqs = torch.distributed.batch_isend_irecv([send_next_op])
+    reqs = dist.batch_isend_irecv([send_next_op])
     for req in reqs:
         req.wait()
     # To protect against race condition when using batch_isend_irecv().

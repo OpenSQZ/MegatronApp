@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from tqdm import tqdm
 
 from megatron.core import parallel_state
@@ -155,7 +156,7 @@ def get_blocks(
     validate = (lambda f: None) if validate is None else validate
 
     # Delete corrupt files.
-    if torch.distributed.get_rank() == 0:
+    if dist.get_rank() == 0:
         existing_block_paths = [
             block["path"] for block in all_blocks if os.path.exists(block["path"])
         ]
@@ -177,7 +178,7 @@ def get_blocks(
                 f.close()
 
     # Wait for files to be deleted.
-    torch.distributed.barrier()
+    dist.barrier()
 
     # Collect blocks.
     blocks = SimpleNamespace(
@@ -238,7 +239,7 @@ def get_blocks_by_rank(
             Max value across all ranks.
         """
         n_tensor = torch.cuda.LongTensor([n])
-        torch.distributed.all_reduce(n_tensor, op=torch.distributed.ReduceOp.MAX)
+        dist.all_reduce(n_tensor, op=dist.ReduceOp.MAX)
         return n_tensor.item()
 
     max_n_existing = get_world_max(len(rank_existing_blocks))

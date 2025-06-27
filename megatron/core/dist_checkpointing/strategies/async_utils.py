@@ -14,6 +14,7 @@ from time import sleep, time
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 from torch import multiprocessing as mp
 
 from ..utils import debug_time
@@ -81,7 +82,7 @@ class AsyncRequest(NamedTuple):
         """
         if self.async_fn is not None:
             self.async_fn(*self.async_fn_args)
-        torch.distributed.barrier()
+        dist.barrier()
         for finalize_fn in self.finalize_fns:
             finalize_fn()
 
@@ -146,13 +147,13 @@ class AsyncCaller(ABC):
 
         """
         ten = torch.tensor([is_alive], dtype=torch.int, device=torch.cuda.current_device())
-        torch.distributed.all_reduce(ten)
+        dist.all_reduce(ten)
         return ten[0] == 0
 
     @abstractmethod
     def close(self):
         """Terminate the async caller at exit of an application or some termination conditions"""
-        logger.info(f"AsyncCaller: {torch.distributed.get_rank()}, Destroying Async Caller")
+        logger.info(f"AsyncCaller: {dist.get_rank()}, Destroying Async Caller")
 
     def __del__(self):
         raise NotImplementedError("This should be implemented")
@@ -190,7 +191,7 @@ class TemporalAsyncCaller(AsyncCaller):
             # stage GPU tensors to its defined destination
             async_fn_args[1] = async_req.preload_fn()
 
-        rank = torch.distributed.get_rank()
+        rank = dist.get_rank()
         start_sync = time()
         torch.cuda.synchronize()
         end_sync = time()
@@ -244,7 +245,7 @@ class TemporalAsyncCaller(AsyncCaller):
         with all its assigned async request completed
         """
         if self.process:
-            logger.debug(f"rank: {torch.distributed.get_rank()}, joining self.process")
+            logger.debug(f"rank: {dist.get_rank()}, joining self.process")
             self.process.join()
             self.process = None
             logger.debug(
@@ -297,12 +298,12 @@ class PersistentAsyncCaller(AsyncCaller):
         if self.process is None:
             ctx = mp.get_context('spawn')
             logger.info(
-                f"PersistentAsyncCaller: {torch.distributed.get_rank()}, Starting Async Caller"
+                f"PersistentAsyncCaller: {dist.get_rank()}, Starting Async Caller"
             )
             self.process: mp.Process = ctx.Process(
                 target=PersistentAsyncCaller.async_loop,
                 args=(
-                    torch.distributed.get_rank(),
+                    dist.get_rank(),
                     self.queue,
                     self.preload_q,
                     self.comp_q,
@@ -311,13 +312,13 @@ class PersistentAsyncCaller(AsyncCaller):
             )
             self.process.start()
             logger.info(
-                f"PersistentAsyncCaller: {torch.distributed.get_rank()}, Started Async Caller"
+                f"PersistentAsyncCaller: {dist.get_rank()}, Started Async Caller"
             )
 
         if async_req.preload_fn:
             self.preload_q.put(async_req.call_idx)
         self.queue.put(async_req)
-        logger.debug(f"rank: {torch.distributed.get_rank()}, put {async_req.call_idx}")
+        logger.debug(f"rank: {dist.get_rank()}, put {async_req.call_idx}")
 
         if async_req.preload_fn:
             start_sync = time()
@@ -325,13 +326,13 @@ class PersistentAsyncCaller(AsyncCaller):
             self.preload_q.join()
             end_sync = time()
             logger.debug(
-                f"rank: {torch.distributed.get_rank()}, "
+                f"rank: {dist.get_rank()}, "
                 f"takes {end_sync - start_sync} to finish D2H "
             )
 
         init_time = time()
         logger.debug(
-            f"rank: {torch.distributed.get_rank()}, takes {init_time - self.start_time} "
+            f"rank: {dist.get_rank()}, takes {init_time - self.start_time} "
             "to schedule async ckpt "
         )
 
@@ -371,7 +372,7 @@ class PersistentAsyncCaller(AsyncCaller):
 
         if self.cur_item is not None:
             logger.debug(
-                f"rank: {torch.distributed.get_rank()}, item: {self.cur_item}"
+                f"rank: {dist.get_rank()}, item: {self.cur_item}"
                 f" is completed, {is_alive}"
             )
 
@@ -381,7 +382,7 @@ class PersistentAsyncCaller(AsyncCaller):
         if is_done:
             # The current request is completed globally. Reset the current item for polling.
             logger.debug(
-                f"rank: {torch.distributed.get_rank()}, item: {self.cur_item}"
+                f"rank: {dist.get_rank()}, item: {self.cur_item}"
                 f" is completed globally, {is_done}"
             )
             self.cur_item = None
@@ -394,7 +395,7 @@ class PersistentAsyncCaller(AsyncCaller):
         Signals the PersistentAsyncCaller by sending a 'DONE' message to make it terminated
         """
         logger.info(
-            f"PersistentAsyncCaller: {torch.distributed.get_rank()}, Destroying Async Caller"
+            f"PersistentAsyncCaller: {dist.get_rank()}, Destroying Async Caller"
         )
         if self.process:
             self.queue.put('DONE')
@@ -544,7 +545,7 @@ class AsyncCallsQueue:
                 for finalize_fn in async_request.finalize_fns:
                     finalize_fn()
                 ten = torch.tensor([call_idx], dtype=torch.int, device=torch.cuda.current_device())
-                torch.distributed.all_reduce(ten, op=torch.distributed.ReduceOp.MAX)
+                dist.all_reduce(ten, op=dist.ReduceOp.MAX)
                 assert ten.item() == call_idx, 'Unmatched async calls. '
                 'That probably means not all ranks are participating in async finalization'
                 call_idx_finalized.append(call_idx)
