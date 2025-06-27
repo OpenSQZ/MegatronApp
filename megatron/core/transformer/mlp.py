@@ -19,6 +19,7 @@ from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.parallel_state import get_tensor_model_parallel_group
 
 
 # pylint: disable=missing-class-docstring
@@ -99,55 +100,113 @@ class MLP(MegatronModule):
 
     def forward(self, hidden_states):
         """Perform the forward pass through the MLP block."""
-        # [s, b, 4 * h/p]
-        intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
-
-        if self.config.bias_activation_fusion:
-            if self.activation_func == F.gelu:
-                if self.config.gated_linear_unit:
-                    intermediate_parallel = bias_geglu_impl(intermediate_parallel, bias_parallel)
-                else:
-                    assert self.config.add_bias_linear is True
-                    intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
-            elif self.activation_func == F.silu and self.config.gated_linear_unit:
-                intermediate_parallel = bias_swiglu_impl(
-                    intermediate_parallel,
-                    bias_parallel,
-                    self.config.activation_func_fp8_input_store,
+        from megatron.training.global_vars import get_args, get_tracer
+        args = get_args()
+        if args.trace:
+            tracer = get_tracer()
+            with tracer.scope("MLP.forward"):
+                torch.distributed.barrier(
+                    group=get_tensor_model_parallel_group(),
                 )
-            else:
-                raise ValueError("Only support fusion of gelu and swiglu")
+                # [s, b, 4 * h/p]
+                intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
+
+                if self.config.bias_activation_fusion:
+                    if self.activation_func == F.gelu:
+                        if self.config.gated_linear_unit:
+                            intermediate_parallel = bias_geglu_impl(intermediate_parallel, bias_parallel)
+                        else:
+                            assert self.config.add_bias_linear is True
+                            intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
+                    elif self.activation_func == F.silu and self.config.gated_linear_unit:
+                        intermediate_parallel = bias_swiglu_impl(
+                            intermediate_parallel,
+                            bias_parallel,
+                            self.config.activation_func_fp8_input_store,
+                        )
+                    else:
+                        raise ValueError("Only support fusion of gelu and swiglu")
+                else:
+                    if bias_parallel is not None:
+                        intermediate_parallel = intermediate_parallel + bias_parallel
+                    if self.config.gated_linear_unit:
+
+                        def glu(x):
+                            x = torch.chunk(x, 2, dim=-1)
+                            return self.config.activation_func(x[0]) * x[1]
+
+                        intermediate_parallel = glu(intermediate_parallel)
+                    else:
+                        intermediate_parallel = self.activation_func(intermediate_parallel)
+
+                # [s, b, h]
+                output, output_bias = self.linear_fc2(intermediate_parallel)
+
+                return output, output_bias
+
+            # pylint: disable=missing-function-docstring
+            def sharded_state_dict(
+                self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+            ) -> ShardedStateDict:
+                sharded_state_dict = {}
+                for name, module in self._modules.items():
+                    sub_sd = module.sharded_state_dict(f'{prefix}{name}.', sharded_offsets, metadata)
+                    if self.config.gated_linear_unit and name == 'linear_fc1':
+                        for k, v in sub_sd.items():
+                            if k in (f'{prefix}{name}.weight', f'{prefix}{name}.bias'):
+                                sub_sd[k] = apply_swiglu_sharded_factory(v, sharded_offsets)
+                    sharded_state_dict.update(sub_sd)
+                return sharded_state_dict
         else:
-            if bias_parallel is not None:
-                intermediate_parallel = intermediate_parallel + bias_parallel
-            if self.config.gated_linear_unit:
+            # [s, b, 4 * h/p]
+            intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
 
-                def glu(x):
-                    x = torch.chunk(x, 2, dim=-1)
-                    return self.config.activation_func(x[0]) * x[1]
-
-                intermediate_parallel = glu(intermediate_parallel)
+            if self.config.bias_activation_fusion:
+                if self.activation_func == F.gelu:
+                    if self.config.gated_linear_unit:
+                        intermediate_parallel = bias_geglu_impl(intermediate_parallel, bias_parallel)
+                    else:
+                        assert self.config.add_bias_linear is True
+                        intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
+                elif self.activation_func == F.silu and self.config.gated_linear_unit:
+                    intermediate_parallel = bias_swiglu_impl(
+                        intermediate_parallel,
+                        bias_parallel,
+                        self.config.activation_func_fp8_input_store,
+                    )
+                else:
+                    raise ValueError("Only support fusion of gelu and swiglu")
             else:
-                intermediate_parallel = self.activation_func(intermediate_parallel)
+                if bias_parallel is not None:
+                    intermediate_parallel = intermediate_parallel + bias_parallel
+                if self.config.gated_linear_unit:
 
-        # [s, b, h]
-        output, output_bias = self.linear_fc2(intermediate_parallel)
+                    def glu(x):
+                        x = torch.chunk(x, 2, dim=-1)
+                        return self.config.activation_func(x[0]) * x[1]
 
-        return output, output_bias
+                    intermediate_parallel = glu(intermediate_parallel)
+                else:
+                    intermediate_parallel = self.activation_func(intermediate_parallel)
 
-    # pylint: disable=missing-function-docstring
-    def sharded_state_dict(
-        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
-    ) -> ShardedStateDict:
-        sharded_state_dict = {}
-        for name, module in self._modules.items():
-            sub_sd = module.sharded_state_dict(f'{prefix}{name}.', sharded_offsets, metadata)
-            if self.config.gated_linear_unit and name == 'linear_fc1':
-                for k, v in sub_sd.items():
-                    if k in (f'{prefix}{name}.weight', f'{prefix}{name}.bias'):
-                        sub_sd[k] = apply_swiglu_sharded_factory(v, sharded_offsets)
-            sharded_state_dict.update(sub_sd)
-        return sharded_state_dict
+            # [s, b, h]
+            output, output_bias = self.linear_fc2(intermediate_parallel)
+
+            return output, output_bias
+
+        # pylint: disable=missing-function-docstring
+        def sharded_state_dict(
+            self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+        ) -> ShardedStateDict:
+            sharded_state_dict = {}
+            for name, module in self._modules.items():
+                sub_sd = module.sharded_state_dict(f'{prefix}{name}.', sharded_offsets, metadata)
+                if self.config.gated_linear_unit and name == 'linear_fc1':
+                    for k, v in sub_sd.items():
+                        if k in (f'{prefix}{name}.weight', f'{prefix}{name}.bias'):
+                            sub_sd[k] = apply_swiglu_sharded_factory(v, sharded_offsets)
+                sharded_state_dict.update(sub_sd)
+            return sharded_state_dict
 
 
 # pylint: disable=missing-function-docstring

@@ -1,6 +1,8 @@
 import collections
 from dataclasses import dataclass
 import json
+import datetime
+import pytz
 from pathlib import Path
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -374,7 +376,7 @@ def detect_in_data_parallelism_group(
                     slow_cnt += 1
     # logging.info(f"rank={rank} all_cnt={all_cnt} slow_cnt={slow_cnt}")
 
-    if slow_cnt > 0.5 * all_cnt:
+    if slow_cnt > 0.4 * all_cnt:
         logging.info(f"Abnormal GPU: {rank} {all_cnt} {slow_cnt}")
         with open("abnormal.txt", "w") as f:
             f.write(f"{g_rk} {rank}\n")
@@ -467,6 +469,8 @@ def try_detect(
 
     counter = collections.Counter([x[0] for x in suspects])
     for k, v in counter.items():
+        # print(f"Suspect: {k} {v} times")
+        logging.info(f"Suspect: {k} {v} times")
         if v > 5:
             detect_in_data_parallelism_group(k, contents, traces)
 
@@ -486,7 +490,9 @@ if __name__ == "__main__":
         "-o",
         "--output",
         type=Path,
-        default=Path("benchmark.json"),
+        default=Path(f"benchmark_{datetime.datetime.now(
+            tz=pytz.timezone('Asia/Shanghai')
+        ).strftime('%Y%m%d_%H%M%S')}.json"),
         help="output chrome trace file",
     )
     parser.add_argument(

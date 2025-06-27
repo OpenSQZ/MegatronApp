@@ -1955,6 +1955,9 @@ def forward_backward_pipelining_without_interleaving(
 
         if args.trace:
             tracers = get_tracer()
+            torch.distributed.barrier(
+                group=parallel_state.get_tensor_model_parallel_group()
+            )
             with tracers.scope("forward", micro_batch_index=i + num_warmup_microbatches):
                 output_tensor, num_tokens = forward_step(
                     forward_step_func,

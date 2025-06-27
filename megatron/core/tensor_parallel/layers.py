@@ -891,85 +891,93 @@ class ColumnParallelLinear(torch.nn.Module):
             - bias
 
         """
-        if weight is None:
-            if self.weight is None:
-                raise RuntimeError(
-                    "weight was not supplied to ColumnParallelLinear forward pass "
-                    "and skip_weight_param_allocation is True."
-                )
-            weight = self.weight
-        else:
-            # Check the weight passed in is the correct shape
-            expected_shape = (self.output_size_per_partition, self.input_size)
-            if weight.shape != expected_shape:
-                raise RuntimeError(
-                    f"supplied weight's shape is {tuple(weight.shape)}, "
-                    f"not {expected_shape} as expected"
-                )
-
-        if self.config._cpu_offloading_context is not None:
-            if self.config._cpu_offloading_context.inside_context is True:
-                assert (
-                    self.config.cpu_offloading is False
-                ), "CPU Offloading cannot be enabled while using non-TE modules"
-
-        bias = self.bias if not self.skip_bias_add else None
-
-        if (
-            self.allreduce_dgrad
-            or self.sequence_parallel
-            or self.explicit_expert_comm
-            or self.disable_grad_reduce
+        from megatron.training.global_vars import get_tracer
+        tracer = get_tracer()
+        with tracer.scope(
+            'ColumnParallelLinear.forward',
         ):
-            input_parallel = input_
-        else:
-            input_parallel = copy_to_tensor_model_parallel_region(input_)
+            # torch.distributed.barrier(
+            #     group=get_tensor_model_parallel_group()
+            # )
+            if weight is None:
+                if self.weight is None:
+                    raise RuntimeError(
+                        "weight was not supplied to ColumnParallelLinear forward pass "
+                        "and skip_weight_param_allocation is True."
+                    )
+                weight = self.weight
+            else:
+                # Check the weight passed in is the correct shape
+                expected_shape = (self.output_size_per_partition, self.input_size)
+                if weight.shape != expected_shape:
+                    raise RuntimeError(
+                        f"supplied weight's shape is {tuple(weight.shape)}, "
+                        f"not {expected_shape} as expected"
+                    )
 
-        if self.config.defer_embedding_wgrad_compute:
+            if self.config._cpu_offloading_context is not None:
+                if self.config._cpu_offloading_context.inside_context is True:
+                    assert (
+                        self.config.cpu_offloading is False
+                    ), "CPU Offloading cannot be enabled while using non-TE modules"
+
+            bias = self.bias if not self.skip_bias_add else None
+
             if (
-                self.config.wgrad_deferral_limit == 0
-                or len(self.embedding_activation_buffer) < self.config.wgrad_deferral_limit
+                self.allreduce_dgrad
+                or self.sequence_parallel
+                or self.explicit_expert_comm
+                or self.disable_grad_reduce
             ):
-                self.embedding_activation_buffer.append(input_parallel)
+                input_parallel = input_
+            else:
+                input_parallel = copy_to_tensor_model_parallel_region(input_)
 
-        # Matrix multiply.
-        if not weight.requires_grad:
-            self._forward_impl = linear_with_frozen_weight
-        else:
-            self._forward_impl = linear_with_grad_accumulation_and_async_allreduce
+            if self.config.defer_embedding_wgrad_compute:
+                if (
+                    self.config.wgrad_deferral_limit == 0
+                    or len(self.embedding_activation_buffer) < self.config.wgrad_deferral_limit
+                ):
+                    self.embedding_activation_buffer.append(input_parallel)
 
-        allreduce_dgrad = False if self.explicit_expert_comm else self.allreduce_dgrad
+            # Matrix multiply.
+            if not weight.requires_grad:
+                self._forward_impl = linear_with_frozen_weight
+            else:
+                self._forward_impl = linear_with_grad_accumulation_and_async_allreduce
 
-        output_parallel = self._forward_impl(
-            input=input_parallel,
-            weight=weight,
-            bias=bias,
-            gradient_accumulation_fusion=self.gradient_accumulation_fusion,
-            allreduce_dgrad=allreduce_dgrad,
-            sequence_parallel=False if self.explicit_expert_comm else self.sequence_parallel,
-            grad_output_buffer=(
-                self.grad_output_buffer if self.config.defer_embedding_wgrad_compute else None
-            ),
-            wgrad_deferral_limit=(
-                self.config.wgrad_deferral_limit
-                if self.config.defer_embedding_wgrad_compute
-                else None
-            ),
-        )
+            allreduce_dgrad = False if self.explicit_expert_comm else self.allreduce_dgrad
 
-        gather_output = self.gather_output
-        # Use the runtime gather output if it's set explicitly.
-        if runtime_gather_output is not None:
-            gather_output = runtime_gather_output
+            output_parallel = self._forward_impl(
+                input=input_parallel,
+                weight=weight,
+                bias=bias,
+                gradient_accumulation_fusion=self.gradient_accumulation_fusion,
+                allreduce_dgrad=allreduce_dgrad,
+                sequence_parallel=False if self.explicit_expert_comm else self.sequence_parallel,
+                grad_output_buffer=(
+                    self.grad_output_buffer if self.config.defer_embedding_wgrad_compute else None
+                ),
+                wgrad_deferral_limit=(
+                    self.config.wgrad_deferral_limit
+                    if self.config.defer_embedding_wgrad_compute
+                    else None
+                ),
+            )
 
-        if gather_output:
-            # All-gather across the partitions.
-            assert not self.sequence_parallel
-            output = gather_from_tensor_model_parallel_region(output_parallel)
-        else:
-            output = output_parallel
-        output_bias = self.bias if self.skip_bias_add else None
-        return output, output_bias
+            gather_output = self.gather_output
+            # Use the runtime gather output if it's set explicitly.
+            if runtime_gather_output is not None:
+                gather_output = runtime_gather_output
+
+            if gather_output:
+                # All-gather across the partitions.
+                assert not self.sequence_parallel
+                output = gather_from_tensor_model_parallel_region(output_parallel)
+            else:
+                output = output_parallel
+            output_bias = self.bias if self.skip_bias_add else None
+            return output, output_bias
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharding along axis 0, bias sharded"""
@@ -1155,51 +1163,59 @@ class RowParallelLinear(torch.nn.Module):
             - bias
         """
 
-        if self.config._cpu_offloading_context is not None:
-            if self.config._cpu_offloading_context.inside_context is True:
-                assert (
-                    self.config.cpu_offloading is False
-                ), "CPU Offloading cannot be enabled while using non-TE modules"
+        from megatron.training.global_vars import get_tracer
+        tracer = get_tracer()
+        with tracer.scope(
+            'RowParallelLinear.forward',
+        ):
+            # torch.distributed.barrier(
+            #     group=get_tensor_model_parallel_group(),
+            # )
+            if self.config._cpu_offloading_context is not None:
+                if self.config._cpu_offloading_context.inside_context is True:
+                    assert (
+                        self.config.cpu_offloading is False
+                    ), "CPU Offloading cannot be enabled while using non-TE modules"
 
-        # Set up backprop all-reduce.
-        if self.input_is_parallel:
-            input_parallel = input_
-        else:
-            assert not self.sequence_parallel
-            input_parallel = scatter_to_tensor_model_parallel_region(input_)
-        # Matrix multiply.
-        if not self.weight.requires_grad:
-            self._forward_impl = linear_with_frozen_weight
-        else:
-            self._forward_impl = linear_with_grad_accumulation_and_async_allreduce
+            # Set up backprop all-reduce.
+            if self.input_is_parallel:
+                input_parallel = input_
+            else:
+                assert not self.sequence_parallel
+                input_parallel = scatter_to_tensor_model_parallel_region(input_)
+            # Matrix multiply.
+            if not self.weight.requires_grad:
+                self._forward_impl = linear_with_frozen_weight
+            else:
+                self._forward_impl = linear_with_grad_accumulation_and_async_allreduce
 
-        allreduce_dgrad = False
+            allreduce_dgrad = False
 
-        output_parallel = self._forward_impl(
-            input=input_parallel,
-            weight=self.weight,
-            bias=None,
-            gradient_accumulation_fusion=self.gradient_accumulation_fusion,
-            allreduce_dgrad=allreduce_dgrad,
-            sequence_parallel=False,
-            grad_output_buffer=None,
-        )
+            output_parallel = self._forward_impl(
+                input=input_parallel,
+                weight=self.weight,
+                bias=None,
+                gradient_accumulation_fusion=self.gradient_accumulation_fusion,
+                allreduce_dgrad=allreduce_dgrad,
+                sequence_parallel=False,
+                grad_output_buffer=None,
+            )
 
-        # All-reduce across all the partitions.
-        if self.explicit_expert_comm:
-            assert self.skip_bias_add
-            output_ = output_parallel
-        elif self.sequence_parallel:
-            output_ = reduce_scatter_to_sequence_parallel_region(output_parallel)
-        else:
-            output_ = reduce_from_tensor_model_parallel_region(output_parallel)
-        if not self.skip_bias_add:
-            output = (output_ + self.bias) if self.bias is not None else output_
-            output_bias = None
-        else:
-            output = output_
-            output_bias = self.bias
-        return output, output_bias
+            # All-reduce across all the partitions.
+            if self.explicit_expert_comm:
+                assert self.skip_bias_add
+                output_ = output_parallel
+            elif self.sequence_parallel:
+                output_ = reduce_scatter_to_sequence_parallel_region(output_parallel)
+            else:
+                output_ = reduce_from_tensor_model_parallel_region(output_parallel)
+            if not self.skip_bias_add:
+                output = (output_ + self.bias) if self.bias is not None else output_
+                output_bias = None
+            else:
+                output = output_
+                output_bias = self.bias
+            return output, output_bias
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharding along axis 1, bias not sharded"""

@@ -104,6 +104,34 @@ def _gather_along_last_dim(input_):
     """Gather tensors and concatinate along the last dimension."""
 
     world_size = get_tensor_model_parallel_world_size()
+    from megatron.training.global_vars import get_args, get_tracer
+    args = get_args()
+    if args.trace:
+        tracers = get_tracer()
+        
+        with tracers.scope(
+            name="_gather_along_last_dim",
+            slots=["group"],
+            expect="_gather_along_last_dim"
+        ):
+            # Bypass the function if we are using only 1 GPU.
+            if world_size == 1:
+                return input_
+
+            dim_size = list(input_.size())
+            dim_size[-1] = dim_size[-1] * world_size
+
+            # Create output tensor.
+            if get_global_memory_buffer().is_enabled():
+                output = get_global_memory_buffer().get_tensor(dim_size, input_.dtype, "mpu")
+            else:
+                output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
+
+            # Gather tensors.
+            dist_all_gather_func(output, input_.contiguous(), group=get_tensor_model_parallel_group())
+            tracers.set_group(get_tensor_and_data_parallel_group())
+        
+        return output
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -124,6 +152,27 @@ def _gather_along_last_dim(input_):
 def _reduce_scatter_along_last_dim(input_):
     """Reduce-scatter tensors on the last dimension."""
     world_size = get_tensor_model_parallel_world_size()
+    from megatron.training.global_vars import get_args, get_tracer
+    args = get_args()
+    if args.trace:
+        tracers = get_tracer()
+        
+        with tracers.scope(
+            name="_reduce_scatter_along_last_dim",
+            slots=["group"],
+            expect="_reduce_scatter_along_last_dim"
+        ):
+            target_shape = list(input_.size())
+            target_shape[-1] = target_shape[-1] // world_size
+            input_ = input_.reshape(-1, input_.shape[-1])
+            split_tensors = torch.split(
+                input_, split_size_or_sections=input_.shape[-1] // world_size, dim=1
+            )
+            concat_tensor = torch.cat(split_tensors, dim=0)
+            output = _reduce_scatter_along_first_dim(concat_tensor).reshape(target_shape)
+            tracers.set_group(get_tensor_and_data_parallel_group())
+        
+        return output
     target_shape = list(input_.size())
     target_shape[-1] = target_shape[-1] // world_size
     input_ = input_.reshape(-1, input_.shape[-1])
@@ -152,6 +201,42 @@ def _gather_along_first_dim(input_, group=None, output_split_sizes=None, use_glo
     if group is None:
         group = get_tensor_model_parallel_group()
     world_size = torch.distributed.get_world_size(group)
+
+    from megatron.training.global_vars import get_args, get_tracer
+    args = get_args()
+    if args.trace:
+        tracers = get_tracer()
+        
+        with tracers.scope(
+            name="_gather_along_first_dim",
+            slots=["group", "output_split_sizes", "use_global_buffer"],
+            expect="_gather_along_first_dim"
+        ):
+            # Bypass the function if we are using only 1 GPU.
+            if world_size == 1:
+                return input_
+
+            dim_size = list(input_.size())
+            if output_split_sizes is None:
+                dim_size[0] = dim_size[0] * world_size
+
+                if use_global_buffer:
+                    output = get_global_memory_buffer().get_tensor(dim_size, input_.dtype, "mpu")
+                else:
+                    output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
+                dist_all_gather_func(output, input_.contiguous(), group=group)
+            else:
+                dim_size[0] = sum(output_split_sizes)
+                if use_global_buffer:
+                    output = get_global_memory_buffer().get_tensor(dim_size, input_.dtype, "mpu")
+                else:
+                    output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
+                output_tensor_list = list(torch.split(output, output_split_sizes, dim=0))
+                torch.distributed.all_gather(output_tensor_list, input_, group=group)
+            tracers.set_group(get_tensor_and_data_parallel_group())
+        
+        return output
+    
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -191,6 +276,47 @@ def _reduce_scatter_along_first_dim(
     if group is None:
         group = get_tensor_model_parallel_group()
     world_size = torch.distributed.get_world_size(group)
+    from megatron.training.global_vars import get_args, get_tracer
+    args = get_args()
+    if args.trace:
+        tracers = get_tracer()
+        
+        with tracers.scope(
+            name="_reduce_scatter_along_first_dim",
+            slots=["group", "input_split_sizes", "use_global_buffer"],
+            expect="_reduce_scatter_along_first_dim"
+        ):
+            # Bypass the function if we are using only 1 GPU.
+            if world_size == 1:
+                return input_
+
+            if input_split_sizes is None:
+                dim_size = list(input_.size())
+                assert (
+                    dim_size[0] % world_size == 0
+                ), "First dimension of the tensor should be divisible by tensor parallel size"
+
+                dim_size[0] = dim_size[0] // world_size
+
+                if use_global_buffer:
+                    output = get_global_memory_buffer().get_tensor(dim_size, input_.dtype, "mpu")
+                else:
+                    output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
+                dist_reduce_scatter_func(output, input_.contiguous(), group=group)
+            else:
+                rank = torch.distributed.get_rank(group)
+                input_tensor_list = list(torch.split(input_, input_split_sizes, dim=0))
+
+                if use_global_buffer:
+                    output = get_global_memory_buffer().get_tensor(
+                        input_tensor_list[rank].shape, input_.dtype, "mpu"
+                    )
+                else:
+                    output = torch.empty_like(input_tensor_list[rank])
+                torch.distributed.reduce_scatter(output, input_tensor_list, group=group)
+            tracers.set_group(get_tensor_and_data_parallel_group())
+        
+        return output
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -238,6 +364,7 @@ class _CopyToModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         """Backward function."""
+        # torch.distributed.barrier(get_tensor_model_parallel_group())
         return _reduce(grad_output)
 
 
@@ -247,11 +374,13 @@ class _ReduceFromModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def symbolic(graph, input_):
         """Symbolic function for tracing."""
+        # torch.distributed.barrier(get_tensor_model_parallel_group())
         return _reduce(input_)
 
     @staticmethod
     def forward(ctx, input_):
         """Forward function."""
+        # torch.distributed.barrier(get_tensor_model_parallel_group())
         return _reduce(input_)
 
     @staticmethod

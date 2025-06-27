@@ -386,9 +386,22 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         This method calls the core computation of a transformer layer, including
         self-attention, cross-attention (if applicable), and feed-forward operations.
         """
-        pre_mlp_layernorm_output, residual, context = self._forward_attention(*args, **kwargs)
-        output = self._forward_mlp(pre_mlp_layernorm_output, residual)
-        return output, context
+        from megatron.training.global_vars import get_args, get_tracer
+        global_args = get_args()
+        if global_args.trace:
+            tracer = get_tracer()
+            with tracer.scope(
+                f"transformer_layer_{self.layer_number}",
+            ):
+                with tracer.scope(f"_forward_attention_{self.layer_number}"):
+                    pre_mlp_layernorm_output, residual, context = self._forward_attention(*args, **kwargs)
+                with tracer.scope(f"_forward_mlp_{self.layer_number}"):
+                    output = self._forward_mlp(pre_mlp_layernorm_output, residual)
+                return output, context
+        else:
+            pre_mlp_layernorm_output, residual, context = self._forward_attention(*args, **kwargs)
+            output = self._forward_mlp(pre_mlp_layernorm_output, residual)
+            return output, context
 
     def _forward_attention(
         self,
@@ -458,25 +471,31 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
             sequence_len_offset=sequence_len_offset,
         )
 
+        from megatron.training.global_vars import get_tracer
+        tracer = get_tracer()
+
         if self.recompute_input_layernorm:
             # discard the output of the input layernorm and register the recompute
             # as a gradient hook of attention_output_with_bias[0]
-            self.input_layernorm_checkpoint.discard_output_and_register_recompute(
-                attention_output_with_bias[0]
-            )
+            with tracer.scope("discard_input_layernorm_output_and_register_recompute"):
+                self.input_layernorm_checkpoint.discard_output_and_register_recompute(
+                    attention_output_with_bias[0]
+                )
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
-        with self.bias_dropout_add_exec_handler():
-            hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+        with tracer.scope("self_attn_bda"):
+            with self.bias_dropout_add_exec_handler():
+                hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
+                    attention_output_with_bias, residual, self.hidden_dropout
+                )
 
         # Residual connection.
         residual = hidden_states
 
         # Optional Layer norm after self-attention
-        pre_cross_attn_layernorm_output = self.pre_cross_attn_layernorm(hidden_states)
+        with tracer.scope("pre_cross_attn_layernorm"):
+            pre_cross_attn_layernorm_output = self.pre_cross_attn_layernorm(hidden_states)
 
         # Cross attention.
         attention_output_with_bias = self.cross_attention(
@@ -491,22 +510,24 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
-        with self.bias_dropout_add_exec_handler():
-            hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+        with tracer.scope("cross_attn_bda"):
+            with self.bias_dropout_add_exec_handler():
+                hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
+                    attention_output_with_bias, residual, self.hidden_dropout
+                )
 
         # Residual connection.
         residual = hidden_states
 
         # Optional Layer norm post the cross-attention.
-        if self.recompute_pre_mlp_layernorm:
-            self.pre_mlp_norm_checkpoint = tensor_parallel.CheckpointWithoutOutput()
-            pre_mlp_layernorm_output = self.pre_mlp_norm_checkpoint.checkpoint(
-                self.pre_mlp_layernorm, hidden_states
-            )
-        else:
-            pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
+        with tracer.scope("pre_mlp_layernorm"):
+            if self.recompute_pre_mlp_layernorm:
+                self.pre_mlp_norm_checkpoint = tensor_parallel.CheckpointWithoutOutput()
+                pre_mlp_layernorm_output = self.pre_mlp_norm_checkpoint.checkpoint(
+                    self.pre_mlp_layernorm, hidden_states
+                )
+            else:
+                pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
 
         return pre_mlp_layernorm_output, residual, context
 
@@ -522,20 +543,45 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
             output (Tensor): Transformed hidden states of shape [s, b, h].
         """
 
+        from megatron.training.global_vars import get_args, get_tracer
+        args = get_args()
         # MLP.
         if self.recompute_mlp:
-            mlp_output_with_bias = tensor_parallel.checkpoint(
-                self.mlp, False, pre_mlp_layernorm_output
-            )
+            if args.trace:
+                with get_tracer().scope(
+                    name=f"recompute_mlp_{self.layer_number}",
+                    function_name="tensor_parallel.checkpoint",
+                ):
+                    mlp_output_with_bias = tensor_parallel.checkpoint(
+                        self.mlp, False, pre_mlp_layernorm_output
+                    )
+            else:
+                mlp_output_with_bias = tensor_parallel.checkpoint(
+                    self.mlp, False, pre_mlp_layernorm_output
+                )
         else:
-            mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
+            if args.trace:
+                with get_tracer().scope(
+                    f"mlp_{self.layer_number}",
+                ):
+                    mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
+            else:
+                mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
         if self.recompute_pre_mlp_layernorm:
             # discard the output of the pre-mlp layernorm and register the recompute
             # as a gradient hook of mlp_output_with_bias[0]
-            self.pre_mlp_norm_checkpoint.discard_output_and_register_recompute(
-                mlp_output_with_bias[0]
-            )
+            if args.trace:
+                with get_tracer().scope(
+                    "discard_pre_mlp_layernorm_output_and_register_recompute",
+                ):
+                    self.pre_mlp_norm_checkpoint.discard_output_and_register_recompute(
+                        mlp_output_with_bias[0]
+                    )
+            else:
+                self.pre_mlp_norm_checkpoint.discard_output_and_register_recompute(
+                    mlp_output_with_bias[0]
+                )
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
