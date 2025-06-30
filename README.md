@@ -26,7 +26,7 @@ Here's the pipeline of DP=TP=1, PP=4:
 
 Here's the pipeline of DP=1, TP=PP=2, with merging forward ranks:
 
-![Pipeline 1](images/fig2.png)
+![Pipeline 2](images/fig2.png)
 
 
 # 🚀 Quickstart
