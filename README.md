@@ -1,12 +1,22 @@
-# Megatron with Forward-Backward disaggregating
+<div align="center">
+
+**Megatron with Forward-Backward disaggregating**
+
+</div>
+
+# 🌟 Overview
 
 $\quad$ The improvement of training steps, which allows ranks to do only forward step or backward step, in another level of parallel.
 
-- Supports twos ranks to do forward and backward, equivalent to one rank before.
+# ✨ Core Features
 
-- Supports merging forward ranks in the same tensor model parallel group.
+- Supports splitting one rank into two ranks: one for forward and one for backward computation.
 
-## Environment Configuration
+- Supports merging forward ranks within the same tensor model parallel group.
+
+# 🚀 Quickstart
+
+## Configuration
 
 - The following is the pod configuration.
 
@@ -62,4 +72,4 @@ There are two extra options: `--forward-backward-disaggregating` and `--ignore-f
 
 - `--ignore-forward-tensor-parallel`
 
-  Enables merging forward ranks within the same TP group. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the current number of ranks.
+  Enables merging forward ranks within the same TP group. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the correct number of ranks.
