@@ -2119,16 +2119,45 @@ def forward_or_backward_pipelining_without_interleaving(
         output_tensors = []
     forward_data_store = []
 
-    # Run warmup forward passes.
+    num_warmup_microbatches = (
+        parallel_state.get_pipeline_model_parallel_world_size()
+        - parallel_state.get_pipeline_model_parallel_rank()
+        - 1
+    )
+    num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     # print('?')
     if forward_only or parallel_state.is_forward_stage():
-
+        # Run warmup forward passes.
+        for i in range(num_warmup_microbatches):
+            input_tensor = recv_forward(recv_tensor_shapes, config)
+            input_tensors.append(input_tensor)
+            if max_outstanding_backprops is not None:
+                checkpoint_activations_microbatch = (
+                    i % max_outstanding_backprops
+                ) >= config.num_microbatches_with_partial_activation_checkpoints
+            else:
+                checkpoint_activations_microbatch = None
+            output_tensor, num_tokens = forward_step(
+                forward_step_func,
+                data_iterator,
+                model,
+                num_microbatches,
+                input_tensor,
+                forward_data_store,
+                config,
+                collect_non_loss_data,
+                checkpoint_activations_microbatch,
+            )
+            send_forward(output_tensor, send_tensor_shapes, config)
+        
         # Run 1F1B in steady state.
-        for i in range(num_microbatches):
+        for i in range(num_warmup_microbatches, num_microbatches):
             input_tensor = recv_forward(recv_tensor_shapes, config)
             # print('#step', i, input_tensor)
+            input_tensors.append(input_tensor)
             if not parallel_state.is_pipeline_first_stage() and not forward_only:
-                send_corresponding_forward(input_tensor, recv_tensor_shapes, config)
+                input_tensor_to_backward = input_tensors.pop(0)
+                send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config)
             
             if max_outstanding_backprops is not None:
                 checkpoint_activations_microbatch = (
@@ -2152,6 +2181,11 @@ def forward_or_backward_pipelining_without_interleaving(
             )
             # print(output_tensor)
             send_forward(output_tensor, send_tensor_shapes, config)
+        
+        for i in range(num_warmup_microbatches):
+            if not parallel_state.is_pipeline_first_stage() and not forward_only:
+                input_tensor_to_backward = input_tensors.pop(0)
+                send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config)
 
     elif not forward_only:
         for i in range(num_microbatches):
