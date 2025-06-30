@@ -55,6 +55,11 @@ Here pretrain_gpt.sh is an example bash script of pretrain.
 
 There are two extra options: `--forward-backward-disaggregating` and `--ignore-forward-tensor-parallel` in `TRAINING_ARGS`.
 
-With `--forward-backward-disaggregating`, you can disaggregate one rank into two ranks(forward rank and backward rank) doing the same thing. After doing this, your DP will be halved. So make sure your DP is even before adding this option.
+- `--forward-backward-disaggregating`
 
-With `--ignore-forward-tensor-parallel`, you can merge forward ranks in the same tensor model parallel group into one rank. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the current number of ranks.
+
+  Splits each rank into two: one for forward pass and one for backward pass. After doing this, your DP will be halved. Make sure your DP is even before adding this option.
+
+- `--ignore-forward-tensor-parallel`
+
+  Enables merging forward ranks within the same TP group. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the current number of ranks.
