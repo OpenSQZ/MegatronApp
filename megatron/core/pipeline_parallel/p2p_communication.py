@@ -16,6 +16,9 @@ from megatron.core.parallel_state import (
     get_forward_backward_parallel_group,
     get_forward_backward_parallel_dual_rank,
 )
+from megatron.training import get_args
+from megatron.training.trace import get_tensor_bytes
+from megatron.training.global_vars import get_tracer
 
 # Types
 Shape = Union[List[int], torch.Size]
@@ -130,28 +133,53 @@ def _batched_p2p_ops(
     next_pipeline_rank: int,
 ):
     ops = []
+    args = get_args()
+    if args.trace:
+        group_rank = set()
+        group_rank.add(torch.distributed.get_rank())
     if tensor_send_prev is not None:
         send_prev_op = dist.P2POp(
             dist.isend, tensor_send_prev, prev_pipeline_rank, group
         )
+        if args.trace:
+            tracers = get_tracer()
+            if tracers.get("group") is not None:
+                group_rank.add(prev_pipeline_rank)
         ops.append(send_prev_op)
     if tensor_recv_prev is not None:
         # print('#', dist.get_rank(), prev_pipeline_rank, tensor_recv_prev)
         recv_prev_op = dist.P2POp(
             dist.irecv, tensor_recv_prev, prev_pipeline_rank, group
         )
+        if args.trace:
+            tracers = get_tracer()
+            if tracers.get("group") is not None:
+                group_rank.add(prev_pipeline_rank)
         ops.append(recv_prev_op)
     if tensor_send_next is not None:
         # print(tensor_send_next)
         send_next_op = dist.P2POp(
             dist.isend, tensor_send_next, next_pipeline_rank, group
         )
+        if args.trace:
+            tracers = get_tracer()
+            if tracers.get("group") is not None:
+                group_rank.add(next_pipeline_rank)
         ops.append(send_next_op)
     if tensor_recv_next is not None:
         recv_next_op = dist.P2POp(
             dist.irecv, tensor_recv_next, next_pipeline_rank, group
         )
+        if args.trace:
+            tracers = get_tracer()
+            if tracers.get("group") is not None:
+                group_rank.add(next_pipeline_rank)
         ops.append(recv_next_op)
+    
+    if args.trace:
+        tracers = get_tracer()
+        if tracers.get("group") is not None:
+            tracers.set_group(list(group_rank))
     if len(ops) > 0:
         reqs = dist.batch_isend_irecv(ops)
     else:
@@ -423,6 +451,26 @@ def _communicate(
             reqs.extend(p2p_reqs)
         else:
             reqs.update(p2p_reqs)
+
+    args = get_args()
+    if args.trace:
+        tracers = get_tracer()
+        if tracers.get("data") is not None:
+            data_bytes = 0
+            for t in [tensor_send_prev, tensor_recv_prev, tensor_send_next, tensor_recv_next]:
+                if t is not None:
+                    data_bytes += get_tensor_bytes(t)
+            tracers.set("data", data_bytes)
+
+    if args.trace:
+        tracers = get_tracer()
+        trace_p2p_recv = tracers.get("trace_p2p_recv")
+
+        # For simplicity, we now only support tracing for batched p2p communication.
+        if trace_p2p_recv is not None:
+            assert not config.use_ring_exchange_p2p
+            assert config.batch_p2p_comm
+            assert wait_on_reqs
 
     if wait_on_reqs and len(reqs) > 0:
         for req in reqs if isinstance(reqs, list) else reqs.values():

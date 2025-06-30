@@ -16,3 +16,8 @@ ngc_models/
 tensor_board/
 dist/
 benchmark/
+benchmark_*.json
+benchmark-*.json
+datasets/gpt-large-cased-vocab-small_text_document/cache/
+abnormal.txt
+gpu-rank-map.txt

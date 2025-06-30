@@ -19,6 +19,7 @@ from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl, weighted_b
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.parallel_state import get_tensor_model_parallel_group
 
 
 # pylint: disable=missing-class-docstring
@@ -102,68 +103,139 @@ class MLP(MegatronModule):
 
     def forward(self, hidden_states, per_token_scale=None):
         """Perform the forward pass through the MLP block."""
-        # [s, b, 4 * h/p]
-        intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
-        from megatron.core.tensor_tracer import get_tt_flags, FlagType, get_tensor_tracers
-        if get_tt_flags().get_flag(FlagType.MLP1_mat_mul, self.layer_number):
-            get_tensor_tracers().tik_tensor((self.layer_number, FlagType.MLP1_mat_mul), intermediate_parallel.transpose(0, 1))
+        from megatron.training.global_vars import get_args, get_tracer
+        args = get_args()
+        if args.trace:
+            tracer = get_tracer()
+            with tracer.scope("MLP.forward"):
+                torch.distributed.barrier(
+                    group=get_tensor_model_parallel_group(),
+                )
+                # [s, b, 4 * h/p]
+                intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
+                from megatron.core.tensor_tracer import get_tt_flags, FlagType, get_tensor_tracers
+                if get_tt_flags().get_flag(FlagType.MLP1_mat_mul, self.layer_number):
+                    get_tensor_tracers().tik_tensor((self.layer_number, FlagType.MLP1_mat_mul), intermediate_parallel.transpose(0, 1))
 
-        if self.config.bias_activation_fusion:
-            if per_token_scale is not None:
-                if self.activation_func == F.silu and self.config.gated_linear_unit:
-                    # dtype is handled inside the fused kernel
-                    intermediate_parallel = weighted_bias_swiglu_impl(
-                        intermediate_parallel,
-                        bias_parallel,
-                        per_token_scale.unsqueeze(-1),
-                        self.config.activation_func_fp8_input_store,
-                    )
+                if self.config.bias_activation_fusion:
+                    if per_token_scale is not None:
+                        if self.activation_func == F.silu and self.config.gated_linear_unit:
+                            # dtype is handled inside the fused kernel
+                            intermediate_parallel = weighted_bias_swiglu_impl(
+                                intermediate_parallel,
+                                bias_parallel,
+                                per_token_scale.unsqueeze(-1),
+                                self.config.activation_func_fp8_input_store,
+                            )
+                        else:
+                            raise ValueError("Only support fusion of swiglu with per_token_scale in MLP.")
+                    else:
+                        if self.activation_func == F.gelu:
+                            if self.config.gated_linear_unit:
+                                intermediate_parallel = bias_geglu_impl(
+                                    intermediate_parallel, bias_parallel
+                                )
+                            else:
+                                assert self.config.add_bias_linear is True
+                                intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
+                        elif self.activation_func == F.silu and self.config.gated_linear_unit:
+                            intermediate_parallel = bias_swiglu_impl(
+                                intermediate_parallel,
+                                bias_parallel,
+                                self.config.activation_func_fp8_input_store,
+                            )
+                        else:
+                            raise ValueError("Only support fusion of gelu and swiglu")
                 else:
-                    raise ValueError("Only support fusion of swiglu with per_token_scale in MLP.")
-            else:
-                if self.activation_func == F.gelu:
+                    if bias_parallel is not None:
+                        intermediate_parallel = intermediate_parallel + bias_parallel
                     if self.config.gated_linear_unit:
-                        intermediate_parallel = bias_geglu_impl(
-                            intermediate_parallel, bias_parallel
+
+                        def glu(x):
+                            x = torch.chunk(x, 2, dim=-1)
+                            return self.config.activation_func(x[0]) * x[1]
+
+                        intermediate_parallel = glu(intermediate_parallel)
+                    else:
+                        intermediate_parallel = self.activation_func(intermediate_parallel)
+
+                    if per_token_scale is not None:
+                        original_dtype = intermediate_parallel.dtype
+                        intermediate_parallel = intermediate_parallel * per_token_scale.unsqueeze(-1)
+                        intermediate_parallel = intermediate_parallel.to(original_dtype)
+
+                # [s, b, h]
+                output, output_bias = self.linear_fc2(intermediate_parallel)
+                if get_tt_flags().get_flag(FlagType.MLP2_mat_mul, self.layer_number):
+                    get_tensor_tracers().tik_tensor((self.layer_number, FlagType.MLP2_mat_mul), output.transpose(0, 1))
+
+                if per_token_scale is not None:
+                    assert output_bias is None, "Bias is not supported with per_token_scale"
+
+                return output, output_bias
+        else:
+            # [s, b, 4 * h/p]
+            intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
+            from megatron.core.tensor_tracer import get_tt_flags, FlagType, get_tensor_tracers
+            if get_tt_flags().get_flag(FlagType.MLP1_mat_mul, self.layer_number):
+                get_tensor_tracers().tik_tensor((self.layer_number, FlagType.MLP1_mat_mul), intermediate_parallel.transpose(0, 1))
+
+            if self.config.bias_activation_fusion:
+                if per_token_scale is not None:
+                    if self.activation_func == F.silu and self.config.gated_linear_unit:
+                        # dtype is handled inside the fused kernel
+                        intermediate_parallel = weighted_bias_swiglu_impl(
+                            intermediate_parallel,
+                            bias_parallel,
+                            per_token_scale.unsqueeze(-1),
+                            self.config.activation_func_fp8_input_store,
                         )
                     else:
-                        assert self.config.add_bias_linear is True
-                        intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
-                elif self.activation_func == F.silu and self.config.gated_linear_unit:
-                    intermediate_parallel = bias_swiglu_impl(
-                        intermediate_parallel,
-                        bias_parallel,
-                        self.config.activation_func_fp8_input_store,
-                    )
+                        raise ValueError("Only support fusion of swiglu with per_token_scale in MLP.")
                 else:
-                    raise ValueError("Only support fusion of gelu and swiglu")
-        else:
-            if bias_parallel is not None:
-                intermediate_parallel = intermediate_parallel + bias_parallel
-            if self.config.gated_linear_unit:
-
-                def glu(x):
-                    x = torch.chunk(x, 2, dim=-1)
-                    return self.config.activation_func(x[0]) * x[1]
-
-                intermediate_parallel = glu(intermediate_parallel)
+                    if self.activation_func == F.gelu:
+                        if self.config.gated_linear_unit:
+                            intermediate_parallel = bias_geglu_impl(
+                                intermediate_parallel, bias_parallel
+                            )
+                        else:
+                            assert self.config.add_bias_linear is True
+                            intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
+                    elif self.activation_func == F.silu and self.config.gated_linear_unit:
+                        intermediate_parallel = bias_swiglu_impl(
+                            intermediate_parallel,
+                            bias_parallel,
+                            self.config.activation_func_fp8_input_store,
+                        )
+                    else:
+                        raise ValueError("Only support fusion of gelu and swiglu")
             else:
-                intermediate_parallel = self.activation_func(intermediate_parallel)
+                if bias_parallel is not None:
+                    intermediate_parallel = intermediate_parallel + bias_parallel
+                if self.config.gated_linear_unit:
+
+                    def glu(x):
+                        x = torch.chunk(x, 2, dim=-1)
+                        return self.config.activation_func(x[0]) * x[1]
+
+                    intermediate_parallel = glu(intermediate_parallel)
+                else:
+                    intermediate_parallel = self.activation_func(intermediate_parallel)
+
+                if per_token_scale is not None:
+                    original_dtype = intermediate_parallel.dtype
+                    intermediate_parallel = intermediate_parallel * per_token_scale.unsqueeze(-1)
+                    intermediate_parallel = intermediate_parallel.to(original_dtype)
+
+            # [s, b, h]
+            output, output_bias = self.linear_fc2(intermediate_parallel)
+            if get_tt_flags().get_flag(FlagType.MLP2_mat_mul, self.layer_number):
+                get_tensor_tracers().tik_tensor((self.layer_number, FlagType.MLP2_mat_mul), output.transpose(0, 1))
 
             if per_token_scale is not None:
-                original_dtype = intermediate_parallel.dtype
-                intermediate_parallel = intermediate_parallel * per_token_scale.unsqueeze(-1)
-                intermediate_parallel = intermediate_parallel.to(original_dtype)
+                assert output_bias is None, "Bias is not supported with per_token_scale"
 
-        # [s, b, h]
-        output, output_bias = self.linear_fc2(intermediate_parallel)
-        if get_tt_flags().get_flag(FlagType.MLP2_mat_mul, self.layer_number):
-            get_tensor_tracers().tik_tensor((self.layer_number, FlagType.MLP2_mat_mul), output.transpose(0, 1))
-
-        if per_token_scale is not None:
-            assert output_bias is None, "Bias is not supported with per_token_scale"
-
-        return output, output_bias
+            return output, output_bias
 
     # pylint: disable=missing-function-docstring
     def sharded_state_dict(

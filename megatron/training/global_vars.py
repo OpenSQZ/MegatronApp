@@ -10,6 +10,7 @@ from megatron.core import Timers
 from megatron.core.num_microbatches_calculator import init_num_microbatches_calculator, unset_num_microbatches_calculator
 from megatron.training import dist_signal_handler
 from megatron.training.tokenizer import build_tokenizer
+from megatron.training.trace import Tracer
 
 _GLOBAL_ARGS = None
 _GLOBAL_TOKENIZER = None
@@ -19,6 +20,7 @@ _GLOBAL_ONE_LOGGER = None
 _GLOBAL_ADLR_AUTORESUME = None
 _GLOBAL_TIMERS = None
 _GLOBAL_SIGNAL_HANDLER = None
+_GLOBAL_TRACER = Tracer()
 
 def get_args():
     """Return arguments."""
@@ -59,6 +61,11 @@ def get_timers():
     """Return timers."""
     _ensure_var_is_initialized(_GLOBAL_TIMERS, 'timers')
     return _GLOBAL_TIMERS
+
+
+def get_tracer():
+    """Return tracer."""
+    return _GLOBAL_TRACER
 
 
 def get_signal_handler():
@@ -140,6 +147,13 @@ def unset_global_variables():
 def set_args(args):
     global _GLOBAL_ARGS
     _GLOBAL_ARGS = args
+    _GLOBAL_TRACER.global_args = args
+    if args.trace_interval is not None and args.continuous_trace_iterations is not None:
+        _GLOBAL_TRACER.interval = args.trace_interval
+        _GLOBAL_TRACER.continuous_trace_iters = args.continuous_trace_iterations
+    else:
+        _GLOBAL_TRACER.interval = 1
+        _GLOBAL_TRACER.continuous_trace_iters = 10000
 
 
 def _build_tokenizer(args):

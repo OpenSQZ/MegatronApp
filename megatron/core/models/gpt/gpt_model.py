@@ -330,18 +330,36 @@ class GPTModel(LanguageModule):
         ):
             decoder_input = WrappedTensor(decoder_input)
 
-        # Run decoder.
-        hidden_states = self.decoder(
-            hidden_states=decoder_input,
-            attention_mask=attention_mask,
-            inference_context=inference_context,
-            rotary_pos_emb=rotary_pos_emb,
-            rotary_pos_cos=rotary_pos_cos,
-            rotary_pos_sin=rotary_pos_sin,
-            packed_seq_params=packed_seq_params,
-            sequence_len_offset=sequence_len_offset,
-            **(extra_block_kwargs or {}),
-        )
+        from megatron.training.global_vars import get_tracer, get_args
+        args = get_args()
+        tracer = get_tracer()
+        if args.trace:
+            with tracer.scope("decoder"):
+                # Run decoder.
+                hidden_states = self.decoder(
+                    hidden_states=decoder_input,
+                    attention_mask=attention_mask,
+                    inference_context=inference_context,
+                    rotary_pos_emb=rotary_pos_emb,
+                    rotary_pos_cos=rotary_pos_cos,
+                    rotary_pos_sin=rotary_pos_sin,
+                    packed_seq_params=packed_seq_params,
+                    sequence_len_offset=sequence_len_offset,
+                    **(extra_block_kwargs or {}),
+                )
+        else:
+            # Run decoder.
+            hidden_states = self.decoder(
+                hidden_states=decoder_input,
+                attention_mask=attention_mask,
+                inference_context=inference_context,
+                rotary_pos_emb=rotary_pos_emb,
+                rotary_pos_cos=rotary_pos_cos,
+                rotary_pos_sin=rotary_pos_sin,
+                packed_seq_params=packed_seq_params,
+                sequence_len_offset=sequence_len_offset,
+                **(extra_block_kwargs or {}),
+            )
 
         # Process inference output.
         if inference_context and not inference_context.is_static_batching():

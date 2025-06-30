@@ -8,6 +8,8 @@ from torch.autograd.variable import Variable
 
 from megatron.core import parallel_state
 from megatron.core.enums import ModelType
+from megatron.training import get_args
+from megatron.training import get_tracer
 from megatron.core.pipeline_parallel import p2p_communication
 from megatron.core.transformer.cuda_graphs import create_cudagraphs
 from megatron.core.transformer.moe.router import MoEAuxLossAutoScaler
@@ -286,24 +288,47 @@ def forward_step(
 
     num_tokens = torch.tensor(0, dtype=torch.int)
     if parallel_state.is_pipeline_last_stage():
-        if not collect_non_loss_data:
-            outputs = loss_func(output_tensor)
-            if len(outputs) == 3:
-                output_tensor, num_tokens, loss_reduced = outputs
-                if not config.calculate_per_token_loss:
-                    output_tensor /= num_tokens
+        args = get_args()
+        if args.trace:
+            tracers = get_tracer()
+            with tracers.scope(name="loss"):
+                if not collect_non_loss_data:
+                    outputs = loss_func(output_tensor)
+                    if len(outputs) == 3:
+                        output_tensor, num_tokens, loss_reduced = outputs
+                        if not config.calculate_per_token_loss:
+                            output_tensor /= num_tokens
+                            output_tensor *= parallel_state.get_context_parallel_world_size()
+                            output_tensor /= num_microbatches
+                    else:
+                        # preserve legacy loss averaging behavior (ie, over the number of microbatches)
+                        assert len(outputs) == 2
+                        output_tensor, loss_reduced = outputs
+                        output_tensor *= parallel_state.get_context_parallel_world_size()
+                        output_tensor /= num_microbatches
+                    forward_data_store.append(loss_reduced)
+                else:
+                    data = loss_func(output_tensor, non_loss_data=True)
+                    forward_data_store.append(data)
+        else:
+            if not collect_non_loss_data:
+                outputs = loss_func(output_tensor)
+                if len(outputs) == 3:
+                    output_tensor, num_tokens, loss_reduced = outputs
+                    if not config.calculate_per_token_loss:
+                        output_tensor /= num_tokens
+                        output_tensor *= parallel_state.get_context_parallel_world_size()
+                        output_tensor /= num_microbatches
+                else:
+                    # preserve legacy loss averaging behavior (ie, over the number of microbatches)
+                    assert len(outputs) == 2
+                    output_tensor, loss_reduced = outputs
                     output_tensor *= parallel_state.get_context_parallel_world_size()
                     output_tensor /= num_microbatches
+                forward_data_store.append(loss_reduced)
             else:
-                # preserve legacy loss averaging behavior (ie, over the number of microbatches)
-                assert len(outputs) == 2
-                output_tensor, loss_reduced = outputs
-                output_tensor *= parallel_state.get_context_parallel_world_size()
-                output_tensor /= num_microbatches
-            forward_data_store.append(loss_reduced)
-        else:
-            data = loss_func(output_tensor, non_loss_data=True)
-            forward_data_store.append(data)
+                data = loss_func(output_tensor, non_loss_data=True)
+                forward_data_store.append(data)
 
     if config.timers is not None:
         config.timers('forward-compute').stop()
@@ -1854,6 +1879,8 @@ def forward_backward_pipelining_without_interleaving(
         output_tensors = []
     forward_data_store = []
 
+    args = get_args()
+
     # Run warmup forward passes.
     for i in range(num_warmup_microbatches):
         # Decide to checkpoint all layers' activations of the current micro-batch
@@ -1864,24 +1891,56 @@ def forward_backward_pipelining_without_interleaving(
             )
         else:
             checkpoint_activations_microbatch = None
-
-        input_tensor = recv_forward(recv_tensor_shapes, config)
-        output_tensor, num_tokens = forward_step(
-            forward_step_func,
-            data_iterator,
-            model,
-            num_microbatches,
-            input_tensor,
-            forward_data_store,
-            config,
-            collect_non_loss_data,
-            checkpoint_activations_microbatch,
-            check_first_val_step(first_val_step, forward_only, i == 0),
-            current_microbatch=i,
-            encoder_decoder_xattn=encoder_decoder_xattn,
-        )
-        send_forward(output_tensor, send_tensor_shapes, config)
-        total_num_tokens += num_tokens
+        
+        if args.trace:
+            tracers = get_tracer()
+            with tracers.scope(
+                "recv-warmup",
+                micro_batch_index=i,
+                expect="send-warmup",
+                slots=["data", "group"],
+            ):
+                input_tensor = recv_forward(recv_tensor_shapes, config)
+            with tracers.scope("forward-warmup", micro_batch_index=i):
+                output_tensor, num_tokens = forward_step(
+                    forward_step_func,
+                    data_iterator,
+                    model,
+                    num_microbatches,
+                    input_tensor,
+                    forward_data_store,
+                    config,
+                    collect_non_loss_data,
+                    checkpoint_activations_microbatch,
+                    check_first_val_step(first_val_step, forward_only, i == 0),
+                    current_microbatch=i,
+                    encoder_decoder_xattn=encoder_decoder_xattn,
+                )
+            with tracers.scope(
+                "send-warmup",
+                micro_batch_index=i,
+                expect="recv-warmup",
+                slots=["data", "group"],
+            ):
+                send_forward(output_tensor, send_tensor_shapes, config)
+        else:
+            input_tensor = recv_forward(recv_tensor_shapes, config)
+            output_tensor, num_tokens = forward_step(
+                forward_step_func,
+                data_iterator,
+                model,
+                num_microbatches,
+                input_tensor,
+                forward_data_store,
+                config,
+                collect_non_loss_data,
+                checkpoint_activations_microbatch,
+                check_first_val_step(first_val_step, forward_only, i == 0),
+                current_microbatch=i,
+                encoder_decoder_xattn=encoder_decoder_xattn,
+            )
+            send_forward(output_tensor, send_tensor_shapes, config)
+            total_num_tokens += num_tokens
 
         if not forward_only:
             input_tensors.append(input_tensor)
@@ -1892,7 +1951,17 @@ def forward_backward_pipelining_without_interleaving(
     # If all microbatches are run in warmup / cooldown phase, then no need to
     # receive this tensor here.
     if num_microbatches_remaining > 0:
-        input_tensor = recv_forward(recv_tensor_shapes, config)
+        if args.trace:
+            tracers = get_tracer()
+            with tracers.scope(
+                "recv-extra",
+                micro_batch_index=num_warmup_microbatches,
+                expect="send-warmup",
+                slots=["data", "group"],
+            ):
+                input_tensor = recv_forward(recv_tensor_shapes, config)
+        else:
+            input_tensor = recv_forward(recv_tensor_shapes, config)
 
     # Run 1F1B in steady state.
     for i in range(num_microbatches_remaining):
@@ -1906,22 +1975,45 @@ def forward_backward_pipelining_without_interleaving(
         else:
             checkpoint_activations_microbatch = None
 
-        output_tensor, num_tokens = forward_step(
-            forward_step_func,
-            data_iterator,
-            model,
-            num_microbatches,
-            input_tensor,
-            forward_data_store,
-            config,
-            collect_non_loss_data,
-            checkpoint_activations_microbatch,
-            check_first_val_step(
-                first_val_step, forward_only, (i == 0) and (num_warmup_microbatches == 0)
-            ),
-            current_microbatch=i + num_warmup_microbatches,
-            encoder_decoder_xattn=encoder_decoder_xattn,
-        )
+        if args.trace:
+            tracers = get_tracer()
+            torch.distributed.barrier(
+                group=parallel_state.get_tensor_model_parallel_group()
+            )
+            with tracers.scope("forward", micro_batch_index=i + num_warmup_microbatches):
+                output_tensor, num_tokens = forward_step(
+                    forward_step_func,
+                    data_iterator,
+                    model,
+                    num_microbatches,
+                    input_tensor,
+                    forward_data_store,
+                    config,
+                    collect_non_loss_data,
+                    checkpoint_activations_microbatch,
+                    check_first_val_step(
+                        first_val_step, forward_only, (i == 0) and (num_warmup_microbatches == 0)
+                    ),
+                    current_microbatch=i + num_warmup_microbatches,
+                    encoder_decoder_xattn=encoder_decoder_xattn,
+                )
+        else:
+            output_tensor, num_tokens = forward_step(
+                forward_step_func,
+                data_iterator,
+                model,
+                num_microbatches,
+                input_tensor,
+                forward_data_store,
+                config,
+                collect_non_loss_data,
+                checkpoint_activations_microbatch,
+                check_first_val_step(
+                    first_val_step, forward_only, (i == 0) and (num_warmup_microbatches == 0)
+                ),
+                current_microbatch=i + num_warmup_microbatches,
+                encoder_decoder_xattn=encoder_decoder_xattn,
+            )
         total_num_tokens += num_tokens
 
         if forward_only:
@@ -1931,9 +2023,16 @@ def forward_backward_pipelining_without_interleaving(
                 input_tensor = recv_forward(recv_tensor_shapes, config)
 
         else:
-            output_tensor_grad = send_forward_recv_backward(
-                output_tensor, send_tensor_shapes, config
-            )
+            tracers = get_tracer()
+            if args.trace:
+                with tracers.scope("exchange-next", ctx={"trace_p2p_recv": "recv-backward"}, expect="exchange-prev", slots=["data", "group"]):
+                    output_tensor_grad = send_forward_recv_backward(
+                        output_tensor, send_tensor_shapes, config
+                    )
+            else:
+                output_tensor_grad = send_forward_recv_backward(
+                    output_tensor, send_tensor_shapes, config
+                )
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -1950,18 +2049,37 @@ def forward_backward_pipelining_without_interleaving(
             if num_warmup_microbatches == 0 and last_iteration:
                 if config.grad_sync_func is None or rank == 0:
                     enable_grad_sync()
-
-            input_tensor_grad = backward_step(
-                input_tensor, output_tensor, output_tensor_grad, model_type, config
-            )
+            
+            if args.trace:
+                tracers = get_tracer()
+                with tracers.scope("backward", micro_batch_index=i):
+                    input_tensor_grad = backward_step(
+                        input_tensor, output_tensor, output_tensor_grad, model_type, config
+                    )
+            else:
+                input_tensor_grad = backward_step(
+                    input_tensor, output_tensor, output_tensor_grad, model_type, config
+                )
 
             if last_iteration:
                 input_tensor = None
-                send_backward(input_tensor_grad, recv_tensor_shapes, config)
+                if args.trace:
+                    tracers = get_tracer()
+                    with tracers.scope("send-extra", micro_batch_index=num_microbatches - 1, slots=["data"]):
+                        send_backward(input_tensor_grad, recv_tensor_shapes, config)
+                else:
+                    send_backward(input_tensor_grad, recv_tensor_shapes, config)
             else:
-                input_tensor = send_backward_recv_forward(
-                    input_tensor_grad, recv_tensor_shapes, config
-                )
+                if args.trace:
+                    tracers = get_tracer()
+                    with tracers.scope("exchange-prev", ctx={"trace_p2p_recv": "recv-forward"}, expect="exchange-next", slots=["data", "group"]):
+                        input_tensor = send_backward_recv_forward(
+                            input_tensor_grad, recv_tensor_shapes, config
+                        )
+                else:
+                    input_tensor = send_backward_recv_forward(
+                        input_tensor_grad, recv_tensor_shapes, config
+                    )
 
     # Run cooldown backward passes.
     if not forward_only:
@@ -1979,19 +2097,37 @@ def forward_backward_pipelining_without_interleaving(
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
-            output_tensor_grad = recv_backward(send_tensor_shapes, config)
+            if args.trace:
+                tracers = get_tracer()
+                with tracers.scope("recv-cooldown", micro_batch_index=num_microbatches_remaining + i, slots=["data"]):
+                    output_tensor_grad = recv_backward(send_tensor_shapes, config)
 
-            input_tensor_grad = backward_step(
-                input_tensor, output_tensor, output_tensor_grad, model_type, config
-            )
+                with tracers.scope("backward-cooldown", micro_batch_index=num_microbatches_remaining + i):
+                    input_tensor_grad = backward_step(
+                        input_tensor, output_tensor, output_tensor_grad, model_type, config
+                    )
 
-            send_backward(input_tensor_grad, recv_tensor_shapes, config)
+                with tracers.scope("send-cooldown", micro_batch_index=num_microbatches_remaining + i, slots=["data"]):
+                    send_backward(input_tensor_grad, recv_tensor_shapes, config)
+            else:
+                output_tensor_grad = recv_backward(send_tensor_shapes, config)
+
+                input_tensor_grad = backward_step(
+                    input_tensor, output_tensor, output_tensor_grad, model_type, config
+                )
+
+                send_backward(input_tensor_grad, recv_tensor_shapes, config)
 
         # Launch any remaining grad reductions.
         if no_sync_context is not None:
             enable_grad_sync()
             if config.grad_sync_func is not None:
-                config.grad_sync_func(model.parameters())
+                if args.trace:
+                    tracers = get_tracer()
+                    with tracers.scope("grad-sync"):
+                        config.grad_sync_func(model.parameters())
+                else:
+                    config.grad_sync_func(model.parameters())
 
     if config.finalize_model_grads_func is not None and not forward_only:
 
@@ -2002,9 +2138,19 @@ def forward_backward_pipelining_without_interleaving(
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for
         # data parallelism, layernorm all-reduce for sequence parallelism, and
         # embedding all-reduce for pipeline parallelism).
-        config.finalize_model_grads_func(
-            [model], total_num_tokens if config.calculate_per_token_loss else None
-        )
+        if args.trace:
+            tracers = get_tracer()
+            with tracers.scope(
+                name="allreduce",
+            ):
+                config.finalize_model_grads_func(
+                    [model], total_num_tokens if config.calculate_per_token_loss else None
+                )
+                torch.cuda.synchronize()
+        else:
+            config.finalize_model_grads_func(
+                [model], total_num_tokens if config.calculate_per_token_loss else None
+            )
 
     if config.timers is not None:
         config.timers('forward-backward').stop()

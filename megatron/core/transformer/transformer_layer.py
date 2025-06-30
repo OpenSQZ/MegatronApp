@@ -386,9 +386,22 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         This method calls the core computation of a transformer layer, including
         self-attention, cross-attention (if applicable), and feed-forward operations.
         """
-        pre_mlp_layernorm_output, residual, context = self._forward_attention(*args, **kwargs)
-        output = self._forward_mlp(pre_mlp_layernorm_output, residual)
-        return output, context
+        from megatron.training.global_vars import get_args, get_tracer
+        global_args = get_args()
+        if global_args.trace:
+            tracer = get_tracer()
+            with tracer.scope(
+                f"transformer_layer_{self.layer_number}",
+            ):
+                with tracer.scope(f"_forward_attention_{self.layer_number}"):
+                    pre_mlp_layernorm_output, residual, context = self._forward_attention(*args, **kwargs)
+                with tracer.scope(f"_forward_mlp_{self.layer_number}"):
+                    output = self._forward_mlp(pre_mlp_layernorm_output, residual)
+                return output, context
+        else:
+            pre_mlp_layernorm_output, residual, context = self._forward_attention(*args, **kwargs)
+            output = self._forward_mlp(pre_mlp_layernorm_output, residual)
+            return output, context
 
     def _forward_attention(
         self,
@@ -522,13 +535,30 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
             output (Tensor): Transformed hidden states of shape [s, b, h].
         """
 
+        from megatron.training.global_vars import get_args, get_tracer
+        args = get_args()
         # MLP.
         if self.recompute_mlp:
-            mlp_output_with_bias = tensor_parallel.checkpoint(
-                self.mlp, False, pre_mlp_layernorm_output
-            )
+            if args.trace:
+                with get_tracer().scope(
+                    name=f"recompute_mlp_{self.layer_number}",
+                    function_name="tensor_parallel.checkpoint",
+                ):
+                    mlp_output_with_bias = tensor_parallel.checkpoint(
+                        self.mlp, False, pre_mlp_layernorm_output
+                    )
+            else:
+                mlp_output_with_bias = tensor_parallel.checkpoint(
+                    self.mlp, False, pre_mlp_layernorm_output
+                )
         else:
-            mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
+            if args.trace:
+                with get_tracer().scope(
+                    f"mlp_{self.layer_number}",
+                ):
+                    mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
+            else:
+                mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
         
         from megatron.core.tensor_disturbance import get_disturbance
         if get_disturbance().calculation_perturbation and get_disturbance().calculation_perturbation_fn is not None:

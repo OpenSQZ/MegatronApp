@@ -108,6 +108,7 @@ from .global_vars import (
     get_tensorboard_writer,
     get_wandb_writer,
     get_one_logger,
+    get_tracer,
 )
 from . import one_logger_utils
 
@@ -790,6 +791,17 @@ def pretrain_body(
                 non_loss_data_func)
 
         print_datetime('after training is done')
+        if args.trace:
+            data_parallel_rank = mpu.get_data_parallel_rank()
+            tensor_model_parallel_rank = mpu.get_tensor_model_parallel_rank()
+            pipeline_model_parallel_rank = mpu.get_pipeline_model_parallel_rank()
+            tracers = get_tracer()
+            tracers.log(f"benchmark-data-{data_parallel_rank}-pipeline-{pipeline_model_parallel_rank}-tensor-{tensor_model_parallel_rank}.json")
+            with open("gpu-rank-map.txt", "a") as f:
+                f.write(f"{data_parallel_rank}\t")
+                f.write(f"{pipeline_model_parallel_rank}\t")
+                f.write(f"{tensor_model_parallel_rank}\t")
+                f.write(f"{torch.cuda.current_device()}\n")
 
         if args.save and iteration != 0 and iteration % args.save_interval != 0:
             save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
@@ -1368,7 +1380,12 @@ def train_step(forward_step_func, data_iterator,
     # Update parameters.
 
     # timers('optimizer', log_level=1).start(barrier=args.barrier_with_L1_time)
-    update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
+    if args.trace:
+        tracers = get_tracer()
+        with tracers.scope('optimizer'):
+            update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
+    else:
+        update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
     # timers('optimizer').stop()
 
     # when freezing sub-models we may have a mixture of successful and unsucessful ranks,
@@ -2053,6 +2070,11 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Run training iterations till done.
     while iteration < args.train_iters:
+        if args.trace:
+            # Barrier to make sure all ranks start the iteration at the same time.
+            torch.distributed.barrier()
+            tracers = get_tracer()
+            tracers.iteration_begin()
         if args.profile and torch.distributed.get_rank() in args.profile_ranks:
             if args.use_pytorch_profiler:
                 prof.step()
@@ -2130,6 +2152,10 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                     config.param_sync_func = param_sync_func
                     pre_hook_enabled = True
 
+        if args.trace:
+            tracers = get_tracer()
+            tracers.iteration_end()
+            
         iteration += 1
         batch_size = mpu.get_data_parallel_world_size() * \
                      args.micro_batch_size * \

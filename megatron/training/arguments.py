@@ -2695,4 +2695,13 @@ def _add_experimental_args(parser):
                        help='Dtype of exp_avg when enabling precision-aware-optimizer')
     group.add_argument('--exp-avg-sq-dtype', default='fp32', choices=['fp32', 'fp16', 'fp8'],
                        help='Dtype of exp_avg_sq when enabling precision-aware-optimizer')
+    
+    group.add_argument('--trace', action='store_true',
+                       help='Enable tracing of the model. This will record '
+                       'the execution time of each operation in the model.')
+    group.add_argument('--trace-interval', type=int,
+                          help='Interval at which to record the trace. This is '
+                          'useful for reducing the overhead of tracing.')
+    group.add_argument('--continuous-trace-iterations', type=int,
+                       help='Number of iterations to trace continuously.')
     return parser
