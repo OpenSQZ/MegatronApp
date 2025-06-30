@@ -1,6 +1,8 @@
 <div align="center">
+
 **MegatronApp: toolchain built around the Megatron-LM for Distributed Training**
 <!-- > Sample: AI Health Assistant | Powered by Your Data -->
+
 Extension for performance tuning, slow-node detection, and training-process visualization.
 
 <!-- **📢 Annoncements**  
