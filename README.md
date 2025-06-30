@@ -14,6 +14,21 @@ $\quad$ The improvement of training steps, which allows ranks to do only forward
 
 - Supports merging forward ranks within the same tensor model parallel group.
 
+# 🗺️ Workflow
+
+Each forward rank computes the forward step, and sends the result to the next forward rank and next backward rank.
+
+Each backward rank receives input from last forward rank, recomputes forward step to build computational graph, and proceeds its backward step.
+
+Here's the pipeline of DP=TP=1, PP=4:
+
+![Pipeline 1](images/fig1.png)
+
+Here's the pipeline of DP=1, TP=PP=2, with merging forward ranks:
+
+![Pipeline 1](images/fig2.png)
+
+
 # 🚀 Quickstart
 
 ## Configuration
