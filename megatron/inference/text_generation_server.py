@@ -11,7 +11,7 @@ from megatron.inference.text_generation import beam_search_and_post_process
 from megatron.inference.text_generation.mcore_engine_server import run_mcore_engine
 
 from megatron.training import get_tokenizer, get_args
-from megatron.core.tensor_tracer import set_report, set_filter, get_tt_flags, FlagType
+from megatron.core.tensor_tracer import set_report, set_filter, get_tt_flags, FlagType, get_compressor
 from megatron.core.tensor_disturbance import get_disturbance
 import torch
 import megatron.virtual_tensor_parallel_communication as dist
@@ -178,6 +178,7 @@ class MegatronGenerate:
 
         visualization_flags_config = request.get("visualization_flags", {})
         disturbance_configs = request.get("disturbance_configs", {})
+        compressor_config = request.get("compressor_config", {})
 
         with LOCK:  # Need to get lock to keep multiple threads from hitting code
 
@@ -185,6 +186,7 @@ class MegatronGenerate:
             dist.broadcast_object_list([visualization_flags_config], 0)
             get_disturbance().set_by_configs(disturbance_configs)
             dist.broadcast_object_list([disturbance_configs], 0)
+            get_compressor().set_by_configs(compressor_config)
 
             set_filter()
 

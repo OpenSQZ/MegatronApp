@@ -1660,6 +1660,8 @@ def _add_training_args(parser):
                              'global batch, versus the default behavior of assuming all tokens are non-padded.'))
     group.add_argument('--train-sync-interval', type=int, default=None,
                        help='Training CPU-GPU synchronization interval, to ensure that CPU is not running too far ahead of GPU.')
+    group.add_argument('--training-ws-port', type=int, default=None,
+                       help='Port for the training visualization WebSocket server. If set, training will be interactive and controlled by the frontend.')
 
     # deprecated
     group.add_argument('--checkpoint-activations', action='store_true',

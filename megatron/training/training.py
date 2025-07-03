@@ -12,6 +12,7 @@ import os
 import sys
 from typing import List
 import threading
+import json
 
 # import torch.distributed
 import megatron.virtual_tensor_parallel_communication as dist
@@ -113,6 +114,8 @@ from .global_vars import (
 from . import one_logger_utils
 
 from . import ft_integration
+
+from .training_wsserver import TrainingWSServer, start_training_event, _request_configs, _request_lock, get_websocket
 
 stimer = StragglerDetector()
 
@@ -2067,6 +2070,63 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             "Parameter hashes not matching across DP replicas"
         dist.barrier()
         print_rank_0(f">>> Weight hashes match after {iteration} iterations...")
+
+    if args.training_ws_port is not None and mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
+        server = TrainingWSServer(port=args.training_ws_port)
+        server.start()
+        from megatron.core.tensor_tracer import FlagType, set_report
+        def report_func(name_tuple, report_args, tensor_data):
+            # name_tuple is (layer_id, FlagType)
+            # report_args are specific to the FlagType (e.g., [n,m] for attention)
+            # tensor_data is the actual data (list or tensor that can be .tolist())
+            try:
+                if name_tuple[1] == FlagType.INVALID_FLAG:
+                    return
+                payload = {
+                    "type": "update",
+                    "update_type": name_tuple[1].value,
+                    "layer_id": name_tuple[0],
+                    "args": report_args,
+                    "result": tensor_data.tolist()
+                }
+                get_websocket().send(json.dumps(payload))
+            except Exception:
+                pass
+        set_report(report_func)
+
+    if args.training_ws_port is not None:
+        if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
+            print_rank_0("Waiting for 'run_training_step' command from frontend to start training...")
+            start_training_event.wait()
+            print_rank_0("Command received. Synchronizing configs across all ranks...")
+
+        if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
+            with _request_lock:
+                vis_flags = _request_configs.get('visualization_flags', {})
+                dist_configs = _request_configs.get('disturbance_configs', {})
+                comp_configs = _request_configs.get('compressor_config', {})
+            configs_to_broadcast = [vis_flags, dist_configs, comp_configs]
+        else:
+            configs_to_broadcast = [None, None, None]
+
+        dist.broadcast_object_list(configs_to_broadcast, src=0)
+
+        vis_flags, dist_configs, comp_configs = configs_to_broadcast
+        from megatron.core.tensor_tracer import get_tt_flags, get_compressor
+        from megatron.core.tensor_disturbance import get_disturbance
+        get_tt_flags().set_by_configs(vis_flags)
+        get_disturbance().set_by_configs(dist_configs)
+        get_compressor().set_by_configs(comp_configs)
+
+        print_rank_0("Configs synchronized. Starting training.")
+
+        if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
+            get_websocket().send(json.dumps({
+                "type": "start",
+                "micro_batch_size": args.micro_batch_size,
+                "seq_length": args.seq_length,
+                "num_layers": args.num_layers
+            }))
 
     # Run training iterations till done.
     while iteration < args.train_iters:

@@ -38,27 +38,36 @@ interface DisturbanceConfig {
 
 
 // --- 常量与配置 ---
-const QKV_FEATURE_DIM = 96; // 根据后端设定, Q=K=V=32, 32*3 = 96
-const MLP_FEATURE_DIM = 64; // 根据后端设定
+const visualizationSettings = ref({
+  qkvPixels: 96,
+  mlpPixels: 64,
+  qkvCompressionMethod: "data.mean(dim=-1)",
+  mlpCompressionMethod: "data.mean(dim=-1)",
+})
 const TOP_K_FOR_PROBS = 20; // 与后端 global_vars.py 中的 topk (Tracer.tik_result) 一致
 
 // --- 颜色定义 ---
 const q_color = [1, 0, 0]; // Red for Query
 const k_color = [0, 1, 0]; // Green for Key
 const v_color = [0, 0, 1]; // Blue for Value
-const qkv_colors = [
-  ...Array(QKV_FEATURE_DIM / 3).fill(q_color),
-  ...Array(QKV_FEATURE_DIM / 3).fill(k_color),
-  ...Array(QKV_FEATURE_DIM / 3).fill(v_color),
-];
+const qkv_colors = computed(() => {
+  const num_per_part = Math.floor(visualizationSettings.value.qkvPixels / 3);
+  return [
+    ...Array(num_per_part).fill(q_color),
+    ...Array(num_per_part).fill(k_color),
+    // 确保总数正确，将余数分配给最后一个
+    ...Array(visualizationSettings.value.qkvPixels - 2 * num_per_part).fill(v_color),
+  ];
+});
 const attention_color = [0.4235, 0.1686, 0.8509]; // Purple
 const mlp1_color_single = [0.4235, 0.1686, 0.8509]; // Purple
 const mlp2_color_single = [0, 0, 1]; // Blue
-const mlp1_colors = Array(MLP_FEATURE_DIM).fill(mlp1_color_single);
-const mlp2_colors = Array(MLP_FEATURE_DIM).fill(mlp2_color_single);
+const mlp1_colors = computed(() => Array(visualizationSettings.value.mlpPixels).fill(mlp1_color_single));
+const mlp2_colors = computed(() => Array(visualizationSettings.value.mlpPixels).fill(mlp2_color_single));
 
 
 // --- 核心状态 ---
+const isTrainingMode = ref(false);
 const prompts = ref<string[]>(["The quick brown fox jumps over the lazy dog."]);
 const current_batch_index_to_display = ref(0);
 const batch_size = computed(() => prompts.value.length);
@@ -175,35 +184,52 @@ const { status: wsStatus, data: wsData, send: wsSend, open: wsOpen, close: wsClo
 
       if (type === "start") {
         actualNumLayers.value = parseInt(parsedData.num_layers) || 0;
-        initializeDataStructures(actualNumLayers.value, currentBatchSize);
-
-        // 后端发送的 prompts 是一个扁平化的 token 对象列表
-        // [{id, token}, {id, token}, ...]
-        // 需要根据 batch_size 将其分配到 tokens_per_batch
-        const flatInitialTokens: TokenInfo[] = parsedData.prompts || [];
-        if (currentBatchSize > 0 && flatInitialTokens.length > 0) {
-          // 假设所有初始 prompt 长度相同，这是后端目前的行为
-          const numTokensPerInitialPrompt = Math.floor(flatInitialTokens.length / currentBatchSize);
-          if (numTokensPerInitialPrompt * currentBatchSize !== flatInitialTokens.length) {
-             console.warn(`Initial tokens length (${flatInitialTokens.length}) not divisible by batch size (${currentBatchSize}). Truncating.`);
-             message.warning("初始Tokens数量与批次大小非整数倍，部分Prompt可能被截断。");
+        
+        if (isTrainingMode.value) {
+          // resize prompts to parsedData.micro_batch_size size
+          const microBatchSize = parseInt(parsedData.micro_batch_size) || 1;
+          if (microBatchSize > 0 && microBatchSize !== currentBatchSize) {
+            console.log(`Received 'start' with micro_batch_size ${microBatchSize}, but current batch size is ${currentBatchSize}. Adjusting prompts.`);
+            prompts.value = prompts.value.slice(0, microBatchSize);
+            while (prompts.value.length < microBatchSize) {
+              prompts.value.push(""); // Fill with empty prompts if needed
+            }
           }
-
-          for (let bIdx = 0; bIdx < currentBatchSize; bIdx++) {
-            const batchPromptTokens = flatInitialTokens.slice(
-              bIdx * numTokensPerInitialPrompt,
-              (bIdx + 1) * numTokensPerInitialPrompt
-            );
-            tokens_per_batch.value[bIdx] = batchPromptTokens;
-            // 为每个初始 token 准备空的 result 对象槽位
-            results_per_batch.value[bIdx] = Array(batchPromptTokens.length).fill({});
+          initializeDataStructures(actualNumLayers.value, batch_size.value);
+          const seqLength = parseInt(parsedData.seq_length) || 128;
+          for (let bIdx = 0; bIdx < microBatchSize; bIdx++) {
+            tokens_per_batch.value[bIdx] = Array.from({ length: seqLength }, () => ({ id: -1, token: "", logit: 0, probability: 0 }));
+            results_per_batch.value[bIdx] = Array.from({ length: seqLength }, () => ({} as OutputProbData));
           }
-        } else if (currentBatchSize > 0) {
-            console.warn("Received 'start' message but parsedData.prompts is empty or batch size issue.");
+        } else {
+          initializeDataStructures(actualNumLayers.value, currentBatchSize);
+          // 后端发送的 prompts 是一个扁平化的 token 对象列表
+          // [{id, token}, {id, token}, ...]
+          // 需要根据 batch_size 将其分配到 tokens_per_batch
+          const flatInitialTokens: TokenInfo[] = parsedData.prompts || [];
+          if (currentBatchSize > 0 && flatInitialTokens.length > 0) {
+            // 假设所有初始 prompt 长度相同，这是后端目前的行为
+            const numTokensPerInitialPrompt = Math.floor(flatInitialTokens.length / currentBatchSize);
+            if (numTokensPerInitialPrompt * currentBatchSize !== flatInitialTokens.length) {
+              console.warn(`Initial tokens length (${flatInitialTokens.length}) not divisible by batch size (${currentBatchSize}). Truncating.`);
+              message.warning("初始Tokens数量与批次大小非整数倍，部分Prompt可能被截断。");
+            }
+
+            for (let bIdx = 0; bIdx < currentBatchSize; bIdx++) {
+              const batchPromptTokens = flatInitialTokens.slice(
+                bIdx * numTokensPerInitialPrompt,
+                (bIdx + 1) * numTokensPerInitialPrompt
+              );
+              tokens_per_batch.value[bIdx] = batchPromptTokens;
+              // 为每个初始 token 准备空的 result 对象槽位
+              results_per_batch.value[bIdx] = Array(batchPromptTokens.length).fill({});
+            }
+          } else if (currentBatchSize > 0) {
+              console.warn("Received 'start' message but parsedData.prompts is empty or batch size issue.");
+          }
+          // loadingRef.value 应该在 "generate" 开始时设置，在 "finish" 或 "error" 时清除
+          // "start" 消息本身不直接控制 loadingRef
         }
-        // loadingRef.value 应该在 "generate" 开始时设置，在 "finish" 或 "error" 时清除
-        // "start" 消息本身不直接控制 loadingRef
-
       } else if (type === "update") {
         if (!isInitializedAfterStart.value) {
           console.warn("Ignoring 'update': Data structures not yet initialized (no 'start' message received or data cleaned).");
@@ -223,7 +249,7 @@ const { status: wsStatus, data: wsData, send: wsSend, open: wsOpen, close: wsClo
           }
           
           const num_new_tokens_per_batch = parseInt(parsedData.args[0]);
-          const feature_dim = (update_type === 1) ? QKV_FEATURE_DIM : MLP_FEATURE_DIM;
+          const feature_dim = (update_type === 1) ? visualizationSettings.value.qkvPixels : visualizationSettings.value.mlpPixels;
           const flat_data: number[] = parsedData.result;
           
           let target_array_ref;
@@ -268,7 +294,7 @@ const { status: wsStatus, data: wsData, send: wsSend, open: wsOpen, close: wsClo
           for (let bIdx = 0; bIdx < currentBatchSize; bIdx++) {
             const current_lb_data = attention_matrix_batched.value[layer_idx][bIdx];
             if (!current_lb_data || !isArray(current_lb_data) || current_lb_data.length !== num_heads) {
-                 console.warn(`Attention Update: Structures for L${layer_idx} B${bIdx} not initialized. Matrix: ${!!attention_matrix_batched.value[layer_idx][bIdx]}, Size: ${attention_size_batched.value[layer_idx][bIdx]}`);
+                 console.log(`Attention Update: Structures for L${layer_idx} B${bIdx} not initialized. Matrix: ${!!attention_matrix_batched.value[layer_idx][bIdx]}, Size: ${attention_size_batched.value[layer_idx][bIdx]}`);
                  attention_matrix_batched.value[layer_idx][bIdx] = Array.from({ length: num_heads }, () => []); // Initialize if needed
                  attention_size_batched.value[layer_idx][bIdx] = 0;
             }
@@ -502,13 +528,24 @@ function generate() {
     } else {
       dist_configs_payload.calculation_perturbation = false;
     }
-     if (disturbanceSettings.value.system_perturbation) { // Assuming backend supports this
+     if (disturbanceSettings.value.system_perturbation) {
       dist_configs_payload.system_perturbation = true;
       dist_configs_payload.system_perturbation_fn = disturbanceSettings.value.system_perturbation_fn;
       dist_configs_payload.system_perturbation_coef = Number(disturbanceSettings.value.system_perturbation_coef);
     } else {
       dist_configs_payload.system_perturbation = false;
     }
+
+    const compressor_config_payload = {
+        "QKV": {
+            "pixels": visualizationSettings.value.qkvPixels,
+            "method": visualizationSettings.value.qkvCompressionMethod
+        },
+        "MLP": {
+            "pixels": visualizationSettings.value.mlpPixels,
+            "method": visualizationSettings.value.mlpCompressionMethod
+        }
+    };
 
     let params = {
       type: "generate",
@@ -517,8 +554,74 @@ function generate() {
       visualization_flags: vis_flags_payload,
       disturbance_configs: dist_configs_payload,
       // top_k, top_p, temperature etc. can be added here if UI controls are provided
+      compressor_config: compressor_config_payload,
     };
     console.log("Sending 'generate' request:", JSON.stringify(params, null, 2));
+    wsSend(JSON.stringify(params));
+  });
+}
+
+function runTrainingStep() {
+  if (wsStatus.value !== 'OPEN') {
+    message.error("WebSocket 未连接!");
+    if (wsStatus.value === 'CLOSED') wsOpen();
+    return;
+  }
+  
+  loadingRef.value = true;
+  cleanBeforeGenerate();
+
+  nextTick(() => {
+    visualizationSwitches.value.RawAttentionScore_mat_mul = false;
+    visualizationSwitches.value.Result = false;
+    visualizationSwitches.value.MLP2_Plot = false;
+    const vis_flags_payload: { [key: string]: string } = {};
+    for (const key in visualizationSwitches.value) {
+      vis_flags_payload[key] = (visualizationSwitches.value as any)[key] ? "True" : "False";
+    }
+
+    const dist_configs_payload: Partial<DisturbanceConfig> & {[key:string]:any} = {};
+    // Only include coef if the perturbation is active, and ensure boolean is sent for inactive
+    if (disturbanceSettings.value.weight_perturbation) {
+      dist_configs_payload.weight_perturbation = true;
+      dist_configs_payload.weight_perturbation_fn = disturbanceSettings.value.weight_perturbation_fn;
+      dist_configs_payload.weight_perturbation_coef = Number(disturbanceSettings.value.weight_perturbation_coef);
+    } else {
+      dist_configs_payload.weight_perturbation = false;
+    }
+    if (disturbanceSettings.value.calculation_perturbation) {
+      dist_configs_payload.calculation_perturbation = true;
+      dist_configs_payload.calculation_perturbation_fn = disturbanceSettings.value.calculation_perturbation_fn;
+      dist_configs_payload.calculation_perturbation_coef = Number(disturbanceSettings.value.calculation_perturbation_coef);
+    } else {
+      dist_configs_payload.calculation_perturbation = false;
+    }
+     if (disturbanceSettings.value.system_perturbation) {
+      dist_configs_payload.system_perturbation = true;
+      dist_configs_payload.system_perturbation_fn = disturbanceSettings.value.system_perturbation_fn;
+      dist_configs_payload.system_perturbation_coef = Number(disturbanceSettings.value.system_perturbation_coef);
+    } else {
+      dist_configs_payload.system_perturbation = false;
+    }
+
+    const compressor_config_payload = {
+        "QKV": {
+            "pixels": visualizationSettings.value.qkvPixels,
+            "method": visualizationSettings.value.qkvCompressionMethod
+        },
+        "MLP": {
+            "pixels": visualizationSettings.value.mlpPixels,
+            "method": visualizationSettings.value.mlpCompressionMethod
+        }
+    };
+
+    let params = {
+      type: "run_training_step",
+      visualization_flags: vis_flags_payload,
+      disturbance_configs: dist_configs_payload,
+      compressor_config: compressor_config_payload,
+    };
+    console.log("Sending 'run_training_step' request:", params);
     wsSend(JSON.stringify(params));
   });
 }
@@ -573,21 +676,21 @@ const columns = computed(() => {
   if (visualizationSwitches.value.QKV_mat_mul) {
     baseColumns.push({ title: "QKV Vector", key: "qkv", align: "center", width: 250,
       render: (rowData: any) => rowData.qkv?.length 
-        ? h(ColoredVector, { values: rowData.qkv, colors: qkv_colors, length: QKV_FEATURE_DIM }) 
+        ? h(ColoredVector, { values: rowData.qkv, colors: qkv_colors.value, length: visualizationSettings.value.qkvPixels }) 
         : h('span', '-')
     });
   }
   if (visualizationSwitches.value.MLP1_mat_mul) {
     baseColumns.push({ title: "MLP1 Vector", key: "mlp1", align: "center", width: 200,
       render: (rowData: any) => rowData.mlp1?.length 
-        ? h(ColoredVector, { values: rowData.mlp1, colors: mlp1_colors, length: MLP_FEATURE_DIM }) 
+        ? h(ColoredVector, { values: rowData.mlp1, colors: mlp1_colors.value, length: visualizationSettings.value.mlpPixels }) 
         : h('span', '-')
     });
   }
   if (visualizationSwitches.value.MLP2_mat_mul) {
     baseColumns.push({ title: "MLP2 Vector", key: "mlp2", align: "center", width: 200,
       render: (rowData: any) => rowData.mlp2?.length 
-        ? h(ColoredVector, { values: rowData.mlp2, colors: mlp2_colors, length: MLP_FEATURE_DIM }) 
+        ? h(ColoredVector, { values: rowData.mlp2, colors: mlp2_colors.value, length: visualizationSettings.value.mlpPixels }) 
         : h('span', '-')
     });
   }
@@ -698,7 +801,7 @@ watch(batch_size, (newSize, oldSize) => {
 <template>
   <n-space vertical style="width: 100%; gap: 16px;">
     <!-- Prompts 输入区域 -->
-    <n-card title="模型输入 Prompts">
+    <n-card title="模型输入 Prompts" v-if="!isTrainingMode">
       <template #header-extra>
         <n-button @click="addPrompt" type="primary" size="small" :disabled="loadingRef" round>
           <template #icon><n-icon :component="AddCircleOutline"/></template> 添加 Prompt
@@ -733,15 +836,19 @@ watch(batch_size, (newSize, oldSize) => {
     <!-- 生成控制与扰动 -->
     <n-grid :x-gap="12" :y-gap="12" :cols="2">
         <n-gi>
-            <n-card title="生成控制">
+            <n-card title="运行控制">
                 <n-space vertical>
-                     <n-space align="center">
+                    <n-radio-group v-model:value="isTrainingMode" name="run-mode" style="margin-bottom: 10px;" :disabled="loadingRef">
+                      <n-radio-button :value="false">推理模式</n-radio-button>
+                      <n-radio-button :value="true">训练模式</n-radio-button>
+                    </n-radio-group>
+                    <n-space v-if="!isTrainingMode" align="center">
                         <n-text>生成Token数:</n-text>
                         <n-input-number v-model:value="tokens_to_generate_num" :min="1" :max="512" :disabled="loadingRef" style="width: 120px"/>
                     </n-space>
-                    <n-button type="primary" block :loading="loadingRef" :disabled="loadingRef || wsStatus !== 'OPEN'" @click="generate">
+                    <n-button type="primary" block :loading="loadingRef" :disabled="loadingRef || wsStatus !== 'OPEN'" @click="isTrainingMode ? runTrainingStep() : generate()">
                         <template #icon><n-icon :component="FlashOutline" /></template>
-                        {{ wsStatus !== 'OPEN' ? '连接中...' : (loadingRef ? '生成中...' : '开始生成') }}
+                        {{ wsStatus !== 'OPEN' ? '连接中...' : (loadingRef ? (isTrainingMode ? '运行中...' : '生成中...') : (isTrainingMode ? '运行训练' : '开始生成')) }}
                     </n-button>
                     <n-alert title="WebSocket 状态" :type="wsStatus === 'OPEN' ? 'success' : (wsStatus === 'CONNECTING' ? 'info' : 'error')" :show-icon="true">
                         当前状态: {{ wsStatus }}
@@ -756,11 +863,52 @@ watch(batch_size, (newSize, oldSize) => {
                     <n-gi><n-checkbox v-model:checked="visualizationSwitches.QKV_mat_mul" :disabled="loadingRef">QKV向量(表格)</n-checkbox></n-gi>
                     <n-gi><n-checkbox v-model:checked="visualizationSwitches.MLP1_mat_mul" :disabled="loadingRef">MLP1向量(表格)</n-checkbox></n-gi>
                     <n-gi><n-checkbox v-model:checked="visualizationSwitches.MLP2_mat_mul" :disabled="loadingRef">MLP2向量(表格)</n-checkbox></n-gi>
-                    <n-gi><n-checkbox v-model:checked="visualizationSwitches.Result" :disabled="loadingRef">输出概率(表格)</n-checkbox></n-gi>
-                    <n-gi><n-checkbox v-model:checked="visualizationSwitches.RawAttentionScore_mat_mul" :disabled="loadingRef">注意力矩阵</n-checkbox></n-gi>
-                    <n-gi><n-checkbox v-model:checked="visualizationSwitches.MLP2_Plot" :disabled="loadingRef">MLP2 PCA图</n-checkbox></n-gi>
+                    <n-gi><n-checkbox v-model:checked="visualizationSwitches.Result" :disabled="loadingRef || isTrainingMode">输出概率(表格)</n-checkbox></n-gi>
+                    <n-gi><n-checkbox v-model:checked="visualizationSwitches.RawAttentionScore_mat_mul" :disabled="loadingRef || isTrainingMode">注意力矩阵</n-checkbox></n-gi>
+                    <n-gi><n-checkbox v-model:checked="visualizationSwitches.MLP2_Plot" :disabled="loadingRef || isTrainingMode">MLP2 PCA图</n-checkbox></n-gi>
                 </n-grid>
             </n-card>
+        </n-gi>
+        <n-gi span="2">
+          <n-card title="可视化配置">
+            <template #header-extra><n-icon :component="InformationCircleOutline" title="这些值会发送给后端，用于决定压缩向量的像素数量。"/></template>
+            <n-grid :x-gap="12" :y-gap="8" :cols="2">
+              <n-gi>
+                <n-space align="center">
+                  <n-text>QKV 向量像素数:</n-text>
+                  <n-input-number 
+                    v-model:value="visualizationSettings.qkvPixels" 
+                    :min="3" :step="3" 
+                    :disabled="loadingRef" 
+                    style="width: 120px"
+                  />
+                  <n-text>QKV 压缩方法 (表达式):</n-text>
+                  <n-input
+                    v-model:value="visualizationSettings.qkvCompressionMethod"
+                    placeholder="e.g., data.mean(dim=-1)"
+                    :disabled="loadingRef"
+                  />
+                </n-space>
+              </n-gi>
+              <n-gi>
+                <n-space align="center">
+                  <n-text>MLP 向量像素数:</n-text>
+                  <n-input-number 
+                    v-model:value="visualizationSettings.mlpPixels" 
+                    :min="1" 
+                    :disabled="loadingRef" 
+                    style="width: 120px"
+                  />
+                  <n-text>MLP 压缩方法 (表达式):</n-text>
+                  <n-input
+                    v-model:value="visualizationSettings.mlpCompressionMethod"
+                    placeholder="e.g., data.mean(dim=-1)"
+                    :disabled="loadingRef"
+                  />
+                </n-space>
+              </n-gi>
+            </n-grid>
+          </n-card>
         </n-gi>
     </n-grid>
 
@@ -854,7 +1002,7 @@ watch(batch_size, (newSize, oldSize) => {
     </n-collapse>
     
     <!-- 生成结果文本显示 -->
-    <n-card title="模型输出结果" v-if="!loadingRef && result_text_batched.some(t => t !== '')">
+    <n-card title="模型输出结果" v-if="!isTrainingMode && !loadingRef && result_text_batched.some(t => t !== '')">
       <n-list bordered>
           <n-list-item v-for="(item, index) in result_text_batched" :key="`result-text-${index}`">
               <template #prefix><n-tag type="info">Batch {{ index + 1 }}</n-tag></template>
@@ -864,7 +1012,7 @@ watch(batch_size, (newSize, oldSize) => {
     </n-card>
     
     <!-- 可视化结果 -->
-    <div v-if="isInitializedAfterStart && actualNumLayers > 0 && tokens_per_batch.some(b => b && b.length > 0)">
+    <div v-if="isInitializedAfterStart && actualNumLayers > 0">
       <n-tabs type="line" animated display-directive="show" placement="top" style="margin-top: 16px;">
         <template #prefix>
           <NFlex align="center" style="margin-right: 20px;">
@@ -872,7 +1020,7 @@ watch(batch_size, (newSize, oldSize) => {
             <n-select 
               v-model:value="current_batch_index_to_display" 
               :options="batchSelectorOptions" 
-              :disabled="loadingRef || batch_size <= 0" 
+              :disabled="batch_size <= 0" 
               size="small" 
               style="width: 130px;"
             />
@@ -887,7 +1035,7 @@ watch(batch_size, (newSize, oldSize) => {
               <n-select 
                 v-model:value="current_layer_id_for_display" 
                 :options="layerOptionsForSelection"
-                :disabled="actualNumLayers === 0 || loadingRef" 
+                :disabled="actualNumLayers === 0" 
                 size="small"
                 style="width: 130px;"
               />
@@ -917,7 +1065,7 @@ watch(batch_size, (newSize, oldSize) => {
                         multiple filterable tag 
                         :options="layerOptionsForSelection" 
                         clearable 
-                        :disabled="actualNumLayers === 0 || loadingRef"
+                        :disabled="actualNumLayers === 0"
                         placeholder="选择层..."
                         size="small"
                         style="min-width: 200px;"
@@ -926,7 +1074,7 @@ watch(batch_size, (newSize, oldSize) => {
                     <n-select
                         v-model:value="selectedHeadId"
                         :options="headOptions"
-                        :disabled="numHeads === 0 || loadingRef"
+                        :disabled="numHeads === 0"
                         placeholder="选择头..."
                         size="small"
                         style="min-width: 120px;"
@@ -953,14 +1101,14 @@ watch(batch_size, (newSize, oldSize) => {
         </n-tab-pane>
 
         <!-- Tab 3: PCA 结果 -->
-        <n-tab-pane name="pca" tab="PCA 结果" v-if="visualizationSwitches.MLP2_Plot">
+        <n-tab-pane name="pca" tab="PCA 结果" v-if="visualizationSwitches.MLP2_Plot" :disabled="isTrainingMode">
             <NFlex align="center" justify="space-between" style="margin-bottom: 10px;">
                 <NFlex align="center">
                     <n-text><n-icon :component="LayersOutline" size="18" style="vertical-align: middle; margin-right: 5px;" />选择查看PCA的层数:</n-text>
                      <n-select 
                         v-model:value="current_layer_id_for_display" 
                         :options="layerOptionsForSelection"
-                        :disabled="actualNumLayers === 0 || loadingRef" 
+                        :disabled="actualNumLayers === 0" 
                         size="small"
                         style="width: 130px;"
                     />

@@ -206,7 +206,7 @@ After launching both, open your browser to the specified address (usually http:/
 In the input prompts area, enter one or more prompts. Each text box represents a separate batch, allowing for parallel processing and comparison.
 ![](images/prompts.jpg)
 
-In the control panel, set the desired number of tokens to generate. Also enable or disable the real-time display of specific internal states, such as QKV vectors and MLP outputs. This helps manage performance and focus on relevant data.
+In the control panel, set the desired number of tokens to generate. Also enable or disable the real-time display of specific internal states, such as QKV vectors and MLP outputs. This helps manage performance and focus on relevant data. The filter expressions of vectors can be customized by the input box below.
 ![](images/controls.jpg)
 
 After starting generation, the visualization results will update token-by-token. In the first tab, the intermediate vector heatmaps are displayed and the output probabilities are shown in the expandable sections.
@@ -225,6 +225,10 @@ The currently supported noise types include:
 - Additive Gaussian Noise (noise1): output = input + N(0, coef²), where N is a random value from a Gaussian (normal) distribution with mean 0.
 - Multiplicative Uniform Noise (noise2): output = input * U(1 - val, 1 + val), where U is a random value from a uniform distribution.
 ![](images/perturbation.jpg)
+
+### 4. Support for training process
+The preliminary support for visualization during training process are provided as well. By adding argument `--training-ws-port XXX` in the training script args, the training process will be controlled on the frontend page. Critical intermediate results and perturbations are supported in training.
+![](images/training.jpg)
 
 ## MegaDPP
 

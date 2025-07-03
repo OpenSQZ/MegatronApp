@@ -1,4 +1,5 @@
 import torch
+import math
 import megatron.virtual_tensor_parallel_communication as dist
 from megatron.training import get_args, get_tokenizer
 from enum import Enum
@@ -59,15 +60,39 @@ class FlagType(Enum):
     MLP2_Plot = 7
 
 class DefaultCompressor:
-    def __init__(self): pass
+    def __init__(self):
+        self.configs = {
+            "QKV": {
+                "pixels": 96,
+                "method": "data.mean(dim=-1)"
+            },
+            "MLP": {
+                "pixels": 64,
+                "method": "data.mean(dim=-1)"
+            }
+        }
+    def set_by_configs(self, configs: Dict[str, Any]):
+        self.configs = configs
+    def compress_1d_tensor(self, data_in, pixels, method):
+        B, S, F = data_in.shape
+        chunk_size = math.ceil(F / pixels)
+        padded_len = chunk_size * pixels
+        padded_data = torch.nn.functional.pad(data_in, (0, padded_len - F))
+        data_for_eval = padded_data.reshape(B, S, pixels, chunk_size)
+        try:
+            compressed = eval(method, {}, {"data": data_for_eval}).flatten()
+        except Exception as e:
+            print(f"Error in compressing tensor with method '{method}': {e}")
+            compressed = data_for_eval.mean(dim=-1).flatten()  # Fallback to mean if eval fails
+        return compressed
     def compress(self, name, data):
         flag_type = name[1]
         if flag_type == FlagType.QKV_mat_mul:
-            n = data.shape[1]; return True, [n], data.reshape(data.shape[0], n, 96, -1).mean(dim=-1).flatten()
+            n = data.shape[1]; return True, [n], self.compress_1d_tensor(data, self.configs["QKV"]["pixels"], self.configs["QKV"]["method"])
         elif flag_type == FlagType.RawAttentionScore_mat_mul:
             np, n, m = data.shape[1], data.shape[2], data.shape[3]; return True, [np, n, m], data[:, :, :, :].flatten()
         elif flag_type == FlagType.MLP1_mat_mul or flag_type == FlagType.MLP2_mat_mul or flag_type == FlagType.ContextLayer_mat_mul:
-            n = data.shape[1]; return True, [n], data.reshape(data.shape[0], n, 64, -1).mean(dim=-1).flatten()
+            n = data.shape[1]; return True, [n], self.compress_1d_tensor(data, self.configs["MLP"]["pixels"], self.configs["MLP"]["method"])
         return False, [], torch.tensor([])
 
 
@@ -111,7 +136,7 @@ class TensorTracers:
 
             elif name[1] == FlagType.MLP2_mat_mul:
                 current_token_mlp2_output = tensor_list[0]
-                if mlp2_record is not None and name[0] < len(mlp2_record) and name[0] > 0 :
+                if get_tt_flags().get_flag(FlagType.MLP2_Plot, name[0]) and mlp2_record is not None and name[0] < len(mlp2_record) and name[0] > 0 :
                     if mlp2_record[name[0]] is None:
                         mlp2_record[name[0]] = current_token_mlp2_output
                     else:
@@ -180,6 +205,7 @@ class TTFlags:
             FlagType.ContextLayer_mat_mul: {i: False for i in range(1, self.num_layers + 1)},
             FlagType.MLP1_mat_mul: {i: False for i in range(1, self.num_layers + 1)},
             FlagType.MLP2_mat_mul: {i: False for i in range(1, self.num_layers + 1)},
+            FlagType.MLP2_Plot: {i: False for i in range(1, self.num_layers + 1)},
         }
 
     def get_flag(self, flag_type: FlagType, layer_index: int) -> bool:
@@ -205,3 +231,7 @@ class TTFlags:
         val = True if configs.get("MLP2_mat_mul", "True").lower() == "true" else False
         for i in range(1, self.num_layers + 1):
             self.flags[FlagType.MLP2_mat_mul][i] = val
+
+        val = True if configs.get("MLP2_Plot", "False").lower() == "true" else False
+        for i in range(1, self.num_layers + 1):
+            self.flags[FlagType.MLP2_Plot][i] = val
