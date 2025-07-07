@@ -128,6 +128,23 @@ MegatronApp uses a decoupled frontend-backend architecture with WebSockets to en
 - Access with browser(optional)
 - Verify the result -->
 
+## Docker (Recommended)
+
+We strongly recommend using the release of [PyTorch NGC Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch) for installation. This container comes with all dependencies pre-installed with compatible versions and optimized configurations for NVIDIA GPUs.
+
+~~~shell
+```bash
+# Run container with mounted directories
+docker run --runtime --nvidia --gpus all -it --rm \
+  -v /path/to/megatron:/workspace/megatron \
+  -v /path/to/dataset:/workspace/dataset \
+  -v /path/to/checkpoints:/workspace/checkpoints \
+  nvcr.io/nvidia/pytorch:25.04-py3
+```
+~~~
+
+
+
 To install additional required packages, run
 
 ```bash
