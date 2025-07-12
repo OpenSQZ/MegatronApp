@@ -169,7 +169,7 @@ We provide a basic repro for you to quickly get started with MegaScan.
 2. After training, you will find separated trace files in the current directory. The trace files are named as `benchmark-data-{}-pipeline-{}-tensor-{}.json`, where `{}` is the rank number. Now we should aggregate the trace files into a single trace file:
 
 ```bash
-python scripts/aggregate.py --benchmark . --output benchmark.json
+python scripts/aggregate.py --bench-dir . --output benchmark.json
 ```
 
 3. You can visualize the trace file using Chrome Tracing (or Perfetto UI). Open the trace file in Chrome Tracing by navigating to `chrome://tracing` in your browser (or https://ui.perfetto.dev/). Now you can explore the trace data, zoom in on specific events, and analyze the performance characteristics of your distributed training run.
@@ -191,7 +191,7 @@ python scripts/aggregate.py --benchmark . --output benchmark.json
     
     ```bash
     python scripts/aggregate.py \
-        -b . \ # Equivalent to --benchmark
+        -b . \ # Equivalent to --bench-dir
         -d # Enable the detection algorithm, Equivalent to --detect
     ```
     We can see some output that indicated that the GPU 0 may be abnormal:
