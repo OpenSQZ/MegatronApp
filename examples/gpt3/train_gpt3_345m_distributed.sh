@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Remove obsolete trace files
-rm benchmark-*.json
-
 # Runs the "345m" parameter model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -55,6 +52,7 @@ TRAINING_ARGS=(
     --lr-warmup-fraction .001 
     --lr-decay-iters 430000 
     --trace
+    --trace-dir trace_output
     --trace-interval 5
     --continuous-trace-iterations 2
     --transformer-impl local

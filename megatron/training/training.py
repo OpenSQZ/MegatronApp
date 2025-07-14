@@ -795,16 +795,7 @@ def pretrain_body(
 
         print_datetime('after training is done')
         if args.trace:
-            data_parallel_rank = mpu.get_data_parallel_rank()
-            tensor_model_parallel_rank = mpu.get_tensor_model_parallel_rank()
-            pipeline_model_parallel_rank = mpu.get_pipeline_model_parallel_rank()
-            tracers = get_tracer()
-            tracers.log(f"benchmark-data-{data_parallel_rank}-pipeline-{pipeline_model_parallel_rank}-tensor-{tensor_model_parallel_rank}.json")
-            with open("gpu-rank-map.txt", "a") as f:
-                f.write(f"{data_parallel_rank}\t")
-                f.write(f"{pipeline_model_parallel_rank}\t")
-                f.write(f"{tensor_model_parallel_rank}\t")
-                f.write(f"{torch.cuda.current_device()}\n")
+            get_tracer().log()
 
         if args.save and iteration != 0 and iteration % args.save_interval != 0:
             save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
@@ -2134,7 +2125,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             # Barrier to make sure all ranks start the iteration at the same time.
             torch.distributed.barrier()
             tracers = get_tracer()
-            tracers.iteration_begin()
+            tracers.iteration_begin(iteration)
         if args.profile and torch.distributed.get_rank() in args.profile_ranks:
             if args.use_pytorch_profiler:
                 prof.step()
@@ -2213,8 +2204,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                     pre_hook_enabled = True
 
         if args.trace:
-            tracers = get_tracer()
-            tracers.iteration_end()
+            get_tracer().iteration_end()
             
         iteration += 1
         batch_size = mpu.get_data_parallel_world_size() * \
@@ -2254,6 +2244,9 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                           iteration, loss_scale,
                                           report_memory_flag, skipped_iter,
                                           grad_norm, params_norm, num_zeros_in_grad)
+
+        if args.trace:
+            get_tracer().iteration_end()
 
         # Evaluation.
         if args.eval_interval and iteration % args.eval_interval == 0 and \
@@ -2298,6 +2291,11 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             break
 
     one_logger_utils.track_e2e_metrics()
+    
+    # Log any remaining traces and shut down the saver process
+    if args.trace:
+        get_tracer().log()
+        get_tracer().shutdown()
 
     # Flush TensorBoard, WandB writers and one-logger.
     writer = get_tensorboard_writer()
