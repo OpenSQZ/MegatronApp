@@ -2701,9 +2701,10 @@ def _add_experimental_args(parser):
     group.add_argument('--trace', action='store_true',
                        help='Enable tracing of the model. This will record '
                        'the execution time of each operation in the model.')
-    group.add_argument('--trace-interval', type=int,
-                          help='Interval at which to record the trace. This is '
-                          'useful for reducing the overhead of tracing.')
-    group.add_argument('--continuous-trace-iterations', type=int,
-                       help='Number of iterations to trace continuously.')
+    group.add_argument('--trace-dir', type=str, default='trace_output',
+                       help='Directory on rank 0 to save trace files from all ranks.')
+    group.add_argument('--trace-interval', type=int, default=1000,
+                          help='Interval for periodic tracing.')
+    group.add_argument('--continuous-trace-iterations', type=int, default=1,
+                       help='Number of continuous iterations to trace within each interval.')
     return parser

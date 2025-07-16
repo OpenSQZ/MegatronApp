@@ -152,8 +152,9 @@ def set_args(args):
         _GLOBAL_TRACER.interval = args.trace_interval
         _GLOBAL_TRACER.continuous_trace_iters = args.continuous_trace_iterations
     else:
-        _GLOBAL_TRACER.interval = 1
-        _GLOBAL_TRACER.continuous_trace_iters = 10000
+        # Provide default values if not set, to avoid runtime errors.
+        _GLOBAL_TRACER.interval = 1000
+        _GLOBAL_TRACER.continuous_trace_iters = 1
 
 
 def _build_tokenizer(args):
