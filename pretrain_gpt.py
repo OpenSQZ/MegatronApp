@@ -211,7 +211,10 @@ def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
         )
     # Reduce loss for logging.
     reporting_loss = loss.clone().detach()
-    dist.all_reduce(reporting_loss, group=mpu.get_data_parallel_group())
+    if args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel:
+        dist.all_reduce(reporting_loss, group=mpu.get_half_data_parallel_group())
+    else:
+        dist.all_reduce(reporting_loss, group=mpu.get_data_parallel_group())
 
     # loss[0] is a view of loss, so it has ._base not None, which triggers assert error
     # in core/pipeline_parallel/schedule.py::deallocate_output_tensor, calling .clone()
@@ -235,13 +238,15 @@ def forward_step(data_iterator, model: GPTModel):
     timers = get_timers()
 
     # Get the batch.
+    # import time
+    # start_time = time.time()
     timers('batch-generator', log_level=2).start()
     global stimer
     with stimer(bdata=True):
         tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
             data_iterator)
     timers('batch-generator').stop()
-
+    
     with stimer:
         if args.use_legacy_models:
             output_tensor = model(tokens, position_ids, attention_mask,
@@ -249,6 +254,9 @@ def forward_step(data_iterator, model: GPTModel):
         else:
             output_tensor = model(tokens, position_ids, attention_mask,
                                 labels=labels, loss_mask=loss_mask)
+    # end_time = time.time()
+    # if dist.get_rank() == 7:
+    #     print('partial_forward_step', end_time-start_time)
 
     return output_tensor, partial(loss_func, loss_mask)
 
