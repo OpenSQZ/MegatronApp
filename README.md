@@ -91,6 +91,8 @@ Through UI, users can precisely control the location, activation, type and exten
 - Concurrent asynchronous send/recv operations
 - Dynamically track the completion status of operations
 
+For more details see [README_Megatron.md](README_Megatron.md)
+
 ### MegaFBD
 📊 Instance-Level Decoupled Scheduling: The forward and backward phases are split into two logical processes, each assigned a different rank and bound to separate resources to reduce coupling;
 

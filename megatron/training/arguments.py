@@ -2194,11 +2194,15 @@ def _add_distributed_args(parser):
                        "and must be consistent across all ranks.")
     group.add_argument('--replication-factor', default=2, type=int,
                        help="Number of machines storing the replica of a given rank's data.")
-    group.add_argument("--use-dpp", action='store_true', default=False, help="use dynamic pipeline or not")
     group.add_argument('--forward-backward-disaggregating', action='store_true',
                         help='If ranks should be forward or backward only')
     group.add_argument('--ignore-forward-tensor-parallel', action='store_true',
                        help='If forward ranks need to do tensor parallel when forward-backward-disaggregating')
+    group.add_argument("--use-dpp", action='store_true', default=False, help="use dynamic pipeline or not")
+    group.add_argument("--node-ips", type=str, default="", help="Comma-separated IP addresses for each node (used when DPP is enabled)")
+    group.add_argument("--workload", type=int, default=1048576, help="Workload of each thread")
+    group.add_argument("--num-gpus", type=int, default=4, help="Number of GPUs per node")
+    group.add_argument("--multi-node", action='store_true', default=False, help="Multinode training")
     return parser
 
 
