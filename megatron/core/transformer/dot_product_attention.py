@@ -165,6 +165,10 @@ class DotProductAttention(MegatronModule):
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs: Tensor = self.scale_mask_softmax(attention_scores, attention_mask)
 
+        from megatron.core.tensor_tracer import get_tt_flags, FlagType, get_tensor_tracers
+        if get_tt_flags().get_flag(FlagType.RawAttentionScore_mat_mul, self.layer_number):
+            get_tensor_tracers().tik_tensor((self.layer_number, FlagType.RawAttentionScore_mat_mul), attention_probs)
+
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
 

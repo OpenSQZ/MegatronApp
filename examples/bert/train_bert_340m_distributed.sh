@@ -4,22 +4,26 @@
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-GPUS_PER_NODE=8
+GPUS_PER_NODE=4
 # Change for multinode config
-MASTER_ADDR=localhost
+MASTER_ADDR=10.233.82.104
 MASTER_PORT=6000
 NUM_NODES=1
 NODE_RANK=0
-WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
+WORLD_SIZE=$(($GPUS_PER_NODE * $NUM_NODES))
+PIPELINE_PARALLEL=4
+VPP=1
+TENSOR_PARALLEL=1
 
-CHECKPOINT_PATH=$1 #<Specify path>
-TENSORBOARD_LOGS_PATH=$2 #<Specify path>
-VOCAB_FILE=$3 #<Specify path to file>/bert-vocab.json
-DATA_PATH=$4 #<Specify path and file prefix>_text_document
+CHECKPOINT_PATH=ngc_models_bert #<Specify path>
+TENSORBOARD_LOGS_PATH=tensor_board_bert  #<Specify path>
+VOCAB_FILE=datasets_bert/vocab.txt #<Specify path to file>/bert-vocab.json
+DATA_PATH=datasets/bert_text_sentence #<Specify path and file prefix>_text_document
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE 
     --nnodes $NUM_NODES 
+    --node_rank $NODE_RANK
     --master_addr $MASTER_ADDR 
     --master_port $MASTER_PORT
 )
@@ -34,9 +38,9 @@ BERT_MODEL_ARGS=(
 )
 
 TRAINING_ARGS=(
-    --micro-batch-size 4 
-    --global-batch-size 32 
-    --train-iters 1000000 
+    --micro-batch-size 2 
+    --global-batch-size 16 
+    --train-iters 20 
     --weight-decay 1e-2 
     --clip-grad 1.0 
     --fp16
@@ -47,11 +51,16 @@ TRAINING_ARGS=(
     --weight-decay 1e-2 
     --lr-warmup-fraction .01 
     --clip-grad 1.0 
+    --use-dpp
+    --node-ips "192.168.0.7,192.168.0.7,192.168.0.7,192.168.0.7,192.168.0.2,192.168.0.2,192.168.0.2,192.168.0.2"
+    --workload $((2048 * 512))
+    --num-gpus $GPUS_PER_NODE
 )
 
 MODEL_PARALLEL_ARGS=(
-	--tensor-model-parallel-size 8 
-	--pipeline-model-parallel-size 16 
+	--tensor-model-parallel-size $TENSOR_PARALLEL
+    --pipeline-model-parallel-size $PIPELINE_PARALLEL
+    --num-layers-per-virtual-pipeline-stage $VPP 
 )
 
 DATA_ARGS=(
@@ -61,14 +70,16 @@ DATA_ARGS=(
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --log-interval 100
-    --save-interval 10000 
-    --eval-interval 1000 
+    --log-interval 1
+    --save-interval 50 
+    --eval-interval 20 
     --save $CHECKPOINT_PATH 
     --load $CHECKPOINT_PATH 
     --eval-iters 10
     --tensorboard-dir $TENSORBOARD_LOGS_PATH 
 )
+
+rm -r $CHECKPOINT_PATH
 
 torchrun ${DISTRIBUTED_ARGS[@]} pretrain_bert.py \
     ${BERT_MODEL_ARGS[@]} \

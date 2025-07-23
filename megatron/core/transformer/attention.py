@@ -805,6 +805,9 @@ class SelfAttention(Attention):
         """
         # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
         mixed_qkv, _ = self.linear_qkv(hidden_states)
+        from megatron.core.tensor_tracer import get_tt_flags, FlagType, get_tensor_tracers
+        if get_tt_flags().get_flag(FlagType.QKV_mat_mul, self.layer_number):
+            get_tensor_tracers().tik_tensor((self.layer_number, FlagType.QKV_mat_mul), mixed_qkv.transpose(0, 1))
 
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
         new_tensor_shape = mixed_qkv.size()[:-1] + (

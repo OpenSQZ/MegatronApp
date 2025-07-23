@@ -940,22 +940,43 @@ class ColumnParallelLinear(torch.nn.Module):
 
         allreduce_dgrad = False if self.explicit_expert_comm else self.allreduce_dgrad
 
-        output_parallel = self._forward_impl(
-            input=input_parallel,
-            weight=weight,
-            bias=bias,
-            gradient_accumulation_fusion=self.gradient_accumulation_fusion,
-            allreduce_dgrad=allreduce_dgrad,
-            sequence_parallel=False if self.explicit_expert_comm else self.sequence_parallel,
-            grad_output_buffer=(
-                self.grad_output_buffer if self.config.defer_embedding_wgrad_compute else None
-            ),
-            wgrad_deferral_limit=(
-                self.config.wgrad_deferral_limit
-                if self.config.defer_embedding_wgrad_compute
-                else None
-            ),
-        )
+        from megatron.core.tensor_disturbance import get_disturbance
+        if get_disturbance().weight_perturbation and get_disturbance().weight_perturbation_fn is not None:
+            with torch.no_grad():
+                perturbed_weight = get_disturbance().weight_perturbation_fn(weight)
+                output_parallel = self._forward_impl(
+                    input=input_parallel,
+                    weight=perturbed_weight,
+                    bias=bias,
+                    gradient_accumulation_fusion=self.gradient_accumulation_fusion,
+                    allreduce_dgrad=allreduce_dgrad,
+                    sequence_parallel=False if self.explicit_expert_comm else self.sequence_parallel,
+                    grad_output_buffer=(
+                        self.grad_output_buffer if self.config.defer_embedding_wgrad_compute else None
+                    ),
+                    wgrad_deferral_limit=(
+                        self.config.wgrad_deferral_limit
+                        if self.config.defer_embedding_wgrad_compute
+                        else None
+                    ),
+                )
+        else:
+            output_parallel = self._forward_impl(
+                input=input_parallel,
+                weight=weight,
+                bias=bias,
+                gradient_accumulation_fusion=self.gradient_accumulation_fusion,
+                allreduce_dgrad=allreduce_dgrad,
+                sequence_parallel=False if self.explicit_expert_comm else self.sequence_parallel,
+                grad_output_buffer=(
+                    self.grad_output_buffer if self.config.defer_embedding_wgrad_compute else None
+                ),
+                wgrad_deferral_limit=(
+                    self.config.wgrad_deferral_limit
+                    if self.config.defer_embedding_wgrad_compute
+                    else None
+                ),
+            )
 
         gather_output = self.gather_output
         # Use the runtime gather output if it's set explicitly.

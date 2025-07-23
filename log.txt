@@ -1,0 +1,944 @@
+using world size: 8, data-parallel size: 1, context-parallel size: 1, hierarchical context-parallel sizes: Nonetensor-model-parallel size: 2, encoder-tensor-model-parallel size: 0, pipeline-model-parallel size: 4, encoder-pipeline-model-parallel size: 0
+Number of virtual stages per pipeline stage: 4
+WARNING: Setting args.check_for_nan_in_loss_and_grad to False since dynamic loss scaling is being used
+using torch.float16 for parameters ...
+------------------------ arguments ------------------------
+  account_for_embedding_in_pipeline_split ......... False
+  account_for_loss_in_pipeline_split .............. False
+  accumulate_allreduce_grads_in_fp32 .............. False
+  adam_beta1 ...................................... 0.9
+  adam_beta2 ...................................... 0.95
+  adam_eps ........................................ 1e-08
+  add_bias_linear ................................. True
+  add_position_embedding .......................... True
+  add_qkv_bias .................................... True
+  adlr_autoresume ................................. False
+  adlr_autoresume_interval ........................ 1000
+  align_grad_reduce ............................... True
+  align_param_gather .............................. True
+  app_tag_run_name ................................ None
+  app_tag_run_version ............................. 0.0.0
+  apply_layernorm_1p .............................. False
+  apply_query_key_layer_scaling ................... False
+  apply_residual_connection_post_layernorm ........ False
+  apply_rope_fusion ............................... False
+  async_save ...................................... None
+  async_tensor_model_parallel_allreduce ........... True
+  attention_backend ............................... AttnBackend.auto
+  attention_dropout ............................... 0.1
+  attention_softmax_in_fp32 ....................... False
+  auto_detect_ckpt_format ......................... False
+  barrier_with_L1_time ............................ True
+  bert_binary_head ................................ True
+  bert_embedder_type .............................. megatron
+  bert_load ....................................... None
+  bf16 ............................................ False
+  bias_dropout_fusion ............................. True
+  bias_gelu_fusion ................................ True
+  bias_swiglu_fusion .............................. True
+  biencoder_projection_dim ........................ 0
+  biencoder_shared_query_context_model ............ False
+  block_data_path ................................. None
+  calc_ft_timeouts ................................ False
+  calculate_per_token_loss ........................ False
+  check_for_large_grads ........................... False
+  check_for_nan_in_loss_and_grad .................. False
+  check_for_spiky_loss ............................ False
+  check_weight_hash_across_dp_replicas_interval ... None
+  ckpt_assume_constant_structure .................. False
+  ckpt_convert_format ............................. None
+  ckpt_convert_save ............................... None
+  ckpt_convert_update_legacy_dist_opt_format ...... False
+  ckpt_format ..................................... torch_dist
+  ckpt_fully_parallel_load ........................ False
+  ckpt_fully_parallel_save ........................ True
+  ckpt_fully_parallel_save_deprecated ............. False
+  ckpt_step ....................................... None
+  classes_fraction ................................ 1.0
+  clip_grad ....................................... 1.0
+  clone_scatter_output_in_embedding ............... True
+  config_logger_dir ............................... 
+  consumed_train_samples .......................... 0
+  consumed_valid_samples .......................... 0
+  context_parallel_size ........................... 1
+  cp_comm_type .................................... ['p2p']
+  create_attention_mask_in_dataloader ............. True
+  cross_entropy_fusion_impl ....................... native
+  cross_entropy_loss_fusion ....................... False
+  cuda_graph_scope ................................ full
+  cuda_graph_warmup_steps ......................... 3
+  data_args_path .................................. None
+  data_cache_path ................................. None
+  data_parallel_random_init ....................... False
+  data_parallel_sharding_strategy ................. no_shard
+  data_parallel_size .............................. 1
+  data_path ....................................... ['datasets/gpt-large-cased-vocab-small_text_document']
+  data_per_class_fraction ......................... 1.0
+  data_sharding ................................... True
+  dataloader_type ................................. single
+  ddp_average_in_collective ....................... False
+  ddp_bucket_size ................................. None
+  ddp_num_buckets ................................. None
+  ddp_pad_buckets_for_high_nccl_busbw ............. False
+  decoder_first_pipeline_num_layers ............... None
+  decoder_last_pipeline_num_layers ................ None
+  decoder_num_layers .............................. None
+  decoder_seq_length .............................. None
+  decoupled_lr .................................... None
+  decoupled_min_lr ................................ None
+  decrease_batch_size_if_needed ................... False
+  defer_embedding_wgrad_compute ................... False
+  deprecated_use_mcore_models ..................... False
+  deterministic_mode .............................. False
+  dino_bottleneck_size ............................ 256
+  dino_freeze_last_layer .......................... 1
+  dino_head_hidden_size ........................... 2048
+  dino_local_crops_number ......................... 10
+  dino_local_img_size ............................. 96
+  dino_norm_last_layer ............................ False
+  dino_teacher_temp ............................... 0.07
+  dino_warmup_teacher_temp ........................ 0.04
+  dino_warmup_teacher_temp_epochs ................. 30
+  disable_bf16_reduced_precision_matmul ........... False
+  disable_straggler_on_startup .................... False
+  dist_ckpt_format_deprecated ..................... None
+  dist_ckpt_strictness ............................ assume_ok_unexpected
+  distribute_saved_activations .................... False
+  distributed_backend ............................. nccl
+  distributed_timeout_minutes ..................... 10
+  embedding_path .................................. None
+  empty_unused_memory_level ....................... 0
+  enable_cuda_graph ............................... False
+  enable_ft_package ............................... False
+  enable_gloo_process_groups ...................... True
+  enable_one_logger ............................... True
+  encoder_num_layers .............................. 16
+  encoder_pipeline_model_parallel_size ............ 0
+  encoder_seq_length .............................. 2048
+  encoder_tensor_model_parallel_size .............. 0
+  end_weight_decay ................................ 0.1
+  eod_mask_loss ................................... False
+  error_injection_rate ............................ 0
+  error_injection_type ............................ transient_error
+  eval_interval ................................... 20
+  eval_iters ...................................... 10
+  evidence_data_path .............................. None
+  exit_duration_in_mins ........................... None
+  exit_interval ................................... None
+  exit_on_missing_checkpoint ...................... False
+  exit_signal_handler ............................. False
+  exp_avg_dtype ................................... torch.float32
+  exp_avg_sq_dtype ................................ torch.float32
+  expert_model_parallel_size ...................... 1
+  expert_tensor_parallel_size ..................... 2
+  external_cuda_graph ............................. False
+  ffn_hidden_size ................................. 8192
+  finetune ........................................ False
+  first_last_layers_bf16 .......................... False
+  flash_decode .................................... False
+  fp16 ............................................ True
+  fp16_lm_cross_entropy ........................... False
+  fp32_residual_connection ........................ False
+  fp8 ............................................. None
+  fp8_amax_compute_algo ........................... most_recent
+  fp8_amax_history_len ............................ 1
+  fp8_interval .................................... 1
+  fp8_margin ...................................... 0
+  fp8_param_gather ................................ False
+  fp8_recipe ...................................... delayed
+  fp8_wgrad ....................................... True
+  global_batch_size ............................... 16
+  grad_reduce_in_bf16 ............................. False
+  gradient_accumulation_fusion .................... True
+  gradient_reduce_div_fusion ...................... True
+  group_query_attention ........................... False
+  head_lr_mult .................................... 1.0
+  heterogeneous_layers_config_encoded_json ........ None
+  heterogeneous_layers_config_path ................ None
+  hidden_dropout .................................. 0.1
+  hidden_size ..................................... 2048
+  hierarchical_context_parallel_sizes ............. None
+  hybrid_attention_ratio .......................... 0.0
+  hybrid_mlp_ratio ................................ 0.0
+  hybrid_override_pattern ......................... None
+  hysteresis ...................................... 2
+  ict_head_size ................................... None
+  ict_load ........................................ None
+  img_h ........................................... 224
+  img_w ........................................... 224
+  indexer_batch_size .............................. 128
+  indexer_log_interval ............................ 1000
+  inference_batch_times_seqlen_threshold .......... -1
+  inference_dynamic_batching ...................... False
+  inference_dynamic_batching_buffer_guaranteed_fraction  0.2
+  inference_dynamic_batching_buffer_overflow_factor  None
+  inference_dynamic_batching_buffer_size_gb ....... 40.0
+  inference_dynamic_batching_max_requests_override  None
+  inference_dynamic_batching_max_tokens_override .. None
+  inference_max_batch_size ........................ 8
+  inference_max_seq_length ........................ 2560
+  inference_rng_tracker ........................... False
+  init_method_std ................................. 0.006
+  init_method_xavier_uniform ...................... False
+  init_model_with_meta_device ..................... False
+  initial_loss_scale .............................. 4294967296
+  is_hybrid_model ................................. False
+  iter_per_epoch .................................. 1250
+  iterations_to_skip .............................. []
+  keep_fp8_transpose_cache_when_using_custom_fsdp . False
+  kv_channels ..................................... 64
+  kv_lora_rank .................................... 32
+  lazy_mpu_init ................................... None
+  load ............................................ ngc_models
+  local_rank ...................................... 0
+  log_interval .................................... 1
+  log_loss_scale_to_tensorboard ................... True
+  log_memory_to_tensorboard ....................... False
+  log_num_zeros_in_grad ........................... False
+  log_params_norm ................................. False
+  log_progress .................................... False
+  log_straggler ................................... False
+  log_throughput .................................. False
+  log_timers_to_tensorboard ....................... False
+  log_validation_ppl_to_tensorboard ............... False
+  log_world_size_to_tensorboard ................... False
+  logging_level ................................... None
+  loss_scale ...................................... None
+  loss_scale_window ............................... 1000
+  lr .............................................. 6e-05
+  lr_decay_iters .................................. 430000
+  lr_decay_samples ................................ None
+  lr_decay_style .................................. cosine
+  lr_warmup_fraction .............................. 0.001
+  lr_warmup_init .................................. 0.0
+  lr_warmup_iters ................................. 0
+  lr_warmup_samples ............................... 0
+  lr_wsd_decay_iters .............................. None
+  lr_wsd_decay_samples ............................ None
+  lr_wsd_decay_style .............................. exponential
+  main_grads_dtype ................................ torch.float32
+  main_params_dtype ............................... torch.float32
+  make_vocab_size_divisible_by .................... 128
+  mamba_head_dim .................................. 64
+  mamba_num_groups ................................ 8
+  mamba_state_dim ................................. 128
+  manual_gc ....................................... False
+  manual_gc_eval .................................. True
+  manual_gc_interval .............................. 0
+  mask_factor ..................................... 1.0
+  mask_prob ....................................... 0.15
+  mask_type ....................................... random
+  masked_softmax_fusion ........................... True
+  max_position_embeddings ......................... 2048
+  max_tokens_to_oom ............................... 12000
+  memory_snapshot_path ............................ snapshot.pickle
+  merge_file ...................................... datasets/merges.txt
+  micro_batch_size ................................ 2
+  microbatch_group_size_per_vp_stage .............. None
+  min_loss_scale .................................. 1.0
+  min_lr .......................................... 6e-06
+  mmap_bin_files .................................. True
+  mock_data ....................................... False
+  moe_aux_loss_coeff .............................. 0.0
+  moe_enable_deepep ............................... False
+  moe_expert_capacity_factor ...................... None
+  moe_extended_tp ................................. False
+  moe_ffn_hidden_size ............................. 8192
+  moe_grouped_gemm ................................ False
+  moe_input_jitter_eps ............................ None
+  moe_layer_freq .................................. 1
+  moe_layer_recompute ............................. False
+  moe_pad_expert_input_to_capacity ................ False
+  moe_per_layer_logging ........................... False
+  moe_permute_fusion .............................. False
+  moe_router_bias_update_rate ..................... 0.001
+  moe_router_dtype ................................ None
+  moe_router_enable_expert_bias ................... False
+  moe_router_group_topk ........................... None
+  moe_router_load_balancing_type .................. aux_loss
+  moe_router_num_groups ........................... None
+  moe_router_pre_softmax .......................... False
+  moe_router_score_function ....................... softmax
+  moe_router_topk ................................. 2
+  moe_router_topk_scaling_factor .................. None
+  moe_shared_expert_intermediate_size ............. None
+  moe_shared_expert_overlap ....................... False
+  moe_token_dispatcher_type ....................... allgather
+  moe_token_drop_policy ........................... probs
+  moe_use_legacy_grouped_gemm ..................... False
+  moe_use_upcycling ............................... False
+  moe_z_loss_coeff ................................ None
+  mrope_section ................................... None
+  mscale .......................................... 1.0
+  mscale_all_dim .................................. 1.0
+  mtp_loss_scaling_factor ......................... 0.1
+  mtp_num_layers .................................. None
+  multi_latent_attention .......................... False
+  nccl_communicator_config_path ................... None
+  no_load_optim ................................... None
+  no_load_rng ..................................... None
+  no_persist_layer_norm ........................... False
+  no_save_optim ................................... None
+  no_save_rng ..................................... None
+  node_ips ........................................ 192.168.0.2,192.168.0.2,192.168.0.2,192.168.0.2,192.168.0.7,192.168.0.7,192.168.0.7,192.168.0.7
+  non_persistent_ckpt_type ........................ None
+  non_persistent_global_ckpt_dir .................. None
+  non_persistent_local_ckpt_algo .................. fully_parallel
+  non_persistent_local_ckpt_dir ................... None
+  non_persistent_save_interval .................... None
+  norm_epsilon .................................... 1e-05
+  normalization ................................... LayerNorm
+  num_attention_heads ............................. 32
+  num_channels .................................... 3
+  num_classes ..................................... 1000
+  num_dataset_builder_threads ..................... 1
+  num_distributed_optimizer_instances ............. 1
+  num_experts ..................................... None
+  num_gpus ........................................ 8
+  num_layers ...................................... 16
+  num_layers_at_end_in_bf16 ....................... 1
+  num_layers_at_start_in_bf16 ..................... 1
+  num_layers_per_virtual_pipeline_stage ........... 1
+  num_query_groups ................................ 1
+  num_virtual_stages_per_pipeline_rank ............ None
+  num_workers ..................................... 2
+  one_logger_async ................................ False
+  one_logger_project .............................. megatron-lm
+  one_logger_run_name ............................. None
+  onnx_safe ....................................... None
+  openai_gelu ..................................... False
+  optimizer ....................................... adam
+  optimizer_cpu_offload ........................... False
+  optimizer_offload_fraction ...................... 1.0
+  output_bert_embeddings .......................... False
+  overlap_cpu_optimizer_d2h_h2d ................... False
+  overlap_grad_reduce ............................. False
+  overlap_p2p_comm ................................ True
+  overlap_p2p_comm_warmup_flush ................... False
+  overlap_param_gather ............................ False
+  overlap_param_gather_with_optimizer_step ........ False
+  override_opt_param_scheduler .................... False
+  params_dtype .................................... torch.float16
+  patch_dim ....................................... 16
+  per_split_data_args_path ........................ None
+  perform_initialization .......................... True
+  pin_cpu_grads ................................... True
+  pin_cpu_params .................................. True
+  pipeline_model_parallel_comm_backend ............ None
+  pipeline_model_parallel_size .................... 4
+  pipeline_model_parallel_split_rank .............. None
+  position_embedding_type ......................... learned_absolute
+  pretrained_checkpoint ........................... None
+  profile ......................................... False
+  profile_ranks ................................... [0]
+  profile_step_end ................................ 12
+  profile_step_start .............................. 10
+  q_lora_rank ..................................... None
+  qk_head_dim ..................................... 128
+  qk_layernorm .................................... False
+  qk_pos_emb_head_dim ............................. 64
+  query_in_block_prob ............................. 0.1
+  rampup_batch_size ............................... None
+  rank ............................................ 0
+  recompute_granularity ........................... selective
+  recompute_method ................................ None
+  recompute_modules ............................... None
+  recompute_num_layers ............................ None
+  record_memory_history ........................... False
+  relative_attention_max_distance ................. 128
+  relative_attention_num_buckets .................. 32
+  replication ..................................... False
+  replication_factor .............................. 2
+  replication_jump ................................ None
+  rerun_mode ...................................... disabled
+  reset_attention_mask ............................ False
+  reset_position_ids .............................. False
+  result_rejected_tracker_filename ................ None
+  retriever_report_topk_accuracies ................ []
+  retriever_score_scaling ......................... False
+  retriever_seq_length ............................ 256
+  retro_add_retriever ............................. False
+  retro_attention_gate ............................ 1
+  retro_cyclic_train_iters ........................ None
+  retro_encoder_attention_dropout ................. 0.1
+  retro_encoder_hidden_dropout .................... 0.1
+  retro_encoder_layers ............................ 2
+  retro_num_neighbors ............................. 2
+  retro_num_retrieved_chunks ...................... 2
+  retro_project_dir ............................... None
+  retro_verify_neighbor_count ..................... True
+  rope_scaling_factor ............................. 8.0
+  rotary_base ..................................... 10000
+  rotary_interleaved .............................. False
+  rotary_percent .................................. 1.0
+  rotary_scaling_factor ........................... 1.0
+  rotary_seq_len_interpolation_factor ............. None
+  run_workload_inspector_server ................... False
+  s3_cache_path ................................... None
+  sample_rate ..................................... 1.0
+  save ............................................ ngc_models
+  save_interval ................................... 50
+  scatter_gather_tensors_in_pipeline .............. True
+  seed ............................................ 1234
+  seq_length ...................................... 2048
+  sequence_parallel ............................... False
+  sgd_momentum .................................... 0.9
+  short_seq_prob .................................. 0.1
+  skip_train ...................................... False
+  skipped_train_samples ........................... 0
+  spec ............................................ None
+  split ........................................... 949,50,1
+  squared_relu .................................... False
+  start_weight_decay .............................. 0.1
+  straggler_ctrlr_port ............................ 65535
+  straggler_minmax_count .......................... 1
+  suggested_communication_unit_size ............... None
+  swiglu .......................................... False
+  swin_backbone_type .............................. tiny
+  te_rng_tracker .................................. False
+  tensor_model_parallel_size ...................... 2
+  tensorboard_dir ................................. tensor_board
+  tensorboard_log_interval ........................ 1
+  tensorboard_queue_size .......................... 1000
+  test_data_path .................................. None
+  test_mode ....................................... False
+  tiktoken_num_special_tokens ..................... 1000
+  tiktoken_pattern ................................ None
+  tiktoken_special_tokens ......................... None
+  timing_log_level ................................ 0
+  timing_log_option ............................... minmax
+  titles_data_path ................................ None
+  tokenizer_model ................................. None
+  tokenizer_type .................................. GPT2BPETokenizer
+  tp_comm_bootstrap_backend ....................... nccl
+  tp_comm_bulk_dgrad .............................. True
+  tp_comm_bulk_wgrad .............................. True
+  tp_comm_overlap ................................. False
+  tp_comm_overlap_ag .............................. True
+  tp_comm_overlap_cfg ............................. None
+  tp_comm_overlap_rs .............................. True
+  tp_comm_overlap_rs_dgrad ........................ False
+  tp_comm_split_ag ................................ True
+  tp_comm_split_rs ................................ True
+  train_data_path ................................. None
+  train_iters ..................................... 20
+  train_samples ................................... None
+  train_sync_interval ............................. None
+  transformer_impl ................................ transformer_engine
+  transformer_pipeline_model_parallel_size ........ 4
+  untie_embeddings_and_output_weights ............. False
+  use_checkpoint_args ............................. False
+  use_checkpoint_opt_param_scheduler .............. False
+  use_cpu_initialization .......................... None
+  use_custom_fsdp ................................. False
+  use_dist_ckpt ................................... True
+  use_dist_ckpt_deprecated ........................ False
+  use_distributed_optimizer ....................... False
+  use_dpp ......................................... 1
+  use_flash_attn .................................. False
+  use_legacy_models ............................... False
+  use_mp_args_from_checkpoint_args ................ False
+  use_one_sent_docs ............................... False
+  use_persistent_ckpt_worker ...................... False
+  use_precision_aware_optimizer ................... False
+  use_pytorch_profiler ............................ False
+  use_ring_exchange_p2p ........................... False
+  use_rope_scaling ................................ False
+  use_rotary_position_embeddings .................. False
+  use_tokenizer_model_from_checkpoint_args ........ True
+  use_torch_fsdp2 ................................. False
+  use_torch_optimizer_for_cpu_offload ............. False
+  use_tp_pp_dp_mapping ............................ False
+  v_head_dim ...................................... 128
+  valid_data_path ................................. None
+  variable_seq_lengths ............................ False
+  virtual_pipeline_model_parallel_size ............ 4
+  vision_backbone_type ............................ vit
+  vision_pretraining .............................. False
+  vision_pretraining_type ......................... classify
+  vocab_extra_ids ................................. 0
+  vocab_file ...................................... datasets/vocab.json
+  vocab_size ...................................... None
+  wandb_exp_name .................................. 
+  wandb_project ................................... 
+  wandb_save_dir .................................. 
+  weight_decay .................................... 0.1
+  weight_decay_incr_style ......................... constant
+  wgrad_deferral_limit ............................ 0
+  workload ........................................ 1048576
+  world_size ...................................... 8
+  yaml_cfg ........................................ None
+-------------------- end of arguments ---------------------
+> building GPT2BPETokenizer tokenizer ...
+ > padded vocab (size: 50257) with 175 dummy tokens (new size: 50432)
+> setting tensorboard ...
+WARNING: one_logger package is required to enable e2e metrics tracking. please go to https://confluence.nvidia.com/display/MLWFO/Package+Repositories for details to install it
+> initializing torch distributed ...
+> initialized tensor model parallel with size 2
+> initialized pipeline model parallel with size 4
+> setting random seeds to 1234 ...
+> compiling dataset index builder ...
+make: Entering directory '/root/MegatronDPP/megatron/core/datasets'
+make: Nothing to be done for 'default'.
+make: Leaving directory '/root/MegatronDPP/megatron/core/datasets'
+>>> done with dataset index builder. Compilation time: 0.614 seconds
+> compiling and loading fused kernels ...
+>>> done with compiling and loading fused kernels. Compilation time: 0.523 seconds
+time to initialize megatron (seconds): 3.938
+[after megatron is initialized] datetime: 2025-06-28 18:42:22 
+building GPT model ...
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 1): 100741120
+ > number of parameters on (tensor, pipeline) model parallel rank (1, 1): 100741120
+ > number of parameters on (tensor, pipeline) model parallel rank (1, 2): 100741120
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 2): 100741120
+building GPT model ...
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 3): 152387584
+ > number of parameters on (tensor, pipeline) model parallel rank (1, 3): 152387584
+building GPT model ...
+building GPT model ...
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 156577792
+ > number of parameters on (tensor, pipeline) model parallel rank (1, 0): 156577792
+WARNING: could not find the metadata file ngc_models/latest_checkpointed_iteration.txt
+    will not load any checkpoints and will start from random
+(min, max) time across ranks (ms):
+    load-checkpoint ................................: (0.58, 0.88)
+[after model, optimizer, and learning rate scheduler are built] datetime: 2025-06-28 18:42:22 
+> building train, validation, and test datasets ...
+ > datasets target sizes (minimum size):
+    train:      320
+    validation: 320
+    test:       160
+> building train, validation, and test datasets for GPT ...
+> finished creating GPT datasets ...
+> building train, validation, and test datasets ...
+ > datasets target sizes (minimum size):
+    train:      320
+    validation: 320
+    test:       160
+> building train, validation, and test datasets for GPT ...
+> finished creating GPT datasets ...
+> building train, validation, and test datasets ...
+ > datasets target sizes (minimum size):
+    train:      320
+    validation: 320
+    test:       160
+> building train, validation, and test datasets for GPT ...
+> finished creating GPT datasets ...
+> building train, validation, and test datasets ...
+ > datasets target sizes (minimum size):
+    train:      320
+    validation: 320
+    test:       160
+> building train, validation, and test datasets for GPT ...
+> finished creating GPT datasets ...
+[after dataloaders are built] datetime: 2025-06-28 18:42:23 
+done with setup ...
+training ...(min, max) time across ranks (ms):
+    model-and-optimizer-setup ......................: (197.21, 209.95)
+    train/valid/test-data-iterators-setup ..........: (157.93, 267.17)
+
+Setting rerun_state_machine.current_iteration to 0...
+[before the start of training step] datetime: 2025-06-28 18:42:23 
+rank 6 forward start tensor 0
+rank 7 forward start tensor 0
+rank 6 forward finished tensor 0
+rank 7 forward finished tensor 0
+rank 6 forward start tensor 1
+rank 7 forward start tensor 1
+rank 6 forward finished tensor 1
+rank 6 forward start tensor 2
+rank 7 forward finished tensor 1
+rank 7 forward start tensor 2
+rank 6 forward finished tensor 2
+rank 6 forward start tensor 3
+rank 7 forward finished tensor 2
+rank 7 forward start tensor 3
+rank 6 forward finished tensor 3
+rank 6 forward start tensor 16
+rank 7 forward finished tensor 3
+rank 7 forward start tensor 16
+rank 6 forward finished tensor 16
+rank 6 forward start tensor 17
+rank 7 forward finished tensor 16
+rank 7 forward start tensor 17
+rank 6 forward finished tensor 17
+rank 6 forward start tensor 18
+rank 7 forward finished tensor 17
+rank 7 forward start tensor 18
+rank 6 forward finished tensor 18
+rank 6 forward start tensor 19
+rank 7 forward finished tensor 18
+rank 7 forward start tensor 19
+rank 6 forward finished tensor 19
+rank 7 forward finished tensor 19
+rank 7 forward start tensor 4
+rank 6 forward start tensor 4
+rank 6 forward finished tensor 4
+rank 7 forward finished tensor 4
+rank 6 forward start tensor 5
+rank 7 forward start tensor 5
+rank 7 forward finished tensor 5
+rank 6 forward finished tensor 5
+rank 6 forward start tensor 6
+rank 7 forward start tensor 6
+rank 6 forward finished tensor 6
+rank 7 forward finished tensor 6
+rank 7 forward start tensor 7
+rank 6 forward start tensor 7
+rank 6 forward finished tensor 7
+rank 7 forward finished tensor 7
+rank 6 forward start tensor 20
+rank 7 forward start tensor 20
+rank 6 forward finished tensor 20
+rank 7 forward finished tensor 20
+rank 7 forward start tensor 21
+rank 6 forward start tensor 21
+rank 7 forward finished tensor 21
+rank 6 forward finished tensor 21
+rank 6 forward start tensor 22
+rank 7 forward start tensor 22
+rank 7 forward finished tensor 22
+rank 6 forward finished tensor 22
+rank 6 forward start tensor 23
+rank 7 forward start tensor 23
+rank 6 forward finished tensor 23
+rank 7 forward finished tensor 23
+rank 6 forward start tensor 8
+rank 7 forward start tensor 8
+rank 6 forward finished tensor 8
+rank 7 forward finished tensor 8
+rank 6 forward start tensor 9
+rank 7 forward start tensor 9
+rank 6 forward finished tensor 9
+rank 7 forward finished tensor 9
+rank 6 forward start tensor 10
+rank 7 forward start tensor 10
+rank 6 forward finished tensor 10
+rank 7 forward finished tensor 10
+rank 6 forward start tensor 11
+rank 7 forward start tensor 11
+rank 6 forward finished tensor 11
+rank 7 forward finished tensor 11
+rank 6 forward start tensor 24
+rank 7 forward start tensor 24
+rank 6 forward finished tensor 24
+rank 7 forward finished tensor 24
+rank 7 forward start tensor 25
+rank 6 forward start tensor 25
+rank 6 forward finished tensor 25
+rank 7 forward finished tensor 25
+rank 6 forward start tensor 26
+rank 7 forward start tensor 26
+rank 6 forward finished tensor 26
+rank 7 forward finished tensor 26
+rank 6 forward start tensor 27
+rank 7 forward start tensor 27
+rank 7 forward finished tensor 27
+rank 6 forward finished tensor 27
+rank 6 forward start tensor 12
+rank 7 forward start tensor 12
+rank 7 forward finished tensor 12
+rank 6 forward finished tensor 12
+rank 7 backward start tensor 0
+rank 6 backward start tensor 0
+rank 6 backward finished tensor 0
+rank 6 forward start tensor 13
+rank 7 backward finished tensor 0
+rank 7 forward start tensor 13
+rank 6 forward finished tensor 13
+rank 6 backward start tensor 1
+rank 7 forward finished tensor 13
+rank 7 backward start tensor 1
+rank 6 backward finished tensor 1
+rank 6 forward start tensor 14
+rank 7 backward finished tensor 1
+rank 7 forward start tensor 14
+rank 6 forward finished tensor 14
+rank 6 backward start tensor 2
+rank 7 forward finished tensor 14
+rank 7 backward start tensor 2
+rank 6 backward finished tensor 2
+rank 6 forward start tensor 15
+rank 7 backward finished tensor 2
+rank 7 forward start tensor 15
+rank 6 forward finished tensor 15
+rank 6 backward start tensor 3
+rank 7 forward finished tensor 15
+rank 6 backward finished tensor 3
+rank 6 forward start tensor 28
+rank 7 backward start tensor 3
+rank 7 backward finished tensor 3
+rank 7 forward start tensor 28
+rank 7 forward finished tensor 28rank 6 forward finished tensor 28
+
+rank 7 backward start tensor 16rank 6 backward start tensor 16
+
+rank 6 backward finished tensor 16
+rank 7 backward finished tensor 16
+rank 6 forward start tensor 29
+rank 7 forward start tensor 29
+rank 6 forward finished tensor 29
+rank 6 backward start tensor 17
+rank 7 forward finished tensor 29
+rank 7 backward start tensor 17
+rank 6 backward finished tensor 17
+rank 6 forward start tensor 30
+rank 7 backward finished tensor 17
+rank 7 forward start tensor 30
+rank 7 forward finished tensor 30
+rank 7 backward start tensor 18
+rank 6 forward finished tensor 30
+rank 6 backward start tensor 18
+rank 7 backward finished tensor 18
+rank 7 forward start tensor 31
+rank 6 backward finished tensor 18
+rank 6 forward start tensor 31
+rank 7 forward finished tensor 31
+rank 7 backward start tensor 19
+rank 6 forward finished tensor 31
+rank 7 backward finished tensor 19
+rank 6 backward start tensor 19
+rank 6 backward finished tensor 19
+rank 7 backward start tensor 4
+rank 6 backward start tensor 4
+rank 7 backward finished tensor 4
+rank 6 backward finished tensor 4
+rank 7 backward start tensor 5
+rank 6 backward start tensor 5
+rank 7 backward finished tensor 5
+rank 6 backward finished tensor 5
+rank 7 backward start tensor 6
+rank 6 backward start tensor 6
+rank 7 backward finished tensor 6
+rank 6 backward finished tensor 6
+rank 6 backward start tensor 7
+rank 7 backward start tensor 7
+rank 7 backward finished tensor 7
+rank 6 backward finished tensor 7
+rank 6 backward start tensor 20
+rank 7 backward start tensor 20
+rank 6 backward finished tensor 20
+rank 7 backward finished tensor 20
+rank 7 backward start tensor 21
+rank 6 backward start tensor 21
+rank 7 backward finished tensor 21
+rank 6 backward finished tensor 21
+rank 6 backward start tensor 22
+rank 7 backward start tensor 22
+rank 6 backward finished tensor 22
+rank 7 backward finished tensor 22
+rank 7 backward start tensor 23
+rank 6 backward start tensor 23
+rank 7 backward finished tensor 23
+rank 6 backward finished tensor 23
+rank 6 backward start tensor 8
+rank 6 backward finished tensor 8
+rank 7 backward start tensor 8
+rank 7 backward finished tensor 8
+rank 6 backward start tensor 9
+rank 7 backward start tensor 9
+rank 7 backward finished tensor 9
+rank 6 backward finished tensor 9
+rank 6 backward start tensor 10
+rank 7 backward start tensor 10
+rank 7 backward finished tensor 10
+rank 6 backward finished tensor 10
+rank 6 backward start tensor 11
+rank 6 backward finished tensor 11
+rank 7 backward start tensor 11
+rank 7 backward finished tensor 11
+rank 6 backward start tensor 24
+rank 7 backward start tensor 24
+rank 7 backward finished tensor 24
+rank 6 backward finished tensor 24
+rank 6 backward start tensor 25
+rank 7 backward start tensor 25
+rank 7 backward finished tensor 25
+rank 6 backward finished tensor 25
+rank 6 backward start tensor 26
+rank 6 backward finished tensor 26
+rank 7 backward start tensor 26
+rank 7 backward finished tensor 26
+rank 6 backward start tensor 27
+rank 7 backward start tensor 27
+rank 6 backward finished tensor 27
+rank 7 backward finished tensor 27
+rank 6 backward start tensor 12
+rank 6 backward finished tensor 12
+rank 7 backward start tensor 12
+rank 7 backward finished tensor 12
+rank 6 backward start tensor 13
+rank 6 backward finished tensor 13
+rank 7 backward start tensor 13
+rank 7 backward finished tensor 13
+rank 6 backward start tensor 14
+rank 7 backward start tensor 14
+rank 7 backward finished tensor 14
+rank 6 backward finished tensor 14
+rank 6 backward start tensor 15
+rank 7 backward start tensor 15
+rank 7 backward finished tensor 15
+rank 6 backward finished tensor 15
+rank 6 backward start tensor 28
+rank 6 backward finished tensor 28
+rank 7 backward start tensor 28
+rank 7 backward finished tensor 28
+rank 6 backward start tensor 29
+rank 7 backward start tensor 29
+rank 6 backward finished tensor 29
+rank 7 backward finished tensor 29
+rank 6 backward start tensor 30
+rank 7 backward start tensor 30
+rank 6 backward finished tensor 30
+rank 7 backward finished tensor 30
+rank 6 backward start tensor 31
+rank 7 backward start tensor 31
+rank 6 backward finished tensor 31
+rank 7 backward finished tensor 31
+ [2025-06-28 18:42:27] iteration        1/      20 | consumed samples:           16 | elapsed time per iteration (ms): 4493.2 | learning rate: 0.000000E+00 | global batch size:    16 | loss scale: 4294967296.0 | number of skipped iterations:   1 | number of nan iterations:   0 |
+Number of parameters in transformer block in billions:  0.81
+Number of parameters in embedding layers in billions: 0.10
+Total number of parameters in billions: 0.91
+Number of parameters in most loaded shard in billions: 0.1523
+Number of parameters in other shards in billions: 0.1007
+Theoretical memory footprints: weight and optimizer=2614.79 MB
+[Rank 3] (after 1 iterations) memory (MB) | allocated: 1348.8955078125 | max allocated: 7150.60791015625 | reserved: 7356.0 | max reserved: 7356.0
+[Rank 6] (after 1 iterations) memory (MB) | allocated: 1958.19287109375 | max allocated: 6713.7314453125 | reserved: 7050.0 | max reserved: 7050.0
+[Rank 5] (after 1 iterations) memory (MB) | allocated: 1348.8955078125 | max allocated: 7086.60791015625 | reserved: 7292.0 | max reserved: 7292.0
+[Rank 7] (after 1 iterations) memory (MB) | allocated: 1958.19287109375 | max allocated: 6713.6689453125 | reserved: 7038.0 | max reserved: 7038.0
+[Rank 2] (after 1 iterations) memory (MB) | allocated: 1348.8955078125 | max allocated: 7150.60791015625 | reserved: 7352.0 | max reserved: 7352.0
+[Rank 1] (after 1 iterations) memory (MB) | allocated: 1941.8955078125 | max allocated: 7706.13916015625 | reserved: 8178.0 | max reserved: 8178.0
+[Rank 0] (after 1 iterations) memory (MB) | allocated: 1941.8955078125 | max allocated: 7706.13916015625 | reserved: 8174.0 | max reserved: 8174.0
+[Rank 4] (after 1 iterations) memory (MB) | allocated: 1348.8955078125 | max allocated: 7086.60791015625 | reserved: 7300.0 | max reserved: 7300.0
+rank 7 forward start tensor 0
+rank 6 forward start tensor 0
+rank 7 forward finished tensor 0
+rank 6 forward finished tensor 0
+rank 6 forward start tensor 1
+rank 7 forward start tensor 1
+rank 6 forward finished tensor 1
+rank 7 forward finished tensor 1
+rank 6 forward start tensor 2
+rank 7 forward start tensor 2
+rank 7 forward finished tensor 2
+rank 6 forward finished tensor 2
+rank 6 forward start tensor 3
+rank 7 forward start tensor 3
+rank 6 forward finished tensor 3
+rank 7 forward finished tensor 3
+rank 7 forward start tensor 16rank 6 forward start tensor 16
+
+rank 7 forward finished tensor 16
+rank 6 forward finished tensor 16
+rank 7 forward start tensor 17
+rank 6 forward start tensor 17
+rank 7 forward finished tensor 17
+rank 6 forward finished tensor 17
+rank 6 forward start tensor 18
+rank 7 forward start tensor 18
+rank 6 forward finished tensor 18
+rank 7 forward finished tensor 18
+rank 7 forward start tensor 19
+rank 6 forward start tensor 19
+rank 7 forward finished tensor 19
+rank 6 forward finished tensor 19
+rank 6 forward start tensor 4
+rank 7 forward start tensor 4
+rank 6 forward finished tensor 4
+rank 7 forward finished tensor 4
+rank 6 forward start tensor 5
+rank 7 forward start tensor 5
+rank 6 forward finished tensor 5
+rank 7 forward finished tensor 5
+rank 6 forward start tensor 6
+rank 7 forward start tensor 6
+rank 6 forward finished tensor 6
+rank 7 forward finished tensor 6
+rank 7 forward start tensor 7
+rank 6 forward start tensor 7
+rank 7 forward finished tensor 7
+rank 6 forward finished tensor 7
+rank 7 forward start tensor 20
+rank 6 forward start tensor 20
+rank 7 forward finished tensor 20
+rank 6 forward finished tensor 20
+rank 7 forward start tensor 21
+rank 6 forward start tensor 21
+rank 6 forward finished tensor 21
+rank 7 forward finished tensor 21
+rank 7 forward start tensor 22
+rank 6 forward start tensor 22
+rank 7 forward finished tensor 22
+rank 6 forward finished tensor 22
+rank 7 forward start tensor 23
+rank 6 forward start tensor 23
+rank 7 forward finished tensor 23
+rank 6 forward finished tensor 23
+rank 7 forward start tensor 8
+rank 6 forward start tensor 8
+rank 6 forward finished tensor 8
+rank 7 forward finished tensor 8
+rank 6 forward start tensor 9
+rank 6 forward finished tensor 9
+rank 7 forward start tensor 9
+rank 7 forward finished tensor 9
+rank 7 forward start tensor 10
+rank 6 forward start tensor 10
+rank 7 forward finished tensor 10
+rank 6 forward finished tensor 10
+rank 7 forward start tensor 11
+rank 6 forward start tensor 11
+rank 7 forward finished tensor 11
+rank 6 forward finished tensor 11
+rank 7 forward start tensor 24
+rank 6 forward start tensor 24
+rank 7 forward finished tensor 24
+rank 6 forward finished tensor 24
+rank 7 forward start tensor 25
+rank 6 forward start tensor 25
+rank 7 forward finished tensor 25
+rank 6 forward finished tensor 25
+rank 6 forward start tensor 26
+rank 7 forward start tensor 26
+rank 6 forward finished tensor 26
+rank 7 forward finished tensor 26
+rank 6 forward start tensor 27
+rank 7 forward start tensor 27
+rank 6 forward finished tensor 27
+rank 7 forward finished tensor 27
+rank 7 forward start tensor 12
+rank 6 forward start tensor 12
+rank 6 forward finished tensor 12
+rank 7 forward finished tensor 12
+rank 6 backward start tensor 0
+rank 7 backward start tensor 0
+rank 7 backward finished tensor 0
+rank 6 backward finished tensor 0
+rank 6 forward start tensor 13
+rank 7 forward start tensor 13
+rank 7 forward finished tensor 13
+rank 7 backward start tensor 1
+rank 6 forward finished tensor 13
+rank 6 backward start tensor 1
+rank 7 backward finished tensor 1
+rank 6 backward finished tensor 1
+rank 6 forward start tensor 14
+rank 7 forward start tensor 14
+rank 7 forward finished tensor 14rank 6 forward finished tensor 14
+
+rank 6 backward start tensor 2
+rank 7 backward start tensor 2
+rank 6 backward finished tensor 2
+rank 7 backward finished tensor 2
+rank 6 forward start tensor 15
+rank 7 forward start tensor 15
+rank 7 forward finished tensor 15
+rank 7 backward start tensor 3
+rank 6 forward finished tensor 15
+rank 6 backward start tensor 3
+rank 7 backward finished tensor 3
+rank 6 backward finished tensor 3
+rank 6 forward start tensor 28
+rank 7 backward start tensor 4
+rank 7 backward finished tensor 4
+rank 7 forward start tensor 28

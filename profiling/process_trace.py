@@ -1,7 +1,7 @@
 import json
 
-input_file = "data-1-pipeline-4-tensor-1-dpp-aggregated.json"
-output_file = "data-1-pipeline-4-tensor-1-dpp-aggregated-iter10.json"
+input_file = "data-1-pipeline-4-tensor-1-pp-aggregated.json"
+output_file = "data-1-pipeline-4-tensor-1-pp-aggregated-iter10.json"
 
 with open(input_file, "r") as f:
     data = json.load(f)
@@ -18,7 +18,7 @@ for event in filtered_events:
     if "ts" in event:
         event["ts"] -= min_ts
     if "tid" in event:
-        event["tid"] = 1
+        event["tid"] = 0
 
 with open(output_file, "w") as f:
     json.dump(filtered_events, f, indent=2)

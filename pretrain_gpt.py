@@ -241,6 +241,10 @@ def forward_step(data_iterator, model: GPTModel):
             data_iterator)
     timers('batch-generator').stop()
 
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+
+    start_event.record()
     with stimer:
         if args.use_legacy_models:
             output_tensor = model(tokens, position_ids, attention_mask,
@@ -248,6 +252,10 @@ def forward_step(data_iterator, model: GPTModel):
         else:
             output_tensor = model(tokens, position_ids, attention_mask,
                                 labels=labels, loss_mask=loss_mask)
+    end_event.record()
+
+    torch.cuda.synchronize()
+    # print(start_event.elapsed_time(end_event), "ms")
 
     return output_tensor, partial(loss_func, loss_mask)
 

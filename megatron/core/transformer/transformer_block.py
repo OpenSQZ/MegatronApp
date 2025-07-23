@@ -539,6 +539,9 @@ class TransformerBlock(MegatronModule):
                             packed_seq_params=packed_seq_params,
                             sequence_len_offset=sequence_len_offset,
                         )
+                        from megatron.core.tensor_disturbance import get_disturbance
+                        if get_disturbance().system_perturbation and get_disturbance().system_perturbation_fn is not None:
+                            hidden_states = get_disturbance().system_perturbation_fn(hidden_states)
 
                     if (
                         torch.is_grad_enabled()

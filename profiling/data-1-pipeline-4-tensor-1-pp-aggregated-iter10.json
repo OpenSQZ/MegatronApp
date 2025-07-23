@@ -15,17 +15,6 @@
     "cname": "thread_state_unknown",
     "ph": "i",
     "ts": 0,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "iteration begin",
-    "cname": "thread_state_unknown",
-    "ph": "i",
-    "ts": 3,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -36,7 +25,18 @@
     "name": "iteration begin",
     "cname": "thread_state_unknown",
     "ph": "i",
-    "ts": 12,
+    "ts": 0,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "iteration begin",
+    "cname": "thread_state_unknown",
+    "ph": "i",
+    "ts": 1,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -47,7 +47,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 770,
+    "ts": 776,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -58,7 +58,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 5188,
+    "ts": 5354,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -72,7 +72,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 6213,
+    "ts": 6371,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -83,7 +83,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 6383,
+    "ts": 6551,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -94,7 +94,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 9316,
+    "ts": 9484,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -108,7 +108,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 9763,
+    "ts": 9916,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -122,7 +122,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 10825,
+    "ts": 10956,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -133,7 +133,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 11417,
+    "ts": 11580,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -144,7 +144,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 11573,
+    "ts": 11748,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -155,7 +155,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 13806,
+    "ts": 13931,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -169,7 +169,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 14520,
+    "ts": 14691,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -183,7 +183,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 14970,
+    "ts": 15139,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -197,7 +197,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 15241,
+    "ts": 15283,
     "pid": 3,
     "tid": 0,
     "args": {
@@ -208,7 +208,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 16537,
+    "ts": 16637,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -219,7 +219,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 16940,
+    "ts": 17087,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -230,7 +230,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 17108,
+    "ts": 17236,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -241,7 +241,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 18178,
+    "ts": 18226,
     "pid": 3,
     "tid": 0,
     "args": {
@@ -255,7 +255,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 19511,
+    "ts": 19625,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -269,7 +269,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 20046,
+    "ts": 20177,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -283,7 +283,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 20494,
+    "ts": 20632,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -297,7 +297,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 22955,
+    "ts": 23081,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -308,18 +308,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 23522,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 23532,
+    "ts": 23619,
     "pid": 3,
     "tid": 0,
     "args": {
@@ -330,7 +319,18 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 23633,
+    "ts": 23702,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 23754,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -341,7 +341,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 25928,
+    "ts": 26049,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -355,21 +355,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 26462,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 0,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 26464,
+    "ts": 26562,
     "pid": 3,
     "tid": 0,
     "args": {
@@ -383,1284 +369,12 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 26610,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 30435,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 30529,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 30608,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 30649,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 33419,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 33468,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 33567,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 33627,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 37464,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 37543,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 37635,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 37675,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 40445,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 40490,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 40579,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 40651,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 44496,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 44575,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 44663,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 44711,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 47501,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 47522,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 47614,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 47685,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 51620,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 51664,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 51725,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 51768,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 54599,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 54605,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 54680,
+    "ts": 26658,
     "pid": 1,
     "tid": 0,
     "args": {
       "iteration": 10,
       "microbatch": 3,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 54741,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 58778,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 58785,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 58856,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 58885,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 61717,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 61770,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 61808,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 61837,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 65732,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 65867,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 65909,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 65909,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 68694,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 68822,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 68879,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 68911,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 72850,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 72861,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 72909,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 72930,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 75793,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 75797,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 75887,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 75925,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 79904,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 79916,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 79988,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 79992,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 82855,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 82856,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 82962,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 82985,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 86951,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 86984,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 87043,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 87060,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 89898,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 89929,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 90010,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 90056,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 94031,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 94034,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 94103,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 94105,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 96971,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 96982,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 97062,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 97083,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 101083,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 101120,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 101226,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 101240,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 104020,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 104205,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 104233,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 106313,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 106477,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 109417,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 109874,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 0,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 110899,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 114445,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 0,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 117726,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 117732,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 119977,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 123154,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 136893,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 136895,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 138206,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 139272,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 142417,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
       "model_chunk": 0,
       "pp_rank": 1
     }
@@ -1668,1980 +382,8 @@
   {
     "name": "forward",
     "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 143392,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 145390,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 146466,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 147137,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 0,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 153393,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 154053,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 154058,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 156371,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 159568,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 173245,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 173247,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 174564,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 175629,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 176812,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 179205,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 0,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 181685,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 182761,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 183612,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 183616,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 187357,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 0,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 189700,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 190404,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 190410,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 192913,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 196113,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 209645,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 209648,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 210946,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 212007,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 215571,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 0,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 218085,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 219206,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 226136,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 226805,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 226811,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 229330,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 232508,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 246025,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 246029,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 247710,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 248353,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 249110,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 249952,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 249960,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 252329,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 0,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 254972,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 254977,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 255067,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 255074,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 257046,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 257051,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 257314,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 258650,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 258987,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 259022,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 260184,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 261154,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 261165,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 264847,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 264852,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 266421,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 266426,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 266907,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 266913,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 268346,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 268352,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 268845,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 268863,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 270264,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 270365,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 270977,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 271001,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 272465,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 272475,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 276304,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 276309,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 277801,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 277807,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 278159,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 278164,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 279676,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 279681,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 280296,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 280325,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 281726,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 281783,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 282074,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 282509,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 283706,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 283722,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 287890,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 287895,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 289293,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 289299,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 289709,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 289715,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 290942,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 290949,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 292002,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 292012,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 293192,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 293272,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 293859,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 293882,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 295139,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 295153,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 299488,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 299493,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 300730,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 300735,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 301249,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 301255,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 302418,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 302424,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 303536,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 303548,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 304646,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 304682,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 305379,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 305390,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 306616,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 306628,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 310955,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 310960,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 312125,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 312131,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 312778,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 312783,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 313803,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 313813,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 315006,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 315018,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 315925,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 316051,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 316989,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 316998,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 317941,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 317952,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 322405,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 0,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 322410,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 323302,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 323308,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 324334,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 324339,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 325158,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 325163,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 326187,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 326199,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 326989,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 327275,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 328491,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 328502,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 329274,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 329284,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 333541,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 333546,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 334682,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 334688,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 335829,
+    "ts": 26743,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -3655,82 +397,7 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 335834,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 336590,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 336597,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 337317,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 337335,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 338382,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 338678,
+    "ts": 30548,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -3740,22 +407,30 @@
   {
     "name": "forward",
     "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 340101,
-    "pid": 0,
+    "ph": "B",
+    "ts": 30561,
+    "pid": 3,
     "tid": 0,
     "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 2,
-      "pp_rank": 0
+      "iteration": 10
     }
   },
   {
-    "name": "backward",
-    "cname": "thread_state_iowait",
+    "name": "forward",
+    "cname": "thread_state_running",
     "ph": "B",
-    "ts": 340113,
+    "ts": 30587,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 30665,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -3766,37 +441,40 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "E",
-    "ts": 340736,
+    "ts": 33508,
     "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 340748,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 344619,
-    "pid": 1,
     "tid": 0,
     "args": {
       "iteration": 10,
       "microbatch": 2,
+      "model_chunk": 0,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 33527,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 0,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 33536,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
       "model_chunk": 1,
       "pp_rank": 1
     }
@@ -3804,44 +482,8 @@
   {
     "name": "forward",
     "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 344624,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 345967,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 345972,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 347495,
+    "ts": 33655,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -3855,7 +497,1540 @@
     "name": "forward",
     "cname": "thread_state_running",
     "ph": "B",
-    "ts": 347500,
+    "ts": 37577,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 37631,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 37668,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 37679,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 40530,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 0,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 40576,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 1,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 40641,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 1,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 40653,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 1,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 44668,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 44698,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 44750,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 44754,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 47617,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 1,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 47647,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 1,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 47730,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 1,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 47741,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 1,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 51720,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 51753,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 51796,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 51815,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 54653,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 1,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 54697,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 1,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 54783,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 2,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 54789,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 1,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 58808,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 58824,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 58889,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 58899,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 61762,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 2,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 61791,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 1,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 61868,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 2,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 61873,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 1,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 65906,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 65919,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 65969,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 65973,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 68851,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 1,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 68868,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 2,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 68945,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 2,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 68976,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 2,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 72927,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 72945,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 73035,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 73040,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 75875,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 2,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 75892,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 2,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 76021,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 2,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 76025,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 2,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 79974,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 80000,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 80047,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 80085,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 82921,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 2,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 82958,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 2,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 83038,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 2,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 83056,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 3,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 87020,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 87047,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 87105,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 87119,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 89983,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 3,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 89984,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 2,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 90096,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 2,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 90105,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 3,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 94079,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 94086,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 94170,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 94176,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 97027,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 3,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 97028,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 2,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 97145,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 3,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 97154,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 3,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 101114,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 101143,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 101249,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 101253,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 104041,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 3,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 104226,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 3,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 104247,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 3,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 106412,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 109343,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 3,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 117755,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 3,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 117761,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 119959,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 123133,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 3,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 137038,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 3,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 137041,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 138361,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 145464,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 3,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 146603,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 152821,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 3,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 153916,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 154234,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 3,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 154240,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 156928,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 160106,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 3,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 160158,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 3,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 173559,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 3,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 173562,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 174878,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 181916,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 3,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 183008,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 189221,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 3,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 190742,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 3,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 190749,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 210028,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 3,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "B",
+    "ts": 210030,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 211349,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 217657,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 3,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 218793,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 225009,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 3,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "forward",
+    "cname": "thread_state_running",
+    "ph": "E",
+    "ts": 227209,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 3,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 227212,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 246393,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 3,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 248133,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 248428,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 248523,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 254442,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 3,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 254656,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 3,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 254771,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 2,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 258398,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 258506,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 258600,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 258603,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -3866,7 +2041,721 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 347905,
+    "ts": 264639,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 3,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 264820,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 2,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 264834,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 2,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 264872,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 3,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 268827,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 268851,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 268895,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 268928,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 275050,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 2,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 275063,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 2,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 275198,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 3,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 275235,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 2,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 279142,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 279163,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 279222,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 279232,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 285370,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 2,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 285395,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 2,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 285488,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 2,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 285572,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 2,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 289448,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 289489,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 289545,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 289547,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 295683,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 1,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 295732,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 2,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 295806,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 2,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 295888,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 2,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 299808,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 299833,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 299884,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 299906,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 306059,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 1,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 306072,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 2,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 306156,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 2,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 306256,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 1,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 310155,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 310161,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 310215,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 310239,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 316388,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 1,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 316390,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 1,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 316486,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 2,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 316595,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 1,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 320438,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 320456,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 320514,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 320545,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 326684,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 3,
+      "model_chunk": 1,
+      "pp_rank": 3
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 326706,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 1,
+      "model_chunk": 1,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 326785,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 0,
+      "model_chunk": 1,
+      "pp_rank": 0
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 326901,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 1,
+      "pp_rank": 2
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 330771,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 330777,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 330831,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 330874,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 337006,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 1,
+      "pp_rank": 1
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 337015,
     "pid": 3,
     "tid": 0,
     "args": {
@@ -3877,52 +2766,30 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 347912,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
+    "name": "backward",
+    "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 348101,
-    "pid": 1,
+    "ts": 337109,
+    "pid": 0,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 2,
-      "pp_rank": 1
+      "microbatch": 1,
+      "model_chunk": 1,
+      "pp_rank": 0
     }
   },
   {
     "name": "backward",
     "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 349555,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
     "ph": "E",
-    "ts": 349659,
+    "ts": 337219,
     "pid": 2,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 2,
+      "microbatch": 3,
+      "model_chunk": 1,
       "pp_rank": 2
     }
   },
@@ -3930,7 +2797,40 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 350313,
+    "ts": 341063,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 341104,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 341160,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 341177,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -3938,60 +2838,24 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 351732,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
     "name": "backward",
     "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 351745,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
     "ph": "E",
-    "ts": 352249,
+    "ts": 347296,
     "pid": 3,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 2,
+      "microbatch": 1,
+      "model_chunk": 0,
       "pp_rank": 3
     }
   },
   {
     "name": "backward",
     "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 352259,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 356865,
+    "ts": 347336,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -4002,21 +2866,24 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 356870,
-    "pid": 1,
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "E",
+    "ts": 347440,
+    "pid": 0,
     "tid": 0,
     "args": {
-      "iteration": 10
+      "iteration": 10,
+      "microbatch": 2,
+      "model_chunk": 1,
+      "pp_rank": 0
     }
   },
   {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 357851,
+    "ts": 347508,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -4027,85 +2894,10 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 357857,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 359159,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 359164,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 359585,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 359595,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 360742,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 361256,
+    "ts": 351370,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -4113,74 +2905,10 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 361514,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 361998,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 363432,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 363447,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 363961,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 363971,
+    "ts": 351372,
     "pid": 3,
     "tid": 0,
     "args": {
@@ -4190,8 +2918,30 @@
   {
     "name": "backward",
     "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 351439,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 351454,
+    "pid": 2,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 368550,
+    "ts": 357599,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -4202,46 +2952,24 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 368555,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 369367,
-    "pid": 2,
+    "ts": 357612,
+    "pid": 3,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 1,
+      "microbatch": 2,
       "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 369373,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
+      "pp_rank": 3
     }
   },
   {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 370792,
+    "ts": 357701,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -4252,77 +2980,16 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 370796,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 371211,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 371219,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 372309,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 372900,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 373091,
+    "ts": 357805,
     "pid": 2,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 3,
+      "microbatch": 1,
+      "model_chunk": 0,
       "pp_rank": 2
     }
   },
@@ -4330,7 +2997,40 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 373647,
+    "ts": 361698,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 361723,
+    "pid": 3,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 361762,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "backward",
+    "cname": "thread_state_iowait",
+    "ph": "B",
+    "ts": 361797,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -4338,60 +3038,10 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 375036,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 375053,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 375555,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 375566,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 380086,
+    "ts": 367964,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -4402,46 +3052,10 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 380091,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 381140,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 381145,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 382798,
+    "ts": 367966,
     "pid": 3,
     "tid": 0,
     "args": {
@@ -4452,1843 +3066,29 @@
     }
   },
   {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 382800,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
+    "name": "backward",
+    "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 383344,
-    "pid": 1,
+    "ts": 368159,
+    "pid": 2,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 3,
-      "pp_rank": 1
+      "microbatch": 2,
+      "model_chunk": 0,
+      "pp_rank": 2
     }
   },
   {
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 383597,
+    "ts": 369216,
     "pid": 0,
     "tid": 0,
     "args": {
       "iteration": 10,
       "microbatch": 0,
-      "model_chunk": 0,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 383601,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 384841,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 384853,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 385005,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 386811,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 386817,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 391866,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 0,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 391871,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 392065,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 394766,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 1,
-      "model_chunk": 0,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 395425,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 395483,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 395861,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 400243,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 400250,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 402613,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 0,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 402735,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 403306,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 2,
-      "model_chunk": 0,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 405929,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 419456,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 419458,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 420755,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 422932,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 427899,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 428991,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 430387,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 3,
-      "model_chunk": 0,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 435197,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 436294,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 436655,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 436662,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 438617,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 441808,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 442547,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 455812,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 455814,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 457125,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 464178,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 465307,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 471518,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 473002,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 473007,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 492253,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "B",
-    "ts": 492255,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 493575,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 499892,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 500958,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 507161,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "forward",
-    "cname": "thread_state_running",
-    "ph": "E",
-    "ts": 509363,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 509367,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 528412,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 3,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 530102,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 530460,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 530552,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 536417,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 3,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 536712,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 536792,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 540257,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 540386,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 540522,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 540566,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 546468,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 3,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 546706,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 546758,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 546793,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 550593,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 550745,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 550759,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 550772,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 556814,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 556956,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 557023,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 3,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 557102,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 560918,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 560936,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 561003,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 561028,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 567144,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 2,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 567169,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 567246,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 567351,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 571214,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 571234,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 571291,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 571322,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 577437,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 577463,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 577548,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 577661,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 2,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 581517,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 581530,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 581588,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 581636,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 587749,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 2,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 587762,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 587848,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 587978,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 591861,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 591866,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 591938,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 591967,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 598085,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 598093,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 598195,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 2,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 598311,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 602171,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 602174,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 602249,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 602267,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 608394,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 1,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 608413,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 608501,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 608610,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 612466,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 612499,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 612558,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 612578,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 618698,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 618727,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 618814,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 618921,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 1,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 622766,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 622790,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 622869,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 622879,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 628993,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 629011,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 1,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 629129,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 629224,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 633083,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 633107,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 633151,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 633189,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 639320,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
-      "model_chunk": 0,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 639338,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 639400,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 1,
-      "pp_rank": 0
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 639530,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 643422,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 643456,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 643486,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "B",
-    "ts": 643513,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 649653,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 5,
-      "model_chunk": 0,
-      "pp_rank": 1
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 649679,
-    "pid": 3,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 7,
-      "model_chunk": 0,
-      "pp_rank": 3
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 649857,
-    "pid": 2,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 6,
-      "model_chunk": 0,
-      "pp_rank": 2
-    }
-  },
-  {
-    "name": "backward",
-    "cname": "thread_state_iowait",
-    "ph": "E",
-    "ts": 650958,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10,
-      "microbatch": 4,
       "model_chunk": 0,
       "pp_rank": 0
     }
@@ -6297,7 +3097,7 @@
     "name": "reduce",
     "cname": "thread_state_unknown",
     "ph": "i",
-    "ts": 652420,
+    "ts": 370722,
     "pid": 3,
     "tid": 0,
     "args": {
@@ -6308,7 +3108,7 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 652577,
+    "ts": 370892,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -6319,7 +3119,7 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 652972,
+    "ts": 371263,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -6330,7 +3130,7 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 653014,
+    "ts": 371292,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -6341,12 +3141,12 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 658897,
+    "ts": 377235,
     "pid": 2,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 7,
+      "microbatch": 3,
       "model_chunk": 0,
       "pp_rank": 2
     }
@@ -6355,12 +3155,12 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 659194,
+    "ts": 377493,
     "pid": 1,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 6,
+      "microbatch": 2,
       "model_chunk": 0,
       "pp_rank": 1
     }
@@ -6369,7 +3169,7 @@
     "name": "reduce",
     "cname": "thread_state_unknown",
     "ph": "i",
-    "ts": 660242,
+    "ts": 378547,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -6380,12 +3180,12 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 660484,
+    "ts": 378762,
     "pid": 0,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 5,
+      "microbatch": 1,
       "model_chunk": 0,
       "pp_rank": 0
     }
@@ -6394,7 +3194,7 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 661416,
+    "ts": 379710,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -6405,7 +3205,7 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 661524,
+    "ts": 379806,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -6416,12 +3216,12 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 667642,
+    "ts": 385930,
     "pid": 1,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 7,
+      "microbatch": 3,
       "model_chunk": 0,
       "pp_rank": 1
     }
@@ -6430,12 +3230,12 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 668970,
+    "ts": 387261,
     "pid": 0,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 6,
+      "microbatch": 2,
       "model_chunk": 0,
       "pp_rank": 0
     }
@@ -6444,7 +3244,7 @@
     "name": "reduce",
     "cname": "thread_state_unknown",
     "ph": "i",
-    "ts": 669909,
+    "ts": 388222,
     "pid": 1,
     "tid": 0,
     "args": {
@@ -6455,7 +3255,7 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "B",
-    "ts": 670015,
+    "ts": 388320,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -6466,12 +3266,12 @@
     "name": "backward",
     "cname": "thread_state_iowait",
     "ph": "E",
-    "ts": 677443,
+    "ts": 395762,
     "pid": 0,
     "tid": 0,
     "args": {
       "iteration": 10,
-      "microbatch": 7,
+      "microbatch": 3,
       "model_chunk": 0,
       "pp_rank": 0
     }
@@ -6480,7 +3280,7 @@
     "name": "reduce",
     "cname": "thread_state_unknown",
     "ph": "i",
-    "ts": 677445,
+    "ts": 395764,
     "pid": 0,
     "tid": 0,
     "args": {
@@ -6491,29 +3291,7 @@
     "name": "iteration end",
     "cname": "thread_state_unknown",
     "ph": "i",
-    "ts": 712708,
-    "pid": 0,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "iteration end",
-    "cname": "thread_state_unknown",
-    "ph": "i",
-    "ts": 712716,
-    "pid": 1,
-    "tid": 0,
-    "args": {
-      "iteration": 10
-    }
-  },
-  {
-    "name": "iteration end",
-    "cname": "thread_state_unknown",
-    "ph": "i",
-    "ts": 712843,
+    "ts": 431267,
     "pid": 2,
     "tid": 0,
     "args": {
@@ -6524,7 +3302,29 @@
     "name": "iteration end",
     "cname": "thread_state_unknown",
     "ph": "i",
-    "ts": 712910,
+    "ts": 431268,
+    "pid": 0,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "iteration end",
+    "cname": "thread_state_unknown",
+    "ph": "i",
+    "ts": 431336,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "iteration": 10
+    }
+  },
+  {
+    "name": "iteration end",
+    "cname": "thread_state_unknown",
+    "ph": "i",
+    "ts": 431521,
     "pid": 3,
     "tid": 0,
     "args": {

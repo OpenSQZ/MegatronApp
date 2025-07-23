@@ -529,6 +529,11 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
             )
         else:
             mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
+        
+        from megatron.core.tensor_disturbance import get_disturbance
+        if get_disturbance().calculation_perturbation and get_disturbance().calculation_perturbation_fn is not None:
+            mlp_output_with_bias = (get_disturbance().calculation_perturbation_fn(mlp_output_with_bias[0]), mlp_output_with_bias[1])
+
 
         if self.recompute_pre_mlp_layernorm:
             # discard the output of the pre-mlp layernorm and register the recompute
