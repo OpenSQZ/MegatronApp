@@ -8,12 +8,12 @@ GPUS_PER_NODE=4
 # Change for multinode config
 MASTER_ADDR=10.233.82.104
 MASTER_PORT=6000
-NUM_NODES=1
+NUM_NODES=2
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE * $NUM_NODES))
-PIPELINE_PARALLEL=4
-VPP=1
-TENSOR_PARALLEL=1
+PIPELINE_PARALLEL=2
+VPP=2
+TENSOR_PARALLEL=4
 
 CHECKPOINT_PATH=ngc_models_bert #<Specify path>
 TENSORBOARD_LOGS_PATH=tensor_board_bert  #<Specify path>
@@ -39,7 +39,7 @@ BERT_MODEL_ARGS=(
 
 TRAINING_ARGS=(
     --micro-batch-size 2 
-    --global-batch-size 16 
+    --global-batch-size 32 
     --train-iters 20 
     --weight-decay 1e-2 
     --clip-grad 1.0 
@@ -55,6 +55,7 @@ TRAINING_ARGS=(
     --node-ips "192.168.0.7,192.168.0.7,192.168.0.7,192.168.0.7,192.168.0.2,192.168.0.2,192.168.0.2,192.168.0.2"
     --workload $((2048 * 512))
     --num-gpus $GPUS_PER_NODE
+    --multi-node
 )
 
 MODEL_PARALLEL_ARGS=(
