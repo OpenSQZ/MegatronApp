@@ -1,7 +1,16 @@
-# Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
-
-# Parts of the code here are adapted from PyTorch
-# repo: https://github.com/pytorch/pytorch
+# Copyright 2025 Suanzhi Future Co., Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions
+# and limitations under the License.
 
 from dataclasses import dataclass
 from functools import wraps
@@ -15,6 +24,113 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from megatron.core import parallel_state
 import torch.distributed
+
+
+# -- Tracing Granularity Sets --
+# These sets define which events are captured at different granularity levels.
+
+# All events
+# megatron/training/training.py
+#     1379:optimizer
+
+# megatron/core/tensor_parallel/mappings.py
+#     35:_reduce
+#     113:_gather_along_last_dim
+#     163:_reduce_scatter_along_last_dim
+#     213:_gather_along_first_dim
+#     287:_reduce_scatter_along_first_dim
+
+# megatron/core/transformer/transformer_layer.py
+#     393:transformer_layer_{self.layer_number}
+#     396:_forward_attention_{self.layer_number}
+#     398:_forward_mlp_{self.layer_number}
+#     543:recompute_mlp_{self.layer_number}
+#     556:mlp_{self.layer_number}
+
+# megatron/core/transformer/mlp.py
+#     110:MLP.forward
+
+# megatron/core/transformer/attention.py
+#     513:attention
+
+# megatron/core/pipeline_parallel/schedules.py
+#     294:loss
+#     1897:recv-warmup
+#     1904:forward-warmup
+#     1919:send-warmup
+#     1956:recv-extra
+#     1983:forward
+#     2028:exchange-next
+#     2055:backward
+#     2068:send-extra
+#     2075:exchange-prev
+#     2102:recv-cooldown
+#     2105:backward-cooldown
+#     2110:send-cooldown
+#     2127:grad-sync
+#     2143:allreduce
+
+# megatron/core/models/gpt/gpt_model.py
+#     337:decoder
+BASE_TRACING_EVENTS = {
+    '_reduce',
+    '_gather_along_last_dim',
+    '_gather_along_first_dim',
+    '_reduce_scatter_along_last_dim',
+    '_reduce_scatter_along_first_dim',
+    'forward',
+    'forward-warmup',
+    'backward',
+    'backward-cooldown',
+    'optimizer',
+    'loss',
+    'allreduce',
+    'send-warmup',
+    'send-extra',
+    'send-forward',
+    'send-backward',
+    'send-cooldown',
+    'exchange-next',
+    'exchange-prev',
+    'recv-warmup',
+    'recv-extra',
+    'recv-forward',
+    'recv-backward',
+    'recv-cooldown',
+}
+FULL_TRACING_EVENTS = {
+
+    'optimizer',
+    '_reduce',
+    "_gather_along_last_dim",
+    "_gather_along_first_dim",
+    "_reduce_scatter_along_last_dim",
+    "_reduce_scatter_along_first_dim",
+    "transformer_layer",
+    "_forward_attention",
+    "_forward_mlp",
+    "recompute_mlp",
+    "mlp",
+    "MLP.forward",
+    "attention",
+    "loss",
+    "recv-warmup",
+    "forward-warmup",
+    "send-warmup",
+    "recv-extra",
+    "forward",
+    "exchange-next",
+    "backward",
+    "send-extra",
+    "exchange-prev",
+    "recv-cooldown",
+    "backward-cooldown",
+    "send-cooldown",
+    "grad-sync",
+    "allreduce",
+    "decoder",
+}
+# --
 
 
 def _save_traces_to_disk_thread(work_queue: queue.Queue, trace_dir: str):
@@ -310,7 +426,9 @@ class Tracer:
         slots: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> _TracerScope:
-        """Create a scope of code.
+        """
+        Create a scope of code, selectively tracing based on granularity.
+
         Args:
             name: Name of the scope. If None, the scope is not timed.
             ctx: Parameters to be passed to the scope.
@@ -325,7 +443,16 @@ class Tracer:
         for slot in slots:
             ctx[slot] = True
             kwargs[slot] = None
-        return _TracerScope(self, name=name, in_attrs=ctx, out_attrs=kwargs)
+
+        trace_name = name
+        if self.global_args and self.global_args.trace and name is not None:
+            granularity = self.global_args.trace_granularity
+            if granularity == 'base' and name not in BASE_TRACING_EVENTS:
+                trace_name = None  # Mute this event
+            # elif granularity == 'full' and name not in FULL_TRACING_EVENTS:
+            #     trace_name = None  # Mute this event
+
+        return _TracerScope(self, name=trace_name, in_attrs=ctx, out_attrs=kwargs)
 
     # def scoped(self, func):
     #     """Decorator to time a function."""
