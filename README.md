@@ -338,6 +338,7 @@ There are two extra options: `--forward-backward-disaggregating` and `--ignore-f
 
   Enables merging forward ranks within the same TP group. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the correct number of ranks.
 
+Currently Context Parallel and Expert parallel are not supported. `--tranformer-impl` should be `local`.
 
 # 🛠️ Security Policy
 
