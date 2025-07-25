@@ -1,5 +1,21 @@
+# Copyright 2025 Suanzhi Future Co., Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+
 import json
 import threading
+import queue
+import time
 from websockets.sync.server import serve
 from websockets.exceptions import ConnectionClosed
 
@@ -18,11 +34,46 @@ _request_lock = threading.Lock()
 _websocket_connection = None
 _websocket_lock = threading.Lock()
 
+data_queue = queue.Queue()
+
+def _data_sender_thread():
+    print("Rank 0: Data sender thread started.", flush=True)
+
+    while not _shutdown_event.is_set():
+        try:
+            name_tuple, report_args, tensor_data = data_queue.get()
+            tensor_cpu = tensor_data
+            payload = {
+                "type": "update",
+                "update_type": name_tuple[1].value,
+                "layer_id": name_tuple[0],
+                "args": report_args,
+                "result": tensor_cpu.tolist()
+            }
+            ws = get_websocket()
+            if ws:
+                try:
+                    ws.send(json.dumps(payload))
+                    data_queue.task_done()
+                except ConnectionClosed:
+                    print("Rank 0 WS Sender: Connection closed while sending. Dropping data.", flush=True)
+                except Exception as e:
+                    print(f"Rank 0 WS Sender: Error sending data: {e}", flush=True)
+            else:
+                pass
+
+        except queue.Empty:
+            continue
+        except Exception as e:
+            print(f"Rank 0 WS Sender: Unexpected error in sender thread: {e}", flush=True)
+            time.sleep(1)
+
 class TrainingWSServer:
     def __init__(self, port):
         self.port = port
         self.server_instance = None
         self.server_thread = None
+        self.sender_thread = None
 
     def _websocket_handler(self, websocket):
         global _websocket_connection, _request_configs
@@ -82,6 +133,8 @@ class TrainingWSServer:
         self.server_thread = threading.Thread(target=self._run_server_thread)
         self.server_thread.start()
         print("Rank 0: WebSocket server thread started.", flush=True)
+        self.sender_thread = threading.Thread(target=_data_sender_thread, daemon=True)
+        self.sender_thread.start()
         return self.server_thread
     
     def shutdown(self):
