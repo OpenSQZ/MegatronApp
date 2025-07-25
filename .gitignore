@@ -12,12 +12,13 @@ local/
 wandb/
 onelogger.log
 onelogger.err
-ngc_models/
-tensor_board/
+ngc_models*
+tensor_board*
 dist/
 benchmark/
 benchmark_*.json
 benchmark-*.json
-datasets/gpt-large-cased-vocab-small_text_document/cache/
+datasets/
 abnormal.txt
 gpu-rank-map.txt
+.specstory

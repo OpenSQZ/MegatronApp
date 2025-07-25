@@ -117,6 +117,10 @@ from . import ft_integration
 
 from .training_wsserver import TrainingWSServer, start_training_event, _request_configs, _request_lock, get_websocket, data_queue
 
+import shm_tensor_new_rdma, shm_tensor_new_rdma_pre_alloc
+import numpy as np
+from megatron.core.trace import tracers
+
 stimer = StragglerDetector()
 
 
@@ -738,6 +742,18 @@ def pretrain_body(
     app_metrics['app_build_optimizer_finish_time'] = one_logger_utils.get_timestamp_in_ms()
     config = get_model_config(model[0])
 
+    os.system("rm -rf /dev/shm/sem.*")
+    os.system("rm -rf /dev/shm/forward_*")
+    os.system("rm -rf /dev/shm/backward_*")
+    torch.distributed.barrier()
+    node_ips: list[str] = args.node_ips.split(',') if args.node_ips else None
+    if args.use_dpp:
+        if args.multi_node:
+            assert node_ips is not None, "Needs the IPs of nodes for multi-node training when using DPP"
+            shm_tensor_new_rdma.init_shared_memory(np.prod([args.seq_length, args.micro_batch_size, config.hidden_size]), torch.distributed.get_rank(), get_num_microbatches() * len(model), len(model), mpu.get_pipeline_model_parallel_world_size(), node_ips, args.num_gpus)
+        else:
+            shm_tensor_new_rdma_pre_alloc.init_shared_memory(np.prod([args.seq_length, args.micro_batch_size, config.hidden_size]), torch.distributed.get_rank(), get_num_microbatches() * len(model), len(model), mpu.get_pipeline_model_parallel_world_size(), node_ips, torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() - 1) % mpu.get_pipeline_model_parallel_world_size())), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() + 1) % mpu.get_pipeline_model_parallel_world_size())), mpu.is_pipeline_last_stage(ignore_virtual=True), mpu.is_pipeline_first_stage(ignore_virtual=True), args.workload, args.num_gpus)
+
     # Data stuff.
     app_metrics['app_build_dataiters_start_time'] = one_logger_utils.get_timestamp_in_ms()
     # timers('train/valid/test-data-iterators-setup', log_level=0).start(
@@ -760,6 +776,19 @@ def pretrain_body(
     # timers('train/valid/test-data-iterators-setup').stop()
     print_datetime('after dataloaders are built')
     app_metrics['app_build_dataiters_finish_time'] = one_logger_utils.get_timestamp_in_ms()
+
+    if args.multi_node:
+        assert args.use_dpp, "Needs to turn on DPP for customized multi-node"
+        shm_tensor_new_rdma.init_forward_rdma(np.prod([args.seq_length, args.micro_batch_size, config.hidden_size]), torch.distributed.get_rank(), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() + 1) % mpu.get_pipeline_model_parallel_world_size())), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() - 1) % mpu.get_pipeline_model_parallel_world_size())), mpu.get_pipeline_model_parallel_rank())
+        shm_tensor_new_rdma.init_backward_rdma(np.prod([args.seq_length, args.micro_batch_size, config.hidden_size]), torch.distributed.get_rank(), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() + 1) % mpu.get_pipeline_model_parallel_world_size())), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() - 1) % mpu.get_pipeline_model_parallel_world_size())), mpu.get_pipeline_model_parallel_rank())
+    elif args.use_dpp:
+        shm_tensor_new_rdma_pre_alloc.init_forward_rdma(np.prod([args.seq_length, args.micro_batch_size, config.hidden_size]), torch.distributed.get_rank(), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() + 1) % mpu.get_pipeline_model_parallel_world_size())), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() - 1) % mpu.get_pipeline_model_parallel_world_size())), mpu.get_pipeline_model_parallel_rank())
+        shm_tensor_new_rdma_pre_alloc.init_backward_rdma(np.prod([args.seq_length, args.micro_batch_size, config.hidden_size]), torch.distributed.get_rank(), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() + 1) % mpu.get_pipeline_model_parallel_world_size())), torch.distributed.get_global_rank(group=mpu.get_pipeline_model_parallel_group(), group_rank=((mpu.get_pipeline_model_parallel_rank() - 1) % mpu.get_pipeline_model_parallel_world_size())), mpu.get_pipeline_model_parallel_rank())
+
+    if torch.distributed.get_rank() == 0:
+        pp_name = f"dpp-{args.use_dpp}" if args.use_dpp else "pp"
+        save_dir = f"data-{mpu.get_data_parallel_world_size()}-pipeline-{mpu.get_pipeline_model_parallel_world_size()}-tensor-{mpu.get_tensor_model_parallel_world_size()}-{pp_name}"
+        os.makedirs(f"benchmark/{save_dir}", exist_ok=True)
 
     # Track if training is enabled. Can only be done once args.do_train is assigned after dataloader is built.
     one_logger_utils.track_config_flags(args.train_iters, args.skip_train, args.do_train,
@@ -794,17 +823,14 @@ def pretrain_body(
                 non_loss_data_func)
 
         print_datetime('after training is done')
+        data_parallel_rank = mpu.get_data_parallel_rank()
+        tensor_model_parallel_rank = mpu.get_tensor_model_parallel_rank()
+        pipeline_model_parallel_rank = mpu.get_pipeline_model_parallel_rank()
+        pp_name = f"dpp-{args.use_dpp}" if args.use_dpp else "pp"
+        save_dir = f"data-{mpu.get_data_parallel_world_size()}-pipeline-{mpu.get_pipeline_model_parallel_world_size()}-tensor-{mpu.get_tensor_model_parallel_world_size()}-{pp_name}"
+        tracers.log(f"benchmark/{save_dir}/benchmark-data-{data_parallel_rank}-pipeline-{pipeline_model_parallel_rank}-tensor-{tensor_model_parallel_rank}.json")
         if args.trace:
-            data_parallel_rank = mpu.get_data_parallel_rank()
-            tensor_model_parallel_rank = mpu.get_tensor_model_parallel_rank()
-            pipeline_model_parallel_rank = mpu.get_pipeline_model_parallel_rank()
-            tracers = get_tracer()
-            tracers.log(f"benchmark-data-{data_parallel_rank}-pipeline-{pipeline_model_parallel_rank}-tensor-{tensor_model_parallel_rank}.json")
-            with open("gpu-rank-map.txt", "a") as f:
-                f.write(f"{data_parallel_rank}\t")
-                f.write(f"{pipeline_model_parallel_rank}\t")
-                f.write(f"{tensor_model_parallel_rank}\t")
-                f.write(f"{torch.cuda.current_device()}\n")
+            get_tracer().log()
 
         if args.save and iteration != 0 and iteration % args.save_interval != 0:
             save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
@@ -836,6 +862,18 @@ def pretrain_body(
                                    iteration, process_non_loss_data_func, config,
                                    verbose=True, write_to_tensorboard=not args.skip_train,
                                    non_loss_data_func=non_loss_data_func)
+
+    torch.distributed.barrier()
+    if args.use_dpp:
+        if not args.multi_node:
+            shm_tensor_new_rdma_pre_alloc.join_threads()
+            print(f"rank {torch.distributed.get_rank()} threads joined")
+        else:
+            shm_tensor_new_rdma.clean_rdma()
+
+    os.system("rm -rf /dev/shm/sem.*")
+    os.system("rm -rf /dev/shm/forward_*")
+    os.system("rm -rf /dev/shm/backward_*")
 
     wandb_writer = get_wandb_writer()
     if wandb_writer:
@@ -2127,7 +2165,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             # Barrier to make sure all ranks start the iteration at the same time.
             torch.distributed.barrier()
             tracers = get_tracer()
-            tracers.iteration_begin()
+            tracers.iteration_begin(iteration)
         if args.profile and torch.distributed.get_rank() in args.profile_ranks:
             if args.use_pytorch_profiler:
                 prof.step()
@@ -2206,8 +2244,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                     pre_hook_enabled = True
 
         if args.trace:
-            tracers = get_tracer()
-            tracers.iteration_end()
+            get_tracer().iteration_end()
             
         iteration += 1
         batch_size = mpu.get_data_parallel_world_size() * \
@@ -2247,6 +2284,9 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                           iteration, loss_scale,
                                           report_memory_flag, skipped_iter,
                                           grad_norm, params_norm, num_zeros_in_grad)
+
+        if args.trace:
+            get_tracer().iteration_end()
 
         # Evaluation.
         if args.eval_interval and iteration % args.eval_interval == 0 and \
@@ -2291,6 +2331,11 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             break
 
     one_logger_utils.track_e2e_metrics()
+    
+    # Log any remaining traces and shut down the saver process
+    if args.trace:
+        get_tracer().log()
+        get_tracer().shutdown()
 
     # Flush TensorBoard, WandB writers and one-logger.
     writer = get_tensorboard_writer()
@@ -2359,8 +2404,8 @@ def evaluate(forward_step_func,
             print_rank_0(f'Evaluating on {args.eval_iters * eval_batch_size} samples')
         while iteration < args.eval_iters:
             iteration += 1
-            if verbose:
-                print_rank_0(f'Evaluating iter {iteration}/{args.eval_iters}')
+            # if verbose:
+            print_rank_0(f'Evaluating iter {iteration}/{args.eval_iters}')
 
             forward_backward_func = get_forward_backward_func()
             # Don't care about timing during evaluation

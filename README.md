@@ -91,6 +91,8 @@ Through UI, users can precisely control the location, activation, type and exten
 - Concurrent asynchronous send/recv operations
 - Dynamically track the completion status of operations
 
+For more details see [README_Megatron.md](README_Megatron.md)
+
 ### MegaFBD
 📊 Instance-Level Decoupled Scheduling: The forward and backward phases are split into two logical processes, each assigned a different rank and bound to separate resources to reduce coupling;
 
@@ -128,6 +130,23 @@ MegatronApp uses a decoupled frontend-backend architecture with WebSockets to en
 - Access with browser(optional)
 - Verify the result -->
 
+## Docker (Recommended)
+
+We strongly recommend using the release of [PyTorch NGC Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch) for installation. This container comes with all dependencies pre-installed with compatible versions and optimized configurations for NVIDIA GPUs.
+
+~~~shell
+```bash
+# Run container with mounted directories
+docker run --runtime --nvidia --gpus all -it --rm \
+  -v /path/to/megatron:/workspace/megatron \
+  -v /path/to/dataset:/workspace/dataset \
+  -v /path/to/checkpoints:/workspace/checkpoints \
+  nvcr.io/nvidia/pytorch:25.04-py3
+```
+~~~
+
+
+
 To install additional required packages, run
 
 ```bash
@@ -142,6 +161,7 @@ We provide a basic repro for you to quickly get started with MegaScan.
 
 ```bash
 --trace
+--trace-dir trace_output
 --trace-interval 5 # optional, default is 5 iterations
 --continuous-trace-iterations 2 # optional, default is 2 iterations
 --transformer-impl local # currently only support local transformer implementation
@@ -152,7 +172,7 @@ We provide a basic repro for you to quickly get started with MegaScan.
 2. After training, you will find separated trace files in the current directory. The trace files are named as `benchmark-data-{}-pipeline-{}-tensor-{}.json`, where `{}` is the rank number. Now we should aggregate the trace files into a single trace file:
 
 ```bash
-python scripts/aggregate.py --benchmark . --output benchmark.json
+python scripts/aggregate.py --b trace_output --output benchmark.json
 ```
 
 3. You can visualize the trace file using Chrome Tracing (or Perfetto UI). Open the trace file in Chrome Tracing by navigating to `chrome://tracing` in your browser (or https://ui.perfetto.dev/). Now you can explore the trace data, zoom in on specific events, and analyze the performance characteristics of your distributed training run.
@@ -174,7 +194,7 @@ python scripts/aggregate.py --benchmark . --output benchmark.json
     
     ```bash
     python scripts/aggregate.py \
-        -b . \ # Equivalent to --benchmark
+        -b . \ # Equivalent to --bench-dir
         -d # Enable the detection algorithm, Equivalent to --detect
     ```
     We can see some output that indicated that the GPU 0 may be abnormal:
@@ -323,6 +343,7 @@ There are two extra options: `--forward-backward-disaggregating` and `--ignore-f
 
   Enables merging forward ranks within the same TP group. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the correct number of ranks.
 
+Currently Context Parallel and Expert parallel are not supported. `--tranformer-impl` should be `local`.
 
 # 🛠️ Security Policy
 
