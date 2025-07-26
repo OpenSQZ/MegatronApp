@@ -34,7 +34,7 @@ from megatron.inference.text_generation.mcore_engine_server import (
     ModelInferenceWrapperServer,
     run_mcore_engine,
 )
-from megatron.inference.text_generation_server import MegatronWSServer
+from megatron.inference.text_generation_server import MegatronServer, InferenceWSServer
 from megatron.training import print_rank_0
 from megatron.training.arguments import core_transformer_config_from_args
 from megatron.training.yaml_arguments import core_transformer_config_from_yaml
@@ -154,6 +154,12 @@ def add_text_generate_args(parser):
     group.add_argument(
         "--port", type=int, default=5000, help='port for text generation server to run on'
     )
+    group.add_argument(
+        "--enable-ws-server",
+        action='store_true',
+        default=False,
+        help='Enable WebSocket server for text generation',
+    )
     group.add_argument("--temperature", type=float, default=1.0, help='Sampling temperature.')
     group.add_argument("--top_k", type=int, default=1, help='Top k sampling.')
     group.add_argument("--top_p", type=float, default=0.0, help='Top p sampling.')
@@ -223,22 +229,36 @@ if __name__ == "__main__":
             prompts=["Test prompt"], sampling_params=SamplingParams(num_tokens_to_generate=10)
         )
 
-    if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
-        server = MegatronWSServer(inference_engine, args)
-        server.run("0.0.0.0", port=args.port)
+    if args.enable_ws_server:
+        if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
+            server = InferenceWSServer(inference_engine, args)
+            server.run("0.0.0.0", port=args.port)
 
-    while True:
-        from megatron.core.tensor_tracer import get_tt_flags
-        from megatron.core.tensor_disturbance import get_disturbance
-        obj_list = [None]
-        torch.distributed.broadcast_object_list(obj_list, 0)
-        get_tt_flags().set_by_configs(obj_list[0])
-        torch.distributed.broadcast_object_list(obj_list, 0)
-        get_disturbance().set_by_configs(obj_list[0])
-        choice = torch.tensor(1, dtype=torch.long, device='cuda')
-        torch.distributed.broadcast(choice, 0)
-        if choice.item() == 0:
-            try:
-                run_mcore_engine(inference_engine)
-            except ValueError as ve:
-                pass
+        while True:
+            from megatron.core.tensor_tracer import get_tt_flags
+            from megatron.core.tensor_disturbance import get_disturbance
+            obj_list = [None]
+            torch.distributed.broadcast_object_list(obj_list, 0)
+            get_tt_flags().set_by_configs(obj_list[0])
+            torch.distributed.broadcast_object_list(obj_list, 0)
+            get_disturbance().set_by_configs(obj_list[0])
+            choice = torch.tensor(1, dtype=torch.long, device='cuda')
+            torch.distributed.broadcast(choice, 0)
+            if choice.item() == 0:
+                try:
+                    run_mcore_engine(inference_engine)
+                except ValueError as ve:
+                    pass
+    else:
+        if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
+            server = MegatronServer(inference_engine, args)
+            server.run("0.0.0.0", port=args.port)
+
+        while True:
+            choice = torch.tensor(1, dtype=torch.long, device='cuda')
+            torch.distributed.broadcast(choice, 0)
+            if choice.item() == 0:
+                try:
+                    run_mcore_engine(inference_engine)
+                except ValueError as ve:
+                    pass

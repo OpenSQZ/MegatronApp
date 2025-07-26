@@ -206,13 +206,18 @@ python scripts/aggregate.py --b trace_output --output benchmark.json
 ### 1. Launch the Service
 First, start the backend and frontend servers.
 
-**Backend (Megatron)**: Run the text generation server script, pointing it to your model and tokenizer paths.
+**Backend (Megatron)**: For inference mode, run the text generation server script, pointing it to your model and tokenizer paths, **and make sure to turn on the switch `--enable-ws-server` in the argument**.
 ```bash
 bash examples/inference/a_text_generation_server_bash_script.sh /path/to/model /path/to/tokenizer
 ```
 For example
 ```bash
 bash examples/inference/llama_mistral/run_text_generation_llama3.sh /gfshome/llama3-ckpts/Meta-Llama-3-8B-Instruct-megatron-core-v0.12.0-TP1PP1 /root/llama3-ckpts/Meta-Llama-3-8B-Instruct
+```
+For training mode, run the training script, **and add `--training-ws-port XXX` (e.g. `--training-ws-port 5000`) to the argument**.
+For example
+```bash
+bash pretrain_gpt.sh 0
 ```
 
 **Frontend (Vue)**: Navigate to the frontend directory and start the development server.
@@ -247,7 +252,7 @@ The currently supported noise types include:
 ![](images/perturbation.jpg)
 
 ### 4. Support for training process
-The preliminary support for visualization during training process are provided as well. By adding argument `--training-ws-port XXX` in the training script args, the training process will be controlled on the frontend page. Critical intermediate results and perturbations are supported in training.
+The similar support for visualization during training process are provided as well. The overall control is the same, and the training process will be controlled on the frontend page. Critical intermediate results and perturbations are supported in training.
 ![](images/training.jpg)
 
 ## MegaDPP

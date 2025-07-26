@@ -50,4 +50,5 @@ torchrun $DISTRIBUTED_ARGS tools/run_text_generation_server.py   \
       --max-position-embeddings 8192  \
       --bf16  \
       --micro-batch-size 1  \
-      --seq-length 8192
+      --seq-length 8192 \
+      --enable-ws-server
