@@ -159,6 +159,10 @@ pip install -r requirements.txt
 
 We provide a basic repro for you to quickly get started with MegaScan.
 
+0. Data preparation:
+
+Please refer to [README_Megatron.md](README_Megatron.md) section "Dataset Preparation" and Nvidia's [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) for more details.
+
 1. Run Megatron-LM training with MegaScan enabled by adding the following command line arguments:
 
 ```bash
@@ -166,10 +170,14 @@ We provide a basic repro for you to quickly get started with MegaScan.
 --trace-dir trace_output
 --trace-interval 5 # optional, default is 5 iterations
 --continuous-trace-iterations 2 # optional, default is 2 iterations
+--trace-granularity full # optional, default is full
 --transformer-impl local # currently only support local transformer implementation
 ```
 
 `examples/gpt3/train_gpt3_345m_distributed.sh` is an example script. You can modify the script to suit your needs.
+
+If you want to train on multiple nodes, change the `GPU_PER_NODE`, `NUM_NODES`, `MASTER_ADDR`, `MASTER_PORT`, `NODE_RANK`, `WORLD_SIZE` in the script accordingly.
+Alternatively you can use elastic training. See [torchrun](https://docs.pytorch.org/docs/stable/elastic/run.html) for more details.
 
 2. After training, you will find separated trace files in the current directory. The trace files are named as `benchmark-data-{}-pipeline-{}-tensor-{}.json`, where `{}` is the rank number. Now we should aggregate the trace files into a single trace file:
 
