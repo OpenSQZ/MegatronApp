@@ -34,6 +34,8 @@ The project currently offers four core modules:
 
 The four modules are fully isolated and integrated into the Megatron-LM codebase as plugins; users can flexibly enable or disable any of them at launch via control flags.
 
+The technical report of MegatronApp can be seen [here](./MegatronApp.pdf).
+
 # ✨ Core Features
 <!-- List 3~5 core features of the project.
 
@@ -359,9 +361,6 @@ An overview of the vulnerability handling process is:
 
 - The project publicly announces the vulnerability and describes how to apply the fix.
 
-# 🚰 Citation
-If you use or extend our work, please kindly cite xxx.
-
 # Contributing
 Contributions and collaborations are welcome and highly appreciated. Check out the [contributor guide]() and get involved.
 
@@ -369,9 +368,6 @@ Contributions and collaborations are welcome and highly appreciated. Check out t
 This project is licensed under the Apache 2.0 License, see the LICENSE file for details. 
 
 # 🌐 Community and Support
-Provide contact information, including
+Use WeChat to scan blow QR code.
 
-- Email(user/dev email addresses, with self-subscribe service)
-- Discord / Slack
-- WeChat / DingTalk
-- Twitter / Zhihu...
+![](images/code.png)
