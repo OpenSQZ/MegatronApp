@@ -216,7 +216,10 @@ For example
 ```bash
 bash examples/inference/llama_mistral/run_text_generation_llama3.sh /gfshome/llama3-ckpts/Meta-Llama-3-8B-Instruct-megatron-core-v0.12.0-TP1PP1 /root/llama3-ckpts/Meta-Llama-3-8B-Instruct
 ```
-For training mode, run the training script, **and add `--training-ws-port XXX` (e.g. `--training-ws-port 5000`) to the argument**.
+For training mode, run the training script, **and add `--training-ws-port XXX` (e.g. `--training-ws-port 5000`) to the argument**. The typical command is
+```bash
+bash a_pretrain_script.sh $RANK
+```
 For example
 ```bash
 bash pretrain_gpt.sh 0
