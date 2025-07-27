@@ -128,6 +128,7 @@ def _batched_p2p_ops(
     group: torch.distributed.ProcessGroup,
     prev_pipeline_rank: int,
     next_pipeline_rank: int,
+    bypass_controller: bool = False,
 ):
     ops = []
     if tensor_send_prev is not None:
@@ -153,7 +154,7 @@ def _batched_p2p_ops(
         )
         ops.append(recv_next_op)
     if len(ops) > 0:
-        reqs = dist.batch_isend_irecv(ops)
+        reqs = dist.batch_isend_irecv(ops, bypass_controller)
     else:
         reqs = []
     return reqs
@@ -280,6 +281,7 @@ def _communicate(
     tensor_shape: Shape,
     config: ModelParallelConfig,
     wait_on_reqs: bool = True,
+    bypass_controller: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Communicate tensors between stages. Used as helper method in other
     communication methods that are used in megatron/schedules.py.
@@ -313,7 +315,7 @@ def _communicate(
         - tensor_recv_next: torch.Tensor if recv_next is True, None otherwise.
 
     """
-
+    # print(dist.get_rank(), torch.cuda.current_device())
     tensor_recv_prev_func = None
     tensor_recv_next_func = None
 
@@ -381,6 +383,8 @@ def _communicate(
     # several different decoder ranks. We therefore have to receive or send tensors
     # from several groups. For convenience, I wrap everything into lists.
     pp_group = get_pipeline_model_parallel_group(extracted=True)
+    # pp = get_pipeline_model_parallel_group()
+    # print(dist.get_rank(), ':', pp[1])
     next_rank = get_pipeline_model_parallel_next_rank()
     prev_rank = get_pipeline_model_parallel_prev_rank()
     if not isinstance(pp_group, list):
@@ -409,26 +413,40 @@ def _communicate(
             tensor_recv_next_list.append(tensor_recv_next)
         else:
             tensor_recv_next = None
-
-        p2p_reqs = p2p_func(
-            tensor_send_prev=tensor_send_prev,
-            tensor_recv_prev=tensor_recv_prev,
-            tensor_send_next=tensor_send_next,
-            tensor_recv_next=tensor_recv_next,
-            group=group,
-            prev_pipeline_rank=pr,
-            next_pipeline_rank=nr,
-        )
+        # print('cm req:', dist.get_rank())
+        if p2p_func is _batched_p2p_ops:
+            p2p_reqs = p2p_func(
+                tensor_send_prev=tensor_send_prev,
+                tensor_recv_prev=tensor_recv_prev,
+                tensor_send_next=tensor_send_next,
+                tensor_recv_next=tensor_recv_next,
+                group=group,
+                prev_pipeline_rank=pr,
+                next_pipeline_rank=nr,
+                bypass_controller=bypass_controller,
+            )
+        else:
+            p2p_reqs = p2p_func(
+                tensor_send_prev=tensor_send_prev,
+                tensor_recv_prev=tensor_recv_prev,
+                tensor_send_next=tensor_send_next,
+                tensor_recv_next=tensor_recv_next,
+                group=group,
+                prev_pipeline_rank=pr,
+                next_pipeline_rank=nr,
+            )
         if isinstance(p2p_reqs, list):
             reqs.extend(p2p_reqs)
         else:
             reqs.update(p2p_reqs)
-
+    
     if wait_on_reqs and len(reqs) > 0:
         for req in reqs if isinstance(reqs, list) else reqs.values():
             req.wait()
         reqs = None
-
+    
+    import time
+    start_time = time.time()
     if (
         (config.batch_p2p_comm and config.batch_p2p_sync)
         # The lists below have a size > 1 only when ETP ≠ DTP,
@@ -439,6 +457,10 @@ def _communicate(
         # To protect against race condition when using batch_isend_irecv().
         # User should assert that we have a modern enough PyTorch to not need this
         torch.cuda.synchronize()
+    
+    end_time = time.time()
+    if dist.get_rank() == 7:
+        print('communicate', end_time-start_time)
 
     def _handle_tensor_list(x):
         """This basically handles all the cases that we expect to see. Either the list None,
@@ -546,6 +568,7 @@ def _forward_backward_communicate(
 
     p2p_func = _forward_backward_p2p_ops
 
+    # print('fbd req:', dist.get_rank())
     reqs = p2p_func(
         tensor_recv_prev=tensor_recv_prev,
         tensor_send_next=tensor_send_next,
@@ -631,6 +654,7 @@ def recv_backward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Ten
             recv_next=True,
             tensor_shape=tensor_shape,
             config=config,
+            bypass_controller=True,
         )
         if config.timers is not None:
             config.timers('backward-recv').stop()
@@ -690,6 +714,7 @@ def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) 
             recv_next=False,
             tensor_shape=None,
             config=config,
+            bypass_controller=True,
         )
         if config.timers is not None:
             config.timers('backward-send').stop()

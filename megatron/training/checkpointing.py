@@ -128,6 +128,7 @@ def get_checkpoint_name(checkpoints_path, iteration, release=False,
         return common_path
 
     # Use both the tensor and pipeline MP rank.
+    args = get_args()
     if pipeline_parallel is None:
         pipeline_parallel = (mpu.get_pipeline_model_parallel_world_size() > 1)
     if tensor_rank is None:
@@ -135,9 +136,16 @@ def get_checkpoint_name(checkpoints_path, iteration, release=False,
     if pipeline_rank is None:
         pipeline_rank = mpu.get_pipeline_model_parallel_rank()
     if expert_parallel is None:
-        expert_parallel = (mpu.get_expert_model_parallel_world_size() > 1)
+        if args.ignore_forward_tensor_parallel:
+            expert_parallel = 0
+        else:
+            expert_parallel = (mpu.get_expert_model_parallel_world_size() > 1)
     if expert_rank is None:
-        expert_rank = mpu.get_expert_model_parallel_rank()
+        if args.ignore_forward_tensor_parallel:
+            expert_rank = 0
+        else:
+            expert_rank = mpu.get_expert_model_parallel_rank()
+        
 
     # Use both the tensor and pipeline MP rank. If using the distributed
     # optimizer, then the optimizer's path must additionally include the
@@ -575,6 +583,77 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
     logger.debug(f"rank: {rank}, takes {end_misc - start_misc} to finalize ckpt save ")
 
     ft_integration.on_checkpointing_end(is_async_finalization=False)
+
+def save_checkpoint_legacy(iteration, model, optimizer, opt_param_scheduler):
+    """Save a model checkpoint."""
+    args = get_args()
+
+    # Only rank zero of the data parallel writes to the disk.
+    model = unwrap_model(model)
+
+    print_rank_0('saving checkpoint at iteration {:7d} to {}'.format(
+        iteration, args.save))
+
+    # Collect rng state across data parallel ranks.
+    rng_state = get_rng_state(ckpt_format = '')
+
+    # Checkpoint name.
+    checkpoint_name = get_checkpoint_name(args.save, iteration)
+
+    # Save distributed optimizer's custom parameter state.
+    if args.use_distributed_optimizer and not args.no_save_optim and optimizer is not None:
+        optim_checkpoint_name = \
+            get_distributed_optimizer_checkpoint_name(checkpoint_name)
+        ensure_directory_exists(optim_checkpoint_name)
+        optimizer.save_parameter_state(optim_checkpoint_name)
+
+    # Collect args, model, RNG.
+    if not torch.distributed.is_initialized() \
+       or mpu.get_data_parallel_rank() == 0 \
+       or args.expert_parallel:
+
+        # Arguments, iteration, and model.
+        state_dict = {}
+        state_dict['args'] = args
+        state_dict['checkpoint_version'] = 3.0
+        state_dict['iteration'] = iteration
+        if len(model) == 1:
+            state_dict['model'] = model[0].state_dict_for_save_checkpoint()
+        else:
+            for i in range(len(model)):
+                mpu.set_virtual_pipeline_model_parallel_rank(i)
+                state_dict['model%d' % i] = \
+                    model[i].state_dict_for_save_checkpoint()
+
+        # Optimizer stuff.
+        if not args.no_save_optim:
+            if optimizer is not None:
+                state_dict['optimizer'] = optimizer.state_dict()
+            if opt_param_scheduler is not None:
+                state_dict['opt_param_scheduler'] = \
+                    opt_param_scheduler.state_dict()
+
+        # RNG states.
+        if not args.no_save_rng:
+            state_dict["rng_state"] = rng_state
+
+        # Save.
+        ensure_directory_exists(checkpoint_name)
+        torch.save(state_dict, checkpoint_name)
+
+    # Wait so everyone is done (necessary)
+    if torch.distributed.is_initialized():
+        dist.barrier()
+
+    print_rank_0('  successfully saved checkpoint at iteration {:7d} to {}' \
+                 .format(iteration, args.save))
+
+    # And update the latest iteration
+    if not torch.distributed.is_initialized() \
+       or dist.get_rank() == 0:
+        tracker_filename = get_checkpoint_tracker_filename(args.save)
+        with open(tracker_filename, 'w') as f:
+            f.write(str(iteration))
 
 def cleanup_old_non_persistent_checkpoint(save_dir, leave_ckpt_num=1, do_async=False):
     if dist.is_initialized() and dist.get_rank() != 0:

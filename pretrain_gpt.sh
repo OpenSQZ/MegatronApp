@@ -7,11 +7,15 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1
 
 GPUS_PER_NODE=3
 # Change for multinode config
-MASTER_ADDR=192.168.0.3
+MASTER_ADDR=192.168.0.1
 MASTER_PORT=6002
 NNODES=2
 NODE_RANK=$1
-WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
+WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES+1))
+if [ "$NODE_RANK" -eq 0 ]; then
+    ((GPUS_PER_NODE++))
+fi
+echo $GPUS_PER_NODE
 TENSOR_MP_SIZE=2
 PIPELINE_MP_SIZE=2
 VIRTUAL_STAGE_LAYER=1
@@ -46,15 +50,16 @@ GPT_ARGS="
     --lr-warmup-fraction .01 \
     --clip-grad 1.0 \
     --fp16 \
-    --recompute-granularity full \
     --recompute-method uniform \
     --recompute-num-layers 1\
+    --recompute-granularity full \
     --pipeline-model-parallel-size $PIPELINE_MP_SIZE \
     --tensor-model-parallel-size $TENSOR_MP_SIZE
     --transformer-impl local
     --forward-backward-disaggregating
     --ignore-forward-tensor-parallel
 "
+
 
 # granularity
 # batch_size
@@ -85,4 +90,4 @@ torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     $OUTPUT_ARGS \
     --distributed-backend nccl \
     --save $CHECKPOINT_PATH \
-    --load $CHECKPOINT_PATH
+    --load $CHECKPOINT_PATH \

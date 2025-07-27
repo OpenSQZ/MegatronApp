@@ -10,6 +10,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple, TypeVar, c
 
 import numpy as np
 import torch
+import megatron.virtual_tensor_parallel_communication as dist
 
 from .core import CheckpointingException
 from .dict_utils import nested_values
@@ -189,7 +190,7 @@ def determine_main_replica_uniform_distribution(
         parallelization. Returns None if the process_group is trivial (1 rank)
 
     """
-    group_size = torch.distributed.get_world_size(group=parallelization_group)
+    group_size = dist.get_world_size(group=parallelization_group)
     if group_size <= 1:
         return
     local_shards = list(
@@ -199,8 +200,8 @@ def determine_main_replica_uniform_distribution(
     )
     local_shards_no_data = [ten.without_data() for ten in local_shards]
 
-    all_shards = [None] * torch.distributed.get_world_size(group=parallelization_group)
-    torch.distributed.all_gather_object(
+    all_shards = [None] * dist.get_world_size(group=parallelization_group)
+    dist.all_gather_object(
         all_shards, local_shards_no_data, group=parallelization_group
     )
 
@@ -268,7 +269,7 @@ def exchange_loaded_tensors_gather_rounds(
             previously loaded tensors (from `loaded_tensors` input)
     """
     main_rank_for_shard, _, shard_to_metadata, all_ranks_for_shard = shard_distribution
-    local_rank = torch.distributed.get_rank(group=parallelization_group)
+    local_rank = dist.get_rank(group=parallelization_group)
 
     all_loaded_tensors = dict(loaded_tensors)
 
@@ -278,7 +279,7 @@ def exchange_loaded_tensors_gather_rounds(
         with debug_time(f"dtype_{dtype}"):
             # shards_by_rank maps rank to tensors loaded by this rank
             shards_by_rank: List[List[torch.Tensor]] = [
-                [] for _ in range(torch.distributed.get_world_size(group=parallelization_group))
+                [] for _ in range(dist.get_world_size(group=parallelization_group))
             ]
             for shard_id, rank in main_rank_for_shard.items():
                 if len(all_ranks_for_shard[shard_id]) == 1:
@@ -335,7 +336,7 @@ def exchange_loaded_tensors_gather_rounds(
                     if orig_device is not None:
                         orig_devices[shard_id] = orig_device
 
-                torch.distributed.all_gather(
+                dist.all_gather(
                     list(round_tensors),
                     round_tensors[local_rank],
                     group=parallelization_group,
@@ -377,8 +378,8 @@ def exchange_loaded_tensors_gather_object(
             previously loaded tensors (from `loaded_tensors` input)
 
     """
-    all_loaded_tensors_list = [None] * torch.distributed.get_world_size(group=parallelization_group)
-    torch.distributed.all_gather_object(
+    all_loaded_tensors_list = [None] * dist.get_world_size(group=parallelization_group)
+    dist.all_gather_object(
         all_loaded_tensors_list, loaded_tensors, group=parallelization_group
     )
     all_loaded_tensors_list = cast(List[Dict[_ShardId, torch.Tensor]], all_loaded_tensors_list)
@@ -387,7 +388,7 @@ def exchange_loaded_tensors_gather_object(
     # Error checks
     if len(all_loaded_tensors) != sum(map(len, all_loaded_tensors_list)):
         err_msg = 'Duplicate shard ids loaded by different ranks'
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             logger.error(
                 f'{err_msg}. Shards ids by rank:'
                 f' {[lt.keys() for lt in all_loaded_tensors_list]}'
@@ -410,15 +411,15 @@ def exchange_loaded_objects_gather_object(
         Dict[_ShardId, Any]: dictionary mapping shard ids to objects needed by this rank to
          load a given state dict.
     """
-    all_loaded_objects_list = [None] * torch.distributed.get_world_size(group=None)
-    torch.distributed.all_gather_object(all_loaded_objects_list, loaded_objects, group=None)
+    all_loaded_objects_list = [None] * dist.get_world_size(group=None)
+    dist.all_gather_object(all_loaded_objects_list, loaded_objects, group=None)
     all_loaded_objects_list = cast(List[Dict[_ShardId, Any]], all_loaded_objects_list)
     all_loaded_objects = reduce(lambda x, y: {**x, **y}, all_loaded_objects_list)
 
     # Error checks
     if len(all_loaded_objects) != sum(map(len, all_loaded_objects_list)):
         err_msg = 'Duplicate shard ids loaded by different ranks'
-        if torch.distributed.get_rank() == 0:
+        if dist.get_rank() == 0:
             logger.error(
                 f'{err_msg}. Shards ids by rank:'
                 f' {[lt.keys() for lt in all_loaded_objects_list]}'
@@ -456,7 +457,7 @@ def exchange_loaded_tensors_broadcast(
             previously loaded tensors (from `loaded_tensors` input)
     """
     main_rank_for_shard, _, shard_to_metadata, all_ranks_for_shard = shard_distribution
-    local_rank = torch.distributed.get_rank(group=parallelization_group)
+    local_rank = dist.get_rank(group=parallelization_group)
 
     all_loaded_tensors = dict(loaded_tensors)
 
@@ -495,10 +496,10 @@ def exchange_loaded_tensors_broadcast(
         global_src_rank = (
             rank
             if parallelization_group == None
-            else torch.distributed.get_global_rank(parallelization_group, rank)
+            else dist.get_global_rank(parallelization_group, rank)
         )
         # We can do async_op=True only if there is no CPU-copy follow-up
-        torch.distributed.broadcast(
+        dist.broadcast(
             local_ten,
             src=global_src_rank,
             group=parallelization_group,

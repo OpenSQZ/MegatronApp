@@ -475,8 +475,12 @@ def get_batch_on_this_tp_rank(data_iterator):
 
     args = get_args()
 
+    # import megatron.virtual_tensor_parallel_communication as dist
+    # print('???', dist.get_rank())
+
     def _broadcast(item):
-       if item is not None:
+        # print('???', dist.get_rank())
+        if item is not None:
            dist.broadcast(item, mpu.get_tensor_model_parallel_src_rank(), group=mpu.get_tensor_model_parallel_group())
 
     if mpu.get_tensor_model_parallel_rank() == 0:

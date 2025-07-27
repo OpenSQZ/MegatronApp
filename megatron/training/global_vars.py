@@ -93,7 +93,7 @@ def set_global_variables(args, build_tokenizer=True):
     set_args(args)
 
     init_num_microbatches_calculator(
-        args.rank,
+        args.rank - 1,
         args.rampup_batch_size,
         args.global_batch_size,
         args.micro_batch_size,

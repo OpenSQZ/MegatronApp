@@ -178,7 +178,7 @@ class DistributedDataParallel(_BaseDataParallel):
 
             # Allocate the grad buffers and map the grads.
             buffers = []
-            print('initgradbuffer2', data_parallel_group)
+            # print('initgradbuffer2', data_parallel_group)
             for (param_dtype, grad_dtype), params in param_and_grad_dtype_to_params.items():
                 buffers.append(
                     _ParamAndGradBuffer(
@@ -278,9 +278,9 @@ class DistributedDataParallel(_BaseDataParallel):
                 expert_gradient_scaling_factor = 1.0 / data_parallel_world_size
 
         # Allocate the param+grad buffers for dense params' grads.
-        print('initgradbuffer3', parallel_state.get_data_parallel_group(
-                with_context_parallel=True, partial_data_parallel=True
-            ))
+        # print('initgradbuffer3', parallel_state.get_data_parallel_group(
+        #         with_context_parallel=True, partial_data_parallel=True
+        #     ))
         self.buffers, self.bucket_groups = _allocate_buffers_for_parameters(
             dense_params,
             parallel_state.get_data_parallel_group(

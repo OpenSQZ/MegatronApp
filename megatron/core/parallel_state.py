@@ -9,7 +9,7 @@ from functools import partial
 from typing import Callable, List, Optional
 
 import torch
-import inc.torch as dist
+import torch.distributed as dist
 from megatron.virtual_tensor_parallel_communication import (get_thread_index, set_use_thread_communication, init, init_backward, set_virtual_rank_info)
 
 from .utils import GlobalMemoryBuffer, is_torch_min_version
@@ -210,7 +210,7 @@ def get_real_ranks(ranks):
         for j in range(0,i+1):
             if DELETED_RANKS[j] <= 0:
                 s += 1
-        new_ranks.append(s-1)
+        new_ranks.append(s)
     return list(set(new_ranks))
 
 def get_real_rank(rank):
@@ -218,21 +218,23 @@ def get_real_rank(rank):
     for j in range(0,rank+1):
         if DELETED_RANKS[j] <= 0:
             s += 1
-    return s-1
+    return s
 
 def get_forward_ranks(ranks):
-    ranks = sorted(ranks)
-    new_ranks = []
-    for i in ranks:
-        s = 0
-        for j in range(0,i+1):
-            if DELETED_RANKS[j] <= 0:
-                s += 1
-        # if DELETED_RANKS[i] >= 0:
-        new_ranks.append(s-1)
-    return list(set(new_ranks))
+    return ranks
+    # ranks = sorted(ranks)
+    # new_ranks = []
+    # for i in ranks:
+    #     s = 0
+    #     for j in range(0,i+1):
+    #         if DELETED_RANKS[j] <= 0:
+    #             s += 1
+    #     # if DELETED_RANKS[i] >= 0:
+    #     new_ranks.append(s-1)
+    # return list(set(new_ranks))
 
 def get_virtual_rank(rank):
+    rank -= 1
     for s in range(len(DELETED_RANKS)):
         if DELETED_RANKS[s] <= 0:
             if rank == 0:
@@ -343,7 +345,7 @@ def initialize_model_parallel_legacy(
     from megatron.training import get_args
     args = get_args()
     assert dist.is_initialized()
-    world_size: int = dist.get_world_size()
+    world_size: int = dist.get_world_size() - 1
 
     if args.ignore_forward_tensor_parallel:
         world_size = world_size * (2 * tensor_model_parallel_size) // (tensor_model_parallel_size + 1)
@@ -426,18 +428,18 @@ def initialize_model_parallel_legacy(
         for i in range(world_size):
             if DELETED_RANKS[i] == 0:
                 ranks.append(get_real_rank(i))
-        global _FORWARD_CONTROLLER_GROUP
+        # global _FORWARD_CONTROLLER_GROUP
         global _CONTROLLER_GROUP_RANKS
         global _GLOBAL_CONTROLLER_GROUP
         # print(rank, ranks)
         # print(rank, ranks)
         # if rank in ranks:
-        _FORWARD_CONTROLLER_GROUP = dist.new_group(ranks, backend="gloo")
+        # _FORWARD_CONTROLLER_GROUP = dist.new_group(ranks, backend="gloo")
         # print('ss',rank, ranks)
-        ranks = [i for i in range(0,dist.get_world_size())]
+        ranks = [i for i in range(0, world_size)]
         _CONTROLLER_GROUP_RANKS = ranks
         # if rank in ranks:
-        _GLOBAL_CONTROLLER_GROUP = dist.new_group(ranks, backend="gloo")
+        _GLOBAL_CONTROLLER_GROUP = dist.new_group(get_real_ranks(ranks))
         # print('ttt', rank, ranks)
     elif args.forward_backward_disaggregating:
         global _IS_FORWARD_STAGE
@@ -645,7 +647,7 @@ def initialize_model_parallel_legacy(
         if len(ranks) > 0:
             group = dist.new_group(real_ranks)
             if rank in ranks:
-                _TENSOR_MODEL_PARALLEL_GROUP = [group, real_ranks, 'TENSOR']
+                _TENSOR_MODEL_PARALLEL_GROUP = [group, get_forward_ranks(ranks), 'TENSOR']
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
@@ -677,6 +679,7 @@ def initialize_model_parallel_legacy(
                 _PIPELINE_GLOBAL_RANKS = ranks
             else:
                 # print(get_real_rank(rank), DELETED_RANKS[rank], ranks, real_ranks)
+                # print('******', real_ranks)
                 thread_id = DELETED_RANKS[ranks[real_ranks.index(get_real_rank(rank))]]
                 _PIPELINE_GLOBAL_RANKS_LIST[thread_id] = ranks
                 _PIPELINE_MODEL_PARALLEL_GROUP_LIST[thread_id] = [group, _PIPELINE_MODEL_PARALLEL_GROUP_CONTROLLER]
@@ -896,23 +899,28 @@ def initialize_model_parallel_ignore_forward_tensor_parallel(
     virtual_pipeline_model_parallel_size: Optional[int] = None,
     pipeline_model_parallel_split_rank: Optional[int] = None,
     context_parallel_size: int = 1,
+    global_group_gloo: Optional[dist.ProcessGroup] = None,
 ) -> None:
-    rank = dist.get_rank()
+    rank = dist.get_rank() - 1
+    world_size = dist.get_world_size() - 1
     initiallize_list(tensor_model_parallel_size)
     s = 0
     virtual_rank = 0
     global _IS_FORWARD_STAGE
-    while True:
-        if s == rank:
-            _IS_FORWARD_STAGE = True
-            break
-        s += 1
-        virtual_rank += tensor_model_parallel_size
-        if s <= rank and rank < s + tensor_model_parallel_size:
-            virtual_rank += rank - s
-            break
-        s += tensor_model_parallel_size
-        virtual_rank += tensor_model_parallel_size
+    if rank == -1:
+        virtual_rank = -1
+    else:
+        while True:
+            if s == rank:
+                _IS_FORWARD_STAGE = True
+                break
+            s += 1
+            virtual_rank += tensor_model_parallel_size
+            if s <= rank and rank < s + tensor_model_parallel_size:
+                virtual_rank += rank - s
+                break
+            s += tensor_model_parallel_size
+            virtual_rank += tensor_model_parallel_size
     # print(rank, virtual_rank, _IS_FORWARD_STAGE)
     # print(rank, virtual_rank, _IS_FORWARD_STAGE)
     # print('?')
@@ -934,19 +942,25 @@ def initialize_model_parallel_ignore_forward_tensor_parallel(
             pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank,
             rank = virtual_rank
         )
+    print(dist.get_rank(), DELETED_RANKS)
+    global_group_gloo = torch.distributed.new_group(backend = 'gloo')
+    if dist.get_rank() == 0:
+        from megatron.Controller import start_server
+        tp = tensor_model_parallel_size
+        virtual_world_size = world_size//(tp + 1) * 2 * tp
+        REAL_RANK = [get_real_rank(i) for i in range(0, virtual_world_size)]
+        start_server(virtual_world_size, global_group_gloo, REAL_RANK, DELETED_RANKS)
     if _IS_FORWARD_STAGE:
         global _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE
         _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE = tensor_model_parallel_size
         set_use_thread_communication()
-        init(tensor_model_parallel_size, dist.get_world_size() // (tensor_model_parallel_size+1), _GLOBAL_CONTROLLER_GROUP, _CONTROLLER_GROUP_RANKS)
-    else:
-        tensor_parallel_rank = dist.get_rank() % (tensor_model_parallel_size+1) - 1
-        init_backward(tensor_model_parallel_size, _GLOBAL_CONTROLLER_GROUP, _CONTROLLER_GROUP_RANKS, tensor_parallel_rank)
+    tensor_parallel_rank = (dist.get_rank() - 1) % (tensor_model_parallel_size+1) - 1
+    init(tensor_model_parallel_size, _GLOBAL_CONTROLLER_GROUP, _CONTROLLER_GROUP_RANKS, global_group_gloo, tensor_parallel_rank)
     set_virtual_rank_info(DELETED_RANKS)
     # print(rank, model_parallel_is_initialized())
     # print(rank, _DATA_PARALLEL_GROUP)
-    # if _IS_FORWARD_STAGE:
-    #     output_controller()
+    if _IS_FORWARD_STAGE:
+        output_controller()
 
 
 def get_nccl_options(pg_name, nccl_comm_cfgs):
@@ -2179,7 +2193,12 @@ def get_half_data_parallel_group(with_context_parallel=False):
     from megatron.training import get_args
     args = get_args()
     if not (args.forward_backward_disaggregating and is_forward_stage() and args.ignore_forward_tensor_parallel):
-        return _HALF_DATA_PARALLEL_GROUP
+        if not (args.forward_backward_disaggregating and args.ignore_forward_tensor_parallel):
+            return _HALF_DATA_PARALLEL_GROUP
+        else:
+            res=_HALF_DATA_PARALLEL_GROUP
+            res.append('HALF')
+            return res
     else:
         return _HALF_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
 
