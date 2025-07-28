@@ -16,9 +16,17 @@ Extension for performance tuning, slow-node detection, and training-process visu
 </div>
 
 # 🔥 Demo
-Insert a product demo.
+**MegaScan**
 
-It is recommended that the demo is within 2mins.
+<img width="1079" height="590" alt="image" src="https://github.com/user-attachments/assets/ce6634ab-25ec-465e-aa6c-0e079bf0daba" />
+
+<img width="1079" height="590" alt="image" src="https://github.com/user-attachments/assets/f1da0196-3c4d-4a38-ab47-709f223e36f1" />
+
+
+**MegaScope**
+<img width="1017" height="574" alt="image" src="https://github.com/user-attachments/assets/a2f09146-263c-443b-ad9d-c3210a276cd2" />
+
+
 
 # 🌟 Overview
 <!-- TraceMegatron is a tool designed to identify and diagnose performance bottlenecks in distributed training environments, particularly in the context of Megatron-LM. It helps visualize the training process in a global view and gives a heuristic-based algorithm to pinpoint the slowest rank with the most probable cause of the slowdown. This tool is particularly useful for developers and researchers working with large-scale distributed training systems, enabling them to optimize their training processes and improve overall efficiency. -->
