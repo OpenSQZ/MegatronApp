@@ -174,7 +174,8 @@ def _compile_dependencies():
     # Compile dataset C++ code.
     # =========================
     # TODO: move this to ninja
-    if torch.distributed.get_rank() == 0:
+    import megatron.virtual_tensor_parallel_communication as dist
+    if dist.get_rank() == 0:
         start_time = time.time()
         print("> compiling dataset index builder ...")
         from megatron.core.datasets.utils import compile_helpers
@@ -211,21 +212,20 @@ def _compile_dependencies():
             )
     # Always build on rank zero first.
     # print(args.rank, torch.cuda.current_device())
-    if torch.distributed.get_rank() == 0:
-        start_time = time.time()
+    if dist.get_rank() == 0:
         print("> compiling and loading fused kernels ...", flush=True)
         fused_kernels.load(args)
-        torch.distributed.barrier()
+        dist.barrier()
     else:
-        torch.distributed.barrier()
+        dist.barrier()
         fused_kernels.load(args)
     print('Rank:', args.rank, 'has', torch.cuda.current_device())
     # Simple barrier to make sure all ranks have passed the
     # compilation phase successfully before moving on to the
     # rest of the program. We think this might ensure that
     # the lock is released.
-    torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
+    dist.barrier()
+    if dist.get_rank() == 0:
         print(
             ">>> done with compiling and loading fused kernels. "
             "Compilation time: {:.3f} seconds".format(time.time() - start_time),
@@ -341,6 +341,8 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
     # print('~', torch.distributed.get_rank())
     # Set the tensor model-parallel, pipeline model-parallel, and
     # data-parallel communicators.
+    # print('???')
+
     if device_count > 0:
         if mpu.model_parallel_is_initialized():
             print("model parallel is already initialized")
@@ -386,11 +388,12 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
 
 def _init_autoresume():
     """Set autoresume start time."""
+    import megatron.virtual_tensor_parallel_communication as dist
     autoresume = get_adlr_autoresume()
     if autoresume:
-        torch.distributed.barrier()
+        dist.barrier()
         autoresume.init()
-        torch.distributed.barrier()
+        dist.barrier()
 
 
 def _set_random_seed(

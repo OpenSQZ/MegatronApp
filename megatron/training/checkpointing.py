@@ -128,6 +128,7 @@ def get_checkpoint_name(checkpoints_path, iteration, release=False,
         return common_path
 
     # Use both the tensor and pipeline MP rank.
+    args = get_args()
     if pipeline_parallel is None:
         pipeline_parallel = (mpu.get_pipeline_model_parallel_world_size() > 1)
     if tensor_rank is None:
@@ -135,9 +136,16 @@ def get_checkpoint_name(checkpoints_path, iteration, release=False,
     if pipeline_rank is None:
         pipeline_rank = mpu.get_pipeline_model_parallel_rank()
     if expert_parallel is None:
-        expert_parallel = (mpu.get_expert_model_parallel_world_size() > 1)
+        if args.ignore_forward_tensor_parallel:
+            expert_parallel = 0
+        else:
+            expert_parallel = (mpu.get_expert_model_parallel_world_size() > 1)
     if expert_rank is None:
-        expert_rank = mpu.get_expert_model_parallel_rank()
+        if args.ignore_forward_tensor_parallel:
+            expert_rank = 0
+        else:
+            expert_rank = mpu.get_expert_model_parallel_rank()
+        
 
     # Use both the tensor and pipeline MP rank. If using the distributed
     # optimizer, then the optimizer's path must additionally include the
@@ -244,7 +252,7 @@ def read_metadata(tracker_filename):
         tracker_filename)
 
     # Get the max iteration retrieved across the ranks.
-    if torch.distributed.is_initialized():
+    if dist.is_initialized():
         iters_cuda = torch.tensor([iteration], dtype=torch.long, device='cuda')
         dist.all_reduce(iters_cuda, op=dist.ReduceOp.MAX)
         max_iter = iters_cuda[0].item()
@@ -277,7 +285,7 @@ def get_rng_state(ckpt_format: str):
         'rng_tracker_states': tensor_parallel.get_cuda_rng_tracker().get_states()}
 
     rng_state_list = None
-    if args.data_parallel_random_init and torch.distributed.is_initialized() and \
+    if args.data_parallel_random_init and dist.is_initialized() and \
             mpu.get_data_parallel_world_size() > 1:
         rng_state_list = \
             [None for i in range(mpu.get_data_parallel_world_size())]
@@ -399,10 +407,10 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
         elif ckpt_type == CheckpointType.GLOBAL and args.ckpt_format != 'torch_dist':
             raise NotImplementedError(f'Async checkpoint save not implemented for {args.ckpt_format} distributed checkpoint format')
 
-    rank = dist.get_rank() if torch.distributed.is_initialized() else 0
+    rank = dist.get_rank() if dist.is_initialized() else 0
 
     # Collect args, model, RNG.
-    if not torch.distributed.is_initialized() \
+    if not dist.is_initialized() \
             or mpu.get_expert_data_parallel_rank() == 0 \
             or ckpt_type != CheckpointType.LEGACY:
         optim_sd_kwargs = {}
@@ -424,7 +432,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
 
         state_dict['num_floating_point_operations_so_far'] = num_floating_point_operations_so_far
         if ckpt_type == CheckpointType.GLOBAL and ckpt_format == "torch_dist":
-            if not torch.distributed.is_initialized() or dist.get_rank() == 0:
+            if not dist.is_initialized() or dist.get_rank() == 0:
                 # TODO Handle non-empty directories (e.g., after a crash during saving).
                 ensure_directory_exists(checkpoint_name, check_parent=False)
             if checkpointing_context is not None and 'save_strategy' in checkpointing_context:
@@ -460,11 +468,11 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
             if has_nvidia_modelopt:
                 save_sharded_modelopt_state(model, checkpoint_name, (args.ckpt_format, 1))
         elif ckpt_type == CheckpointType.GLOBAL and ckpt_format == "torch_dcp":
-            if not torch.distributed.is_initialized() or dist.get_rank() == 0:
+            if not dist.is_initialized() or dist.get_rank() == 0:
                 # TODO Handle non-empty directories (e.g., after a crash during saving).
                 ensure_directory_exists(checkpoint_name, check_parent=False)
 
-            fs_storage_writer = torch.distributed.checkpoint.FileSystemWriter(checkpoint_name)
+            fs_storage_writer = dist.checkpoint.FileSystemWriter(checkpoint_name)
             torch.distributed.checkpoint.save(
                 state_dict=state_dict,
                 storage_writer=fs_storage_writer,
@@ -508,11 +516,11 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
         if not args.async_save:
             assert async_save_request is None
             # Wait so everyone is done (necessary)
-            if torch.distributed.is_initialized():
+            if dist.is_initialized():
                 dist.barrier()
 
     # And update the latest iteration
-    if not torch.distributed.is_initialized() \
+    if not dist.is_initialized() \
             or dist.get_rank() == 0:
         tracker_filename = get_checkpoint_tracker_filename(save_dir)
 
@@ -541,7 +549,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
             iter_finalize_fn()
 
     # Additional callback for one_logger (last rank)
-    if not torch.distributed.is_initialized() \
+    if not dist.is_initialized() \
        or is_last_rank():
         def onelogger_finalize_fn():
             on_save_checkpoint_success(productive_metrics, args.async_save)
@@ -552,7 +560,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
             onelogger_finalize_fn()
 
     # Additional callback for wandb (last rank)
-    if not torch.distributed.is_initialized() \
+    if not dist.is_initialized() \
        or is_last_rank():
         def wandb_finalize_fn():
             wandb_utils.on_save_checkpoint_success(checkpoint_name, get_checkpoint_tracker_filename(save_dir), save_dir, iteration)
@@ -568,7 +576,7 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
                      .format(iteration, save_dir))
 
     # Wait so everyone is done (not necessary)
-    if torch.distributed.is_initialized():
+    if dist.is_initialized():
         dist.barrier()
 
     end_misc = time()
@@ -576,8 +584,79 @@ def save_checkpoint(iteration, model, optimizer, opt_param_scheduler, num_floati
 
     ft_integration.on_checkpointing_end(is_async_finalization=False)
 
+def save_checkpoint_legacy(iteration, model, optimizer, opt_param_scheduler):
+    """Save a model checkpoint."""
+    args = get_args()
+
+    # Only rank zero of the data parallel writes to the disk.
+    model = unwrap_model(model)
+
+    print_rank_0('saving checkpoint at iteration {:7d} to {}'.format(
+        iteration, args.save))
+
+    # Collect rng state across data parallel ranks.
+    rng_state = get_rng_state(ckpt_format = '')
+
+    # Checkpoint name.
+    checkpoint_name = get_checkpoint_name(args.save, iteration)
+
+    # Save distributed optimizer's custom parameter state.
+    if args.use_distributed_optimizer and not args.no_save_optim and optimizer is not None:
+        optim_checkpoint_name = \
+            get_distributed_optimizer_checkpoint_name(checkpoint_name)
+        ensure_directory_exists(optim_checkpoint_name)
+        optimizer.save_parameter_state(optim_checkpoint_name)
+
+    # Collect args, model, RNG.
+    if not torch.distributed.is_initialized() \
+       or mpu.get_data_parallel_rank() == 0 \
+       or args.expert_parallel:
+
+        # Arguments, iteration, and model.
+        state_dict = {}
+        state_dict['args'] = args
+        state_dict['checkpoint_version'] = 3.0
+        state_dict['iteration'] = iteration
+        if len(model) == 1:
+            state_dict['model'] = model[0].state_dict_for_save_checkpoint()
+        else:
+            for i in range(len(model)):
+                mpu.set_virtual_pipeline_model_parallel_rank(i)
+                state_dict['model%d' % i] = \
+                    model[i].state_dict_for_save_checkpoint()
+
+        # Optimizer stuff.
+        if not args.no_save_optim:
+            if optimizer is not None:
+                state_dict['optimizer'] = optimizer.state_dict()
+            if opt_param_scheduler is not None:
+                state_dict['opt_param_scheduler'] = \
+                    opt_param_scheduler.state_dict()
+
+        # RNG states.
+        if not args.no_save_rng:
+            state_dict["rng_state"] = rng_state
+
+        # Save.
+        ensure_directory_exists(checkpoint_name)
+        torch.save(state_dict, checkpoint_name)
+
+    # Wait so everyone is done (necessary)
+    if torch.distributed.is_initialized():
+        dist.barrier()
+
+    print_rank_0('  successfully saved checkpoint at iteration {:7d} to {}' \
+                 .format(iteration, args.save))
+
+    # And update the latest iteration
+    if not torch.distributed.is_initialized() \
+       or dist.get_rank() == 0:
+        tracker_filename = get_checkpoint_tracker_filename(args.save)
+        with open(tracker_filename, 'w') as f:
+            f.write(str(iteration))
+
 def cleanup_old_non_persistent_checkpoint(save_dir, leave_ckpt_num=1, do_async=False):
-    if torch.distributed.is_initialized() and dist.get_rank() != 0:
+    if dist.is_initialized() and dist.get_rank() != 0:
         return
     save_dir = Path(save_dir)
 
@@ -929,7 +1008,7 @@ def _load_base_checkpoint(
         # Conditionally exit if checkpoint not found.
         if args.exit_on_missing_checkpoint:
             print_rank_0(">> '--exit-on-missing-checkpoint' set ... exiting. <<")
-            if torch.distributed.is_initialized():
+            if dist.is_initialized():
                 dist.barrier()
             sys.exit()
 
@@ -1471,7 +1550,7 @@ def load_checkpoint(ddp_model, optimizer, opt_param_scheduler, load_arg='load', 
             sys.exit()
 
     # Some utilities want to load a checkpoint without distributed being initialized
-    if torch.distributed.is_initialized():
+    if dist.is_initialized():
         dist.barrier()
 
     print_rank_0(f'  successfully loaded checkpoint from {load_dir} '
@@ -1480,7 +1559,7 @@ def load_checkpoint(ddp_model, optimizer, opt_param_scheduler, load_arg='load', 
                  f'at iteration {iteration}')
 
     # Additional callback for wandb (last rank)
-    if not torch.distributed.is_initialized() \
+    if not dist.is_initialized() \
        or is_last_rank():
         wandb_utils.on_load_checkpoint_success(checkpoint_name, load_dir)
 
@@ -1503,7 +1582,7 @@ def _to_dtensor(wrapped_model, model_state_dict):
         if "_extra_state" in k:
             new_model_sd[k] = v
         else:
-            new_model_sd[k] = torch.distributed.tensor.distribute_tensor(v, device_mesh)
+            new_model_sd[k] = dist.tensor.distribute_tensor(v, device_mesh)
 
     return new_model_sd
 
