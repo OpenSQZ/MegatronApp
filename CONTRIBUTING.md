@@ -2,9 +2,17 @@
 
 This document outlines the processes and policies for issues and pull requests by non-NVIDIA contributors to the Megatron-LM github repository.
 
-Everyone is welcome to contribute to the project but development of Megatron-LM continues internally at NVIDIA. When contributing it important to ensure that changes are in line with the project direction. Small changes to fix bugs are welcomed and appreciated. If proposing large architectural changes or changes for stylistic reasons open an issue first so we can discuss it.
+Everyone is welcome to contribute to the project, yet development of Megatron-LM continues internally at NVIDIA. When contributing, it is important to ensure that changes are in line with the project direction. Small changes to fix bugs are welcomed and appreciated. If you propose large architectural changes or changes for stylistic reasons, open an issue first, so we can discuss it.
 
 PRs will first be pulled into NVIDIA's internal Megatron-LM repo and then pushed back out to the open github repo with proper credit given to the committers.
+
+## Before you begin
+
+Contributions to this project must be accompanied by a Contributor License Agreement (CLA). You're required to sign the CLA when you submit your first pull request in the OpenSQZ github repositories.
+
+You (or your employer) retain the copyright to your contribution; this simply gives us permission to use and redistribute your contributions as part of the project.
+
+If you or your current employer have already signed the SQZ CLA (even if it was for a different project), you probably don't need to do it again.
 
 ## Issue policy
 
@@ -62,5 +70,3 @@ The corresponding maintainers at this time are @jaredcasper and @jon-barker.
 Yes, starting in July 2023 we have a bot that will mark untouched PRs as "stale" after 60 days.
 
 We have a long backlog of issues and PRs dating back 3.5 years. We are trying to triage these now by working backwards. Older issues we believe may still be relevant may recieve a request to re-test them with the latest code. If there's no response they may be closed. Again, if you they should be re-opened then just respond with a comment to that effect.
-
-Thank-you!
