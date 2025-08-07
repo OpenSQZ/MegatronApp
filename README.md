@@ -18,13 +18,14 @@ Extension for performance tuning, slow-node detection, and training-process visu
 # 🔥 Demo
 **MegaScan**
 
-<img width="1079" height="590" alt="image" src="https://github.com/user-attachments/assets/ce6634ab-25ec-465e-aa6c-0e079bf0daba" />
+<img width="540" height="295" alt="image" src="https://github.com/user-attachments/assets/393e833d-d356-4611-82bb-ab782874e92c" />
 
-<img width="1079" height="590" alt="image" src="https://github.com/user-attachments/assets/f1da0196-3c4d-4a38-ab47-709f223e36f1" />
+<img width="540" height="295" alt="image" src="https://github.com/user-attachments/assets/d00c387c-78eb-42eb-8f13-8001782c9e9e" />
 
 
 **MegaScope**
-<img width="1017" height="574" alt="image" src="https://github.com/user-attachments/assets/a2f09146-263c-443b-ad9d-c3210a276cd2" />
+
+<img width="540" height="295" alt="image" src="https://github.com/user-attachments/assets/ac39289d-de2c-474c-a173-b4bd23e98299" />
 
 
 
