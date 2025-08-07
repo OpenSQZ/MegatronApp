@@ -8,8 +8,6 @@ from torch.autograd.variable import Variable
 
 from megatron.core import parallel_state
 from megatron.core.enums import ModelType
-from megatron.training import get_args
-from megatron.training import get_tracer
 from megatron.core.pipeline_parallel import p2p_communication
 from megatron.core.transformer.cuda_graphs import create_cudagraphs
 from megatron.core.transformer.moe.router import MoEAuxLossAutoScaler
@@ -22,9 +20,6 @@ from megatron.core.utils import (
     get_model_xattn,
 )
 from megatron.training import get_args
-import shm_tensor_new_rdma, shm_tensor_new_rdma_pre_alloc
-import numpy as np
-from megatron.core.trace import tracers
 
 # Types
 Shape = Union[List[int], torch.Size]
@@ -108,20 +103,15 @@ def get_forward_backward_func():
         step.
 
     """
-    args = get_args()
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
     if pipeline_model_parallel_size > 1:
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-            if args.use_dpp and args.multi_node:
-                forward_backward_func = forward_backward_pipelining_with_interleaving_dpp_multi_node
-            elif args.use_dpp:
-                forward_backward_func = forward_backward_pipelining_with_interleaving_dpp_single_node
-            else:
-                forward_backward_func = forward_backward_pipelining_with_interleaving
+            forward_backward_func = forward_backward_pipelining_with_interleaving
         else:
             forward_backward_func = forward_backward_pipelining_without_interleaving
     else:
         forward_backward_func = forward_backward_no_pipelining
+    args = get_args()
     if args.forward_backward_disaggregating:
         forward_backward_func = forward_or_backward_pipelining_without_interleaving
     return forward_backward_func
@@ -296,29 +286,183 @@ def forward_step(
 
     num_tokens = torch.tensor(0, dtype=torch.int)
     if parallel_state.is_pipeline_last_stage():
-        args = get_args()
-        if args.trace:
-            tracers = get_tracer()
-            with tracers.scope(name="loss"):
-                if not collect_non_loss_data:
-                    outputs = loss_func(output_tensor)
-                    if len(outputs) == 3:
-                        output_tensor, num_tokens, loss_reduced = outputs
-                        if not config.calculate_per_token_loss:
-                            output_tensor /= num_tokens
-                            output_tensor *= parallel_state.get_context_parallel_world_size()
-                            output_tensor /= num_microbatches
-                    else:
-                        # preserve legacy loss averaging behavior (ie, over the number of microbatches)
-                        assert len(outputs) == 2
-                        output_tensor, loss_reduced = outputs
-                        output_tensor *= parallel_state.get_context_parallel_world_size()
-                        output_tensor /= num_microbatches
-                    forward_data_store.append(loss_reduced)
-                else:
-                    data = loss_func(output_tensor, non_loss_data=True)
-                    forward_data_store.append(data)
+        if not collect_non_loss_data:
+            outputs = loss_func(output_tensor)
+            if len(outputs) == 3:
+                output_tensor, num_tokens, loss_reduced = outputs
+                if not config.calculate_per_token_loss:
+                    output_tensor /= num_tokens
+                    output_tensor *= parallel_state.get_context_parallel_world_size()
+                    output_tensor /= num_microbatches
+            else:
+                # preserve legacy loss averaging behavior (ie, over the number of microbatches)
+                assert len(outputs) == 2
+                output_tensor, loss_reduced = outputs
+                output_tensor *= parallel_state.get_context_parallel_world_size()
+                output_tensor /= num_microbatches
+            forward_data_store.append(loss_reduced)
         else:
+            data = loss_func(output_tensor, non_loss_data=True)
+            forward_data_store.append(data)
+
+    if config.timers is not None:
+        config.timers('forward-compute').stop()
+
+    # Set the loss scale for the auxiliary loss of the MoE layer.
+    # Since we use a trick to do backward on the auxiliary loss, we need to set the scale
+    # explicitly.
+    if hasattr(config, 'num_moe_experts') and config.num_moe_experts is not None:
+        # Calculate the loss scale based on the grad_scale_func if available, else default to 1.
+        loss_scale = (
+            config.grad_scale_func(torch.ones(1, device=output_tensor.device))
+            if config.grad_scale_func is not None
+            else torch.ones(1, device=output_tensor.device)
+        )
+        # Set the loss scale
+        if config.calculate_per_token_loss:
+            MoEAuxLossAutoScaler.set_loss_scale(loss_scale)
+        else:
+            MoEAuxLossAutoScaler.set_loss_scale(loss_scale / num_microbatches)
+
+    # Set the loss scale for Multi-Token Prediction (MTP) loss.
+    if hasattr(config, 'mtp_num_layers') and config.mtp_num_layers is not None:
+        # Calculate the loss scale based on the grad_scale_func if available, else default to 1.
+        loss_scale = (
+            config.grad_scale_func(torch.ones(1, device=output_tensor.device))
+            if config.grad_scale_func is not None
+            else torch.ones(1, device=output_tensor.device)
+        )
+        # Set the loss scale
+        if config.calculate_per_token_loss:
+            MTPLossAutoScaler.set_loss_scale(loss_scale)
+        else:
+            MTPLossAutoScaler.set_loss_scale(loss_scale / num_microbatches)
+
+    # If T5 model and in decoder stack, then send encoder_hidden_state
+    # downstream as well.
+    model_type = get_model_type(model)
+    if (
+        model_type == ModelType.encoder_and_decoder
+        and encoder_decoder_xattn
+        and parallel_state.is_inside_decoder()
+    ):
+        return [output_tensor, input_tensor[-1]], num_tokens
+
+    if unwrap_output_tensor:
+        return output_tensor, num_tokens
+    return [output_tensor], num_tokens
+
+def forward_step_no_grad(
+    forward_step_func,
+    data_iterator,
+    model,
+    num_microbatches,
+    input_tensor,
+    forward_data_store,
+    config,
+    collect_non_loss_data=False,
+    checkpoint_activations_microbatch=None,
+    is_first_microbatch=False,
+    current_microbatch=None,
+    encoder_decoder_xattn=False,
+):
+    """Forward step for passed-in model.
+
+    If it is the first stage, the input tensor is obtained from the data_iterator.
+    Otherwise, the passed-in input_tensor is used.
+
+    Args:
+        forward_step_func (callable):
+            The forward step function for the model that takes the
+            data iterator as the first argument, and model as the second.
+            This user's forward step is expected to output a tuple of two elements:
+
+                1. The output object from the forward step. This output object needs to be a
+                    tensor or some kind of collection of tensors. The only hard requirement
+                    for this object is that it needs to be acceptible as input into the second
+                    function.
+                2. A function to reduce (optionally) the output from the forward step. This
+                    could be a reduction over the loss from the model, it could be a function that
+                    grabs the output from the model and reformats, it could be a function that just
+                    passes through the model output. This function must have one of the following
+                    patterns, and depending on the pattern different things happen internally:
+
+                        a. A tuple of reduced loss and some other data. Note that in this case
+                            the first argument is divided by the number of global microbatches,
+                            assuming it is a loss, so that the loss is stable as a function of
+                            the number of devices the step is split across.
+                        b. A triple of reduced loss, number of tokens, and some other data. This
+                            is similar to case (a), but the loss is further averaged across the
+                            number of tokens in the batch. If the user is not already averaging
+                            across the number of tokens, this pattern is useful to use.
+                        c. Any arbitrary data the user wants (eg a dictionary of tensors, a list
+                            of tensors, etc in the case of inference). To trigger case 3 you need
+                            to specify `collect_non_loss_data=True` and you may also want to
+                            specify `forward_only=True` in the call to the parent forward_backward
+                            function.
+        data_iterator (iterator):
+            The data iterator.
+        model (nn.Module):
+            The model to perform the forward step on.
+        num_microbatches (int):
+            The number of microbatches.
+        input_tensor (Tensor or list[Tensor]):
+            The input tensor(s) for the forward step.
+        forward_data_store (list):
+            The list to store the forward data. If you go down path 2.a or
+            2.b for the return of your forward reduction function then this will store only the
+            final dimension of the output, for example the metadata output by the loss function.
+            If you go down the path of 2.c then this will store the entire output of the forward
+            reduction function applied to the model output.
+        config (object):
+            The configuration object.
+        collect_non_loss_data (bool, optional):
+            Whether to collect non-loss data. Defaults to False.
+            This is the path to use if you want to collect arbitrary output from the model forward,
+            such as with inference use cases. Defaults to False.
+        checkpoint_activations_microbatch (int, optional):
+            The microbatch to checkpoint activations.
+            Defaults to None.
+        is_first_microbatch (bool, optional):
+            Whether it is the first microbatch. Defaults to False.
+        current_microbatch (int, optional):
+            The current microbatch. Defaults to None.
+
+    Returns:
+        Tensor or list[Tensor]: The output object(s) from the forward step.
+        Tensor: The number of tokens.
+    """
+    with torch.no_grad():
+        if config.timers is not None:
+            config.timers('forward-compute', log_level=2).start()
+
+        if is_first_microbatch and hasattr(model, 'set_is_first_microbatch'):
+            model.set_is_first_microbatch()
+        if current_microbatch is not None:
+            set_current_microbatch(model, current_microbatch)
+
+        unwrap_output_tensor = False
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+            unwrap_output_tensor = True
+
+        set_input_tensor = get_attr_wrapped_model(model, "set_input_tensor")
+        set_input_tensor(input_tensor)
+
+        if config.enable_autocast:
+            context_manager = torch.autocast("cuda", dtype=config.autocast_dtype)
+        else:
+            context_manager = contextlib.nullcontext()
+        with context_manager:
+            if checkpoint_activations_microbatch is None:
+                output_tensor, loss_func = forward_step_func(data_iterator, model)
+            else:
+                output_tensor, loss_func = forward_step_func(
+                    data_iterator, model, checkpoint_activations_microbatch
+                )
+
+        num_tokens = torch.tensor(0, dtype=torch.int)
+        if parallel_state.is_pipeline_last_stage():
             if not collect_non_loss_data:
                 outputs = loss_func(output_tensor)
                 if len(outputs) == 3:
@@ -338,8 +482,8 @@ def forward_step(
                 data = loss_func(output_tensor, non_loss_data=True)
                 forward_data_store.append(data)
 
-    if config.timers is not None:
-        config.timers('forward-compute').stop()
+        if config.timers is not None:
+            config.timers('forward-compute').stop()
 
     # Set the loss scale for the auxiliary loss of the MoE layer.
     # Since we use a trick to do backward on the auxiliary loss, we need to set the scale
@@ -1635,1095 +1779,6 @@ def forward_backward_pipelining_with_interleaving(
     return forward_data_store
 
 
-def forward_backward_pipelining_with_interleaving_dpp_multi_node(
-    *,
-    forward_step_func,
-    data_iterator: Union[Iterator, List[Iterator]],
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
-    num_microbatches: int,
-    seq_length: int,
-    micro_batch_size: int,
-    decoder_seq_length: int = None,
-    forward_only: bool = False,
-    collect_non_loss_data: bool = False,
-    first_val_step: bool = None,
-):
-    """Run our APP schedule (model split into model chunks), with
-    communication between pipeline stages as needed.
-
-    Returns dictionary with losses if the last stage, empty dict otherwise."""
-
-    # Convention used in this function:
-    # num_microbatches for number of microbatches per pipeline stage;
-    # num_model_chunks for virtual pipeline size;
-    # then total_num_microbatches = num_microbatches * num_model_chunks.
-    # Their corresponding index variables are
-    # microbatch_id in [0, num_microbatches)
-    # model_chunk_id in [0, num_model_chunks)
-    # virtual_microbatch_id in [0, total_num_microbatches)
-
-    assert isinstance(model, list), "interleaved pipeline parallelism expected model chunking"
-    assert all(isinstance(chunk, torch.nn.Module) for chunk in model), "invalid model chunking"
-    assert isinstance(
-        data_iterator, list
-    ), "interleaved pipeline parallelism expected each model chunk to have a data iterator"
-
-    config = get_model_config(model[0])
-    if config.overlap_p2p_comm and config.batch_p2p_comm:
-        raise ValueError("Can not use both overlap_p2p_comm and batch_p2p_comm")
-
-    # Needed only when gradients are finalized in M-Core
-    if config.finalize_model_grads_func is not None and not forward_only:
-        embedding_module = clear_embedding_activation_buffer(config, model)
-
-    if config.timers is not None:
-        config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
-
-    # Disable async grad reductions
-    no_sync_func = config.no_sync_func
-    if isinstance(no_sync_func, list):
-
-        def multi_no_sync():
-            stack = contextlib.ExitStack()
-            for model_chunk_no_sync_func in config.no_sync_func:
-                stack.enter_context(model_chunk_no_sync_func())
-            return stack
-
-        no_sync_func = multi_no_sync
-    if no_sync_func is None:
-        no_sync_func = contextlib.nullcontext
-    no_sync_context = None
-
-    if config.grad_sync_func is not None and not isinstance(config.grad_sync_func, list):
-        config.grad_sync_func = [config.grad_sync_func for _ in model]
-
-    if config.param_sync_func is not None and not isinstance(config.param_sync_func, list):
-        config.param_sync_func = [config.param_sync_func for _ in model]
-
-    # Disable config.grad_sync_func and config.param_sync_func if only running forward passes.
-    # They will be re-enabled at the end of this function.
-    grad_sync_func, param_sync_func = None, None
-    if forward_only:
-        grad_sync_func, param_sync_func = config.grad_sync_func, config.param_sync_func
-        config.grad_sync_func, config.param_sync_func = None, None
-
-    def disable_grad_sync():
-        """Disable asynchronous grad reductions"""
-        nonlocal no_sync_context
-        if no_sync_context is None:
-            no_sync_context = no_sync_func()
-            no_sync_context.__enter__()
-
-    def enable_grad_sync():
-        """Enable asynchronous grad reductions"""
-        nonlocal no_sync_context
-        if no_sync_context is not None:
-            no_sync_context.__exit__(None, None, None)
-            no_sync_context = None
-
-    disable_grad_sync()
-
-    # Model chunk IDs with synchronized grads
-    synchronized_model_chunks = set()
-
-    total_num_tokens = torch.tensor(0, dtype=torch.int).cuda()
-
-    forward_data_store = []
-
-    pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
-    pipeline_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
-
-    if (
-        config.microbatch_group_size_per_vp_stage > num_microbatches
-        or config.microbatch_group_size_per_vp_stage < pipeline_parallel_size
-    ):
-        msg = (
-            'The number of contiguous micro-batches in a virtual pipeline stage'
-            f'should range in [PP={pipeline_parallel_size} , M={num_microbatches}]'
-        )
-        raise ValueError(msg)
-
-    # If the final micro-batch group has fewer micro-batches than pipeline-parallel size,
-    # the pipeline will have dependency bubbles.
-    final_microbatch_group_size = num_microbatches % config.microbatch_group_size_per_vp_stage
-    if 0 < final_microbatch_group_size < pipeline_parallel_size:
-        msg = 'The remainder of M (the total micro-batches) divided by N (number of '
-        msg += 'contiguous micro-batches in a virtual pipeline stage) should be 0, '
-        msg += 'or larger than or equal to the pipeline-parallel size, but it is '
-        msg += f'{final_microbatch_group_size}. '
-        msg += 'Otherwise, it introduces dependency bubbles in the pipeline '
-        msg += 'and reduces throughput.'
-        raise RuntimeError(msg)
-
-    model_type = get_model_type(model[0])
-
-    if model_type == ModelType.encoder_and_decoder:
-        xattn_needed = get_model_xattn(model)
-        assert (
-            not xattn_needed
-        ), "Interleaving is not supported when xattn is required between encoder and decoder"
-        tensor_shape = get_tensor_shapes(
-            rank=parallel_state.get_pipeline_model_parallel_rank(),
-            model_type=model_type,
-            seq_length=seq_length,
-            micro_batch_size=micro_batch_size,
-            decoder_seq_length=decoder_seq_length,
-            config=config,
-            encoder_decoder_xattn=xattn_needed,
-        )
-        tensor_shape = list(tensor_shape[0])
-    else:
-        tensor_shape = [seq_length, micro_batch_size, config.hidden_size]
-        tensor_shape[0] = tensor_shape[0] // parallel_state.get_context_parallel_world_size()
-        if config.sequence_parallel:
-            tensor_shape[0] = (
-                tensor_shape[0] // parallel_state.get_tensor_model_parallel_world_size()
-            )
-
-    # Compute number of warmup and remaining microbatches.
-    num_model_chunks = len(model)
-    (
-        total_num_microbatches,
-        _,
-        num_warmup_microbatches,
-        _,
-    ) = get_pp_rank_microbatches(
-        num_microbatches, num_model_chunks, config.microbatch_group_size_per_vp_stage, forward_only
-    )
-
-    # Checkpoint the activations of partial Transformer layers in a number of micro-batches
-    # within the maximum outstanding micro-batch backpropagations.
-    # Micro-batches with the ids less than 'num_microbatches_with_partial_activation_checkpoints'
-    # checkpoint partial Transformer layers (or skip checkpointing) and
-    # the rest of micro-batches within a window of micro-batches checkpoint
-    # all Transformer layers. The window of micro-batches is set by the maximum
-    # outstanding backpropagations and becomes smaller at later pipeline stages.
-    # Please refer the appendix C in https://arxiv.org/pdf/2205.05198.pdf
-    max_outstanding_backprops = None
-    if config.num_microbatches_with_partial_activation_checkpoints is not None:
-        max_outstanding_backprops = num_warmup_microbatches + 1
-
-    # Synchronize params for first two model chunks
-    if config.param_sync_func is not None:
-        config.param_sync_func[0](model[0].parameters())
-        config.param_sync_func[1](model[1].parameters())
-
-    # Create a tunable schedule lookup table.
-    # The schedule lookup table uses the virtual_microbatch_id to find the corresponding
-    # microbatch_id and model_chunk_id. For example, the tunable schedule table for
-    # PP2 N3M5 with VP2 is constructed as below:
-    # virtual_microbatch_id | 0 1 2 3 4 5 6 7 8 9
-    # microbatch_id         | 0 1 2 0 1 2 3 4 3 4
-    # model_chunk_id        | 0 0 0 1 1 1 0 0 1 1
-    schedule_table = get_schedule_table(
-        num_microbatches, len(model), config.microbatch_group_size_per_vp_stage
-    )
-
-    # Decouple individual lookup table for microbatch_id and model_chunk_id.
-    # For example, the micro-batch table for PP2 N3M5 with VP2 is
-    # virtual_microbatch_id | 0 1 2 3 4 5 6 7 8 9
-    # microbatch_id         | 0 1 2 0 1 2 3 4 3 4
-    # Similarly, the model chunk table is
-    # virtual_microbatch_id | 0 1 2 3 4 5 6 7 8 9
-    # model_chunk_id        | 0 0 0 1 1 1 0 0 1 1
-    # Both tables are indexed with virtual_microbatch_id.
-    microbatch_id_table, model_chunk_id_table = zip(*schedule_table)
-    computed_forward_count = 0
-    computed_backward_count = 0
-    computed_forward_indices = []
-    computed_backward_indices = []
-
-    def get_model_chunk_id(virtual_microbatch_id, forward):
-        """Helper method to get the model chunk ID given the iteration number."""
-        model_chunk_id = model_chunk_id_table[virtual_microbatch_id % total_num_microbatches]
-        if not forward:
-            model_chunk_id = num_model_chunks - model_chunk_id - 1
-        return model_chunk_id
-
-    def is_first_microbatch_for_model_chunk(virtual_microbatch_id: int) -> bool:
-        """Check if an iteration is the first for a model chunk."""
-        if virtual_microbatch_id < total_num_microbatches:
-            return microbatch_id_table[virtual_microbatch_id] == 0
-        else:
-            return False
-        
-    def has_computed_all_microbatches(model_chunk_id):
-        for i in range(total_num_microbatches):
-            if i % (num_model_chunks * pipeline_parallel_size) // pipeline_parallel_size == num_model_chunks - 1 - model_chunk_id and i not in computed_backward_indices:
-                return False
-        return True
-
-    # python lists to store tensors
-    forward_ready_tensors = [None] * total_num_microbatches
-    forward_finished_tensors = [None] * total_num_microbatches
-    backward_ready_tensors = [None] * total_num_microbatches
-    backward_finished_tensors = [None] * total_num_microbatches
-    gathered_compute_index = [torch.tensor(-1).to(torch.cuda.current_device()) for _ in range(parallel_state.get_tensor_model_parallel_world_size())]
-    compute_index = torch.tensor(-1).to(torch.cuda.current_device())
-
-    index_list = []
-    dual_index_list = []
-    for i in range(num_model_chunks):
-        for j in range(i * pipeline_parallel_size, total_num_microbatches, pipeline_parallel_size * num_model_chunks):
-            for k in range(j, j + pipeline_parallel_size):
-                index_list.append(k)
-                dual_index = (
-                    k
-                    - k % (num_model_chunks * pipeline_parallel_size)
-                    + (
-                        num_model_chunks
-                        - 1
-                        - k % (num_model_chunks * pipeline_parallel_size) // pipeline_parallel_size
-                    )
-                    * pipeline_parallel_size
-                    + k % pipeline_parallel_size
-                )
-                dual_index_list.append(dual_index)
-
-    def forward_step_helper(
-        virtual_microbatch_id, microbatch_id, checkpoint_activations_microbatch
-    ):
-        """Helper method to run forward step with model split into chunks
-        (run set_virtual_pipeline_model_parallel_rank() before calling
-        forward_step())."""
-        model_chunk_id = get_model_chunk_id(virtual_microbatch_id, forward=True)
-        parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
-
-        # launch param synchronization for next model chunk
-        # Note: Asynchronous communication tends to slow down compute.
-        # To reduce idling from mismatched microbatch times, we launch
-        # asynchronous communication at the same time across the
-        # pipeline-parallel group.
-        if config.param_sync_func is not None:
-            param_sync_virtual_microbatch_id = virtual_microbatch_id + pipeline_parallel_rank
-            if (
-                param_sync_virtual_microbatch_id < total_num_microbatches
-                and is_first_microbatch_for_model_chunk(param_sync_virtual_microbatch_id)
-            ):
-                param_sync_chunk_id = (
-                    get_model_chunk_id(param_sync_virtual_microbatch_id, forward=True) + 1
-                )
-                if 1 < param_sync_chunk_id < num_model_chunks:
-                    config.param_sync_func[param_sync_chunk_id](
-                        model[param_sync_chunk_id].parameters()
-                    )
-
-        # For non-depth-first pipeline schedules, the first rank would buffer multiple received
-        # activation tensors for a model chunk until accessed during warmup.
-        # This input buffering is needed to overlap the computation with the receipt of
-        # the next inputs. To index the proper buffered inputs for forword_step, we use
-        # microbatch_id offset with number of released microbatches that have completed backprop.
-        # offset = num_released_microbatches(virtual_microbatch_id, model_chunk_id)
-        # input_tensor = input_tensors[model_chunk_id][microbatch_id - offset]
-        with tracers.scope("forward", microbatch=microbatch_id_table[virtual_microbatch_id], model_chunk=model_chunk_id, pp_rank=pipeline_parallel_rank):
-            output_tensor, num_tokens = forward_step(
-                forward_step_func,
-                data_iterator[model_chunk_id],
-                model[model_chunk_id],
-                num_microbatches,
-                forward_ready_tensors[virtual_microbatch_id],
-                forward_data_store,
-                config,
-                collect_non_loss_data,
-                checkpoint_activations_microbatch,
-                check_first_val_step(
-                    first_val_step,
-                    forward_only,
-                    is_first_microbatch_for_model_chunk(virtual_microbatch_id),
-                ),
-                current_microbatch=microbatch_id,
-            )
-        forward_finished_tensors[virtual_microbatch_id] = output_tensor
-        nonlocal total_num_tokens
-        total_num_tokens += num_tokens
-
-        # If forward-only, no need to save tensors for a backward pass.
-        if forward_only:
-            forward_ready_tensors[virtual_microbatch_id] = None
-
-    def backward_step_helper(virtual_microbatch_id, dual_index):
-        """Helper method to run backward step with model split into chunks
-        (run set_virtual_pipeline_model_parallel_rank() before calling
-        backward_step())."""
-        model_chunk_id = get_model_chunk_id(virtual_microbatch_id, forward=False)
-        parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
-
-        computed_backward_indices.append(virtual_microbatch_id)
-
-        # launch grad synchronization (default)
-        if config.grad_sync_func is None and has_computed_all_microbatches(
-            model_chunk_id
-        ):
-            enable_grad_sync()
-            synchronized_model_chunks.add(model_chunk_id)
-        with tracers.scope("backward", microbatch=microbatch_id_table[virtual_microbatch_id], model_chunk=model_chunk_id, pp_rank=pipeline_parallel_rank):
-            output_tensor = backward_step(
-                forward_ready_tensors[dual_index], forward_finished_tensors[dual_index], backward_ready_tensors[virtual_microbatch_id], model_type, config
-            )
-
-        forward_ready_tensors[dual_index] = None
-        forward_finished_tensors[dual_index] = None
-        backward_ready_tensors[virtual_microbatch_id] = None
-        backward_finished_tensors[virtual_microbatch_id] = output_tensor
-        # launch grad synchronization (custom grad sync)
-        # Note: Asynchronous communication tends to slow down compute.
-        # To reduce idling from mismatched microbatch times, we launch
-        # asynchronous communication at the same time across the
-        # pipeline-parallel group.
-        if config.grad_sync_func is not None and has_computed_all_microbatches(
-            model_chunk_id
-        ):
-            enable_grad_sync()
-            config.grad_sync_func[model_chunk_id](model[model_chunk_id].parameters())
-            synchronized_model_chunks.add(model_chunk_id)
-        disable_grad_sync()
-
-    total_num_microbatches_to_send_forward = (
-        total_num_microbatches
-        if not parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-        else total_num_microbatches * (num_model_chunks - 1) // num_model_chunks
-    ) # calculate number, last stage has different number to send
-    total_num_microbatches_to_recv_forward = (
-        total_num_microbatches
-        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True)
-        else total_num_microbatches * (num_model_chunks - 1) // num_model_chunks
-    ) # calculate number, first stage has different number to recv
-    total_num_microbatches_to_send_backward = (
-        total_num_microbatches
-        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True)
-        else total_num_microbatches * (num_model_chunks - 1) // num_model_chunks
-    )
-    total_num_microbatches_to_recv_backward = (
-        total_num_microbatches
-        if not parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-        else total_num_microbatches * (num_model_chunks - 1) // num_model_chunks
-    )
-
-    # start the threads
-    shm_tensor_new_rdma.thread_pool(num_model_chunks, pipeline_parallel_size, total_num_microbatches, parallel_state.is_pipeline_last_stage(ignore_virtual=True), parallel_state.is_pipeline_first_stage(ignore_virtual=True), torch.distributed.get_global_rank(group=parallel_state.get_pipeline_model_parallel_group(), group_rank=(pipeline_parallel_rank + 1) % pipeline_parallel_size), torch.distributed.get_global_rank(group=parallel_state.get_pipeline_model_parallel_group(), group_rank=(pipeline_parallel_rank - 1) % pipeline_parallel_size), torch.distributed.get_global_rank(group=parallel_state.get_pipeline_model_parallel_group(), group_rank=pipeline_parallel_rank), total_num_microbatches_to_send_forward, total_num_microbatches_to_recv_forward, total_num_microbatches_to_send_backward, total_num_microbatches_to_recv_backward, np.prod(tensor_shape), forward_only)
-
-    if parallel_state.get_tensor_model_parallel_world_size() > 1:
-        while computed_forward_count < total_num_microbatches or (
-            computed_backward_count < total_num_microbatches and not forward_only
-        ):
-            if not forward_only:
-                can_backward_compute = False
-                for i, k in enumerate(index_list):
-                    dual_index = dual_index_list[i]
-                    # ensure that all required forward tensors are present
-                    if k not in computed_backward_indices and forward_finished_tensors[dual_index] is not None and (forward_ready_tensors[dual_index] is not None or (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and dual_index % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size)):
-                        if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and k % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size:
-                            index_to_compute = k
-                            can_backward_compute = True
-                            break # no need backward tensors since it is the initial backward rank
-                        elif backward_ready_tensors[k] is not None:
-                            index_to_compute = k
-                            can_backward_compute = True
-                            break # needs backward tensor from previous rank (actually the next rank since it is backward)
-                        else:
-                            recved_tensor = shm_tensor_new_rdma.get_backward_tensor(k) # try to get the kth tensor
-                            if recved_tensor is not None: # success
-                                backward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
-                                index_to_compute = k
-                                can_backward_compute = True
-                                break # needs backward tensor from previous rank (actually the next rank since it is backward)
-                if can_backward_compute:
-                    compute_index.copy_(index_to_compute + total_num_microbatches)
-                    torch.distributed.all_gather(gathered_compute_index, compute_index, group=parallel_state.get_tensor_model_parallel_group())
-                    all_equal = all(torch.equal(gathered_compute_index[0], t) for t in gathered_compute_index)
-                    if all_equal:
-                        deallocate_output_tensor(
-                            forward_finished_tensors[dual_index], config.deallocate_pipeline_outputs
-                        )
-                        backward_step_helper(index_to_compute, dual_index)
-                        # computed_backward_indices.append(index_to_compute)
-                        computed_backward_count += 1
-                        # print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward finished, {time.time()}%") # backward finished time，for latency and compute window/ratio
-                        if not (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and index_to_compute % (num_model_chunks * pipeline_parallel_size) >= (num_model_chunks - 1) * pipeline_parallel_size):
-                            shm_tensor_new_rdma.put_backward_tensor(index_to_compute, backward_finished_tensors[index_to_compute])
-                    else:
-                        print(f"rank {torch.distributed.get_rank()} cannot compute backward tensor {index_to_compute}")
-                        continue
-            can_forward_compute = False
-            for k in index_list:
-                if k not in computed_forward_indices:
-                    if parallel_state.is_pipeline_first_stage(ignore_virtual=True) and k % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size:
-                        index_to_compute = k
-                        can_forward_compute = True
-                        break # the input is None in this case
-                    elif forward_ready_tensors[k] is not None:
-                        index_to_compute = k
-                        can_forward_compute = True
-                        break
-                    else:
-                        recved_tensor = shm_tensor_new_rdma.get_forward_tensor(k) # try to get the kth tensor and store locally for backward
-                        if recved_tensor is not None: # success
-                            forward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
-                            index_to_compute = k
-                            can_forward_compute = True
-                            break
-            if can_forward_compute:
-                compute_index.copy_(index_to_compute)
-                torch.distributed.all_gather(gathered_compute_index, compute_index, group=parallel_state.get_tensor_model_parallel_group())
-                all_equal = all(torch.equal(gathered_compute_index[0], t) for t in gathered_compute_index)
-                if all_equal:
-                    if max_outstanding_backprops is not None:
-                        checkpoint_activations_microbatch = (
-                            index_to_compute % max_outstanding_backprops
-                            >= config.num_microbatches_with_partial_activation_checkpoints
-                        )
-                    else:
-                        checkpoint_activations_microbatch = None
-                    forward_step_helper(index_to_compute, microbatch_id_table[index_to_compute], checkpoint_activations_microbatch)
-                    computed_forward_indices.append(index_to_compute)
-                    computed_forward_count += 1
-                    # print(f"{torch.distributed.get_rank()}, {index_to_compute}, forward finished, {time.time()}%") # forward finished time，for latency and compute window/ratio
-                    if (
-                        not parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-                        or index_to_compute % (num_model_chunks * pipeline_parallel_size)
-                        < (num_model_chunks - 1) * pipeline_parallel_size
-                    ):
-                        shm_tensor_new_rdma.put_forward_tensor(index_to_compute, forward_finished_tensors[index_to_compute]) # put the tensor into C
-                    else:
-                        deallocate_output_tensor(
-                            forward_finished_tensors[index_to_compute], config.deallocate_pipeline_outputs
-                        )
-                        assert forward_finished_tensors[index_to_compute].numel() == 1
-                else:
-                    print(f"rank {torch.distributed.get_rank()} cannot compute forward tensor {index_to_compute}")
-                    continue
-    else:
-        while computed_forward_count < total_num_microbatches or (
-            computed_backward_count < total_num_microbatches and not forward_only
-        ):
-            if not forward_only:
-                can_backward_compute = False
-                for i, k in enumerate(index_list):
-                    dual_index = dual_index_list[i]
-                    # ensure that all required forward tensors are present
-                    if k not in computed_backward_indices and forward_finished_tensors[dual_index] is not None and (forward_ready_tensors[dual_index] is not None or (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and dual_index % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size)):
-                        if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and k % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size:
-                            index_to_compute = k
-                            can_backward_compute = True
-                            break # no need backward tensors since it is the initial backward rank
-                        else:
-                            recved_tensor = shm_tensor_new_rdma.get_backward_tensor(k) # try to get the kth tensor
-                            if recved_tensor is not None: # success
-                                backward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
-                                index_to_compute = k
-                                can_backward_compute = True
-                                break # needs backward tensor from previous rank (actually the next rank since it is backward)
-                if can_backward_compute:
-                    deallocate_output_tensor(
-                        forward_finished_tensors[dual_index], config.deallocate_pipeline_outputs
-                    )
-                    backward_step_helper(index_to_compute, dual_index)
-                    # computed_backward_indices.append(index_to_compute)
-                    computed_backward_count += 1
-                    # print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward finished, {time.time()}%") # backward finished time，for latency and compute window/ratio
-                    if not (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and index_to_compute % (num_model_chunks * pipeline_parallel_size) >= (num_model_chunks - 1) * pipeline_parallel_size):
-                        shm_tensor_new_rdma.put_backward_tensor(index_to_compute, backward_finished_tensors[index_to_compute])
-            can_forward_compute = False
-            for k in index_list:
-                if k not in computed_forward_indices:
-                    if parallel_state.is_pipeline_first_stage(ignore_virtual=True) and k % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size:
-                        index_to_compute = k
-                        can_forward_compute = True
-                        break # the input is None in this case
-                    else:
-                        recved_tensor = shm_tensor_new_rdma.get_forward_tensor(k) # try to get the kth tensor and store locally for backward
-                        if recved_tensor is not None: # success
-                            forward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
-                            index_to_compute = k
-                            can_forward_compute = True
-                            break
-            if can_forward_compute:
-                if max_outstanding_backprops is not None:
-                    checkpoint_activations_microbatch = (
-                        index_to_compute % max_outstanding_backprops
-                        >= config.num_microbatches_with_partial_activation_checkpoints
-                    )
-                else:
-                    checkpoint_activations_microbatch = None
-                forward_step_helper(index_to_compute, microbatch_id_table[index_to_compute], checkpoint_activations_microbatch)
-                computed_forward_indices.append(index_to_compute)
-                computed_forward_count += 1
-                # print(f"{torch.distributed.get_rank()}, {index_to_compute}, forward finished, {time.time()}%") # forward finished time，for latency and compute window/ratio
-                if (
-                    not parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-                    or index_to_compute % (num_model_chunks * pipeline_parallel_size)
-                    < (num_model_chunks - 1) * pipeline_parallel_size
-                ):
-                    shm_tensor_new_rdma.put_forward_tensor(index_to_compute, forward_finished_tensors[index_to_compute]) # put the tensor into C
-                else:
-                    deallocate_output_tensor(
-                    forward_finished_tensors[index_to_compute], config.deallocate_pipeline_outputs
-                    )
-                    assert forward_finished_tensors[index_to_compute].numel() == 1
-
-    shm_tensor_new_rdma.join_threads()
-    tracers.tick("reduce") # reduce start
-    if config.finalize_model_grads_func is not None and not forward_only:
-
-        # If defer_embedding_wgrad_compute is enabled we need to do the
-        # weight gradient GEMM's here.
-        finish_embedding_wgrad_compute(config, embedding_module)
-
-        # Finalize model grads (perform full grad all-reduce / reduce-scatter for
-        # data parallelism, layernorm all-reduce for sequence parallelism, and
-        # embedding all-reduce for pipeline parallelism).
-        config.finalize_model_grads_func(
-            model, total_num_tokens if config.calculate_per_token_loss else None
-        )
-
-    # Restore config.grad_sync_func and config.param_sync_func.
-    if forward_only:
-        config.grad_sync_func, config.param_sync_func = grad_sync_func, param_sync_func
-
-    if config.timers is not None:
-        config.timers('forward-backward').stop()
-
-    if hasattr(config, 'enable_cuda_graph') and config.enable_cuda_graph:
-        create_cudagraphs()
-    torch.distributed.barrier()
-    return forward_data_store
-
-
-def forward_backward_pipelining_with_interleaving_dpp_single_node(
-    *,
-    forward_step_func,
-    data_iterator: Union[Iterator, List[Iterator]],
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
-    num_microbatches: int,
-    seq_length: int,
-    micro_batch_size: int,
-    decoder_seq_length: int = None,
-    forward_only: bool = False,
-    collect_non_loss_data: bool = False,
-    first_val_step: bool = None,
-):
-    """Run our APP schedule (model split into model chunks), with
-    communication between pipeline stages as needed.
-
-    Returns dictionary with losses if the last stage, empty dict otherwise."""
-
-    # Convention used in this function:
-    # num_microbatches for number of microbatches per pipeline stage;
-    # num_model_chunks for virtual pipeline size;
-    # then total_num_microbatches = num_microbatches * num_model_chunks.
-    # Their corresponding index variables are
-    # microbatch_id in [0, num_microbatches)
-    # model_chunk_id in [0, num_model_chunks)
-    # virtual_microbatch_id in [0, total_num_microbatches)
-
-    assert isinstance(model, list), "interleaved pipeline parallelism expected model chunking"
-    assert all(isinstance(chunk, torch.nn.Module) for chunk in model), "invalid model chunking"
-    assert isinstance(
-        data_iterator, list
-    ), "interleaved pipeline parallelism expected each model chunk to have a data iterator"
-
-    config = get_model_config(model[0])
-    if config.overlap_p2p_comm and config.batch_p2p_comm:
-        raise ValueError("Can not use both overlap_p2p_comm and batch_p2p_comm")
-
-    # Needed only when gradients are finalized in M-Core
-    if config.finalize_model_grads_func is not None and not forward_only:
-        embedding_module = clear_embedding_activation_buffer(config, model)
-
-    if config.timers is not None:
-        config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
-
-    # Disable async grad reductions
-    no_sync_func = config.no_sync_func
-    if isinstance(no_sync_func, list):
-
-        def multi_no_sync():
-            stack = contextlib.ExitStack()
-            for model_chunk_no_sync_func in config.no_sync_func:
-                stack.enter_context(model_chunk_no_sync_func())
-            return stack
-
-        no_sync_func = multi_no_sync
-    if no_sync_func is None:
-        no_sync_func = contextlib.nullcontext
-    no_sync_context = None
-
-    if config.grad_sync_func is not None and not isinstance(config.grad_sync_func, list):
-        config.grad_sync_func = [config.grad_sync_func for _ in model]
-
-    if config.param_sync_func is not None and not isinstance(config.param_sync_func, list):
-        config.param_sync_func = [config.param_sync_func for _ in model]
-
-    # Disable config.grad_sync_func and config.param_sync_func if only running forward passes.
-    # They will be re-enabled at the end of this function.
-    grad_sync_func, param_sync_func = None, None
-    if forward_only:
-        grad_sync_func, param_sync_func = config.grad_sync_func, config.param_sync_func
-        config.grad_sync_func, config.param_sync_func = None, None
-
-    def disable_grad_sync():
-        """Disable asynchronous grad reductions"""
-        nonlocal no_sync_context
-        if no_sync_context is None:
-            no_sync_context = no_sync_func()
-            no_sync_context.__enter__()
-
-    def enable_grad_sync():
-        """Enable asynchronous grad reductions"""
-        nonlocal no_sync_context
-        if no_sync_context is not None:
-            no_sync_context.__exit__(None, None, None)
-            no_sync_context = None
-
-    disable_grad_sync()
-
-    # Model chunk IDs with synchronized grads
-    synchronized_model_chunks = set()
-
-    total_num_tokens = torch.tensor(0, dtype=torch.int).cuda()
-
-    forward_data_store = []
-
-    pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
-    pipeline_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
-
-    if (
-        config.microbatch_group_size_per_vp_stage > num_microbatches
-        or config.microbatch_group_size_per_vp_stage < pipeline_parallel_size
-    ):
-        msg = (
-            'The number of contiguous micro-batches in a virtual pipeline stage'
-            f'should range in [PP={pipeline_parallel_size} , M={num_microbatches}]'
-        )
-        raise ValueError(msg)
-
-    # If the final micro-batch group has fewer micro-batches than pipeline-parallel size,
-    # the pipeline will have dependency bubbles.
-    final_microbatch_group_size = num_microbatches % config.microbatch_group_size_per_vp_stage
-    if 0 < final_microbatch_group_size < pipeline_parallel_size:
-        msg = 'The remainder of M (the total micro-batches) divided by N (number of '
-        msg += 'contiguous micro-batches in a virtual pipeline stage) should be 0, '
-        msg += 'or larger than or equal to the pipeline-parallel size, but it is '
-        msg += f'{final_microbatch_group_size}. '
-        msg += 'Otherwise, it introduces dependency bubbles in the pipeline '
-        msg += 'and reduces throughput.'
-        raise RuntimeError(msg)
-
-    model_type = get_model_type(model[0])
-
-    if model_type == ModelType.encoder_and_decoder:
-        xattn_needed = get_model_xattn(model)
-        assert (
-            not xattn_needed
-        ), "Interleaving is not supported when xattn is required between encoder and decoder"
-        tensor_shape = get_tensor_shapes(
-            rank=parallel_state.get_pipeline_model_parallel_rank(),
-            model_type=model_type,
-            seq_length=seq_length,
-            micro_batch_size=micro_batch_size,
-            decoder_seq_length=decoder_seq_length,
-            config=config,
-            encoder_decoder_xattn=xattn_needed,
-        )
-        tensor_shape = list(tensor_shape[0])
-    else:
-        tensor_shape = [seq_length, micro_batch_size, config.hidden_size]
-        tensor_shape[0] = tensor_shape[0] // parallel_state.get_context_parallel_world_size()
-        if config.sequence_parallel:
-            tensor_shape[0] = (
-                tensor_shape[0] // parallel_state.get_tensor_model_parallel_world_size()
-            )
-
-    # Compute number of warmup and remaining microbatches.
-    num_model_chunks = len(model)
-    (
-        total_num_microbatches,
-        _,
-        num_warmup_microbatches,
-        _,
-    ) = get_pp_rank_microbatches(
-        num_microbatches, num_model_chunks, config.microbatch_group_size_per_vp_stage, forward_only
-    )
-
-    # Checkpoint the activations of partial Transformer layers in a number of micro-batches
-    # within the maximum outstanding micro-batch backpropagations.
-    # Micro-batches with the ids less than 'num_microbatches_with_partial_activation_checkpoints'
-    # checkpoint partial Transformer layers (or skip checkpointing) and
-    # the rest of micro-batches within a window of micro-batches checkpoint
-    # all Transformer layers. The window of micro-batches is set by the maximum
-    # outstanding backpropagations and becomes smaller at later pipeline stages.
-    # Please refer the appendix C in https://arxiv.org/pdf/2205.05198.pdf
-    max_outstanding_backprops = None
-    if config.num_microbatches_with_partial_activation_checkpoints is not None:
-        max_outstanding_backprops = num_warmup_microbatches + 1
-
-    # Synchronize params for first two model chunks
-    if config.param_sync_func is not None:
-        config.param_sync_func[0](model[0].parameters())
-        config.param_sync_func[1](model[1].parameters())
-
-    # Create a tunable schedule lookup table.
-    # The schedule lookup table uses the virtual_microbatch_id to find the corresponding
-    # microbatch_id and model_chunk_id. For example, the tunable schedule table for
-    # PP2 N3M5 with VP2 is constructed as below:
-    # virtual_microbatch_id | 0 1 2 3 4 5 6 7 8 9
-    # microbatch_id         | 0 1 2 0 1 2 3 4 3 4
-    # model_chunk_id        | 0 0 0 1 1 1 0 0 1 1
-    schedule_table = get_schedule_table(
-        num_microbatches, len(model), config.microbatch_group_size_per_vp_stage
-    )
-
-    # Decouple individual lookup table for microbatch_id and model_chunk_id.
-    # For example, the micro-batch table for PP2 N3M5 with VP2 is
-    # virtual_microbatch_id | 0 1 2 3 4 5 6 7 8 9
-    # microbatch_id         | 0 1 2 0 1 2 3 4 3 4
-    # Similarly, the model chunk table is
-    # virtual_microbatch_id | 0 1 2 3 4 5 6 7 8 9
-    # model_chunk_id        | 0 0 0 1 1 1 0 0 1 1
-    # Both tables are indexed with virtual_microbatch_id.
-    microbatch_id_table, model_chunk_id_table = zip(*schedule_table)
-    computed_forward_count = 0
-    computed_backward_count = 0
-    computed_forward_indices = []
-    computed_backward_indices = []
-
-    def get_model_chunk_id(virtual_microbatch_id, forward):
-        """Helper method to get the model chunk ID given the iteration number."""
-        model_chunk_id = model_chunk_id_table[virtual_microbatch_id % total_num_microbatches]
-        if not forward:
-            model_chunk_id = num_model_chunks - model_chunk_id - 1
-        return model_chunk_id
-
-    def is_first_microbatch_for_model_chunk(virtual_microbatch_id: int) -> bool:
-        """Check if an iteration is the first for a model chunk."""
-        if virtual_microbatch_id < total_num_microbatches:
-            return microbatch_id_table[virtual_microbatch_id] == 0
-        else:
-            return False
-        
-    def has_computed_all_microbatches(model_chunk_id):
-        for i in range(total_num_microbatches):
-            if i % (num_model_chunks * pipeline_parallel_size) // pipeline_parallel_size == num_model_chunks - 1 - model_chunk_id and i not in computed_backward_indices:
-                return False
-        return True
-
-    # python lists to store tensors
-    forward_ready_tensors = [None] * total_num_microbatches
-    forward_finished_tensors = [None] * total_num_microbatches
-    backward_ready_tensors = [None] * total_num_microbatches
-    backward_finished_tensors = [None] * total_num_microbatches
-    gathered_compute_index = [torch.tensor(-1).to(torch.cuda.current_device()) for _ in range(parallel_state.get_tensor_model_parallel_world_size())]
-    compute_index = torch.tensor(-1).to(torch.cuda.current_device())
-
-    index_list = []
-    dual_index_list = []
-    for i in range(num_model_chunks):
-        for j in range(i * pipeline_parallel_size, total_num_microbatches, pipeline_parallel_size * num_model_chunks):
-            for k in range(j, j + pipeline_parallel_size):
-                index_list.append(k)
-                dual_index = (
-                    k
-                    - k % (num_model_chunks * pipeline_parallel_size)
-                    + (
-                        num_model_chunks
-                        - 1
-                        - k % (num_model_chunks * pipeline_parallel_size) // pipeline_parallel_size
-                    )
-                    * pipeline_parallel_size
-                    + k % pipeline_parallel_size
-                )
-                dual_index_list.append(dual_index)
-
-    def forward_step_helper(
-        virtual_microbatch_id, microbatch_id, checkpoint_activations_microbatch
-    ):
-        """Helper method to run forward step with model split into chunks
-        (run set_virtual_pipeline_model_parallel_rank() before calling
-        forward_step())."""
-        model_chunk_id = get_model_chunk_id(virtual_microbatch_id, forward=True)
-        parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
-
-        # launch param synchronization for next model chunk
-        # Note: Asynchronous communication tends to slow down compute.
-        # To reduce idling from mismatched microbatch times, we launch
-        # asynchronous communication at the same time across the
-        # pipeline-parallel group.
-        if config.param_sync_func is not None:
-            param_sync_virtual_microbatch_id = virtual_microbatch_id + pipeline_parallel_rank
-            if (
-                param_sync_virtual_microbatch_id < total_num_microbatches
-                and is_first_microbatch_for_model_chunk(param_sync_virtual_microbatch_id)
-            ):
-                param_sync_chunk_id = (
-                    get_model_chunk_id(param_sync_virtual_microbatch_id, forward=True) + 1
-                )
-                if 1 < param_sync_chunk_id < num_model_chunks:
-                    config.param_sync_func[param_sync_chunk_id](
-                        model[param_sync_chunk_id].parameters()
-                    )
-
-        # For non-depth-first pipeline schedules, the first rank would buffer multiple received
-        # activation tensors for a model chunk until accessed during warmup.
-        # This input buffering is needed to overlap the computation with the receipt of
-        # the next inputs. To index the proper buffered inputs for forword_step, we use
-        # microbatch_id offset with number of released microbatches that have completed backprop.
-        # offset = num_released_microbatches(virtual_microbatch_id, model_chunk_id)
-        # input_tensor = input_tensors[model_chunk_id][microbatch_id - offset]
-        with tracers.scope("forward", microbatch=microbatch_id_table[virtual_microbatch_id], model_chunk=model_chunk_id, pp_rank=pipeline_parallel_rank):
-            output_tensor, num_tokens = forward_step(
-                forward_step_func,
-                data_iterator[model_chunk_id],
-                model[model_chunk_id],
-                num_microbatches,
-                forward_ready_tensors[virtual_microbatch_id],
-                forward_data_store,
-                config,
-                collect_non_loss_data,
-                checkpoint_activations_microbatch,
-                check_first_val_step(
-                    first_val_step,
-                    forward_only,
-                    is_first_microbatch_for_model_chunk(virtual_microbatch_id),
-                ),
-                current_microbatch=microbatch_id,
-            )
-        forward_finished_tensors[virtual_microbatch_id] = output_tensor
-        nonlocal total_num_tokens
-        total_num_tokens += num_tokens
-
-        # If forward-only, no need to save tensors for a backward pass.
-        if forward_only:
-            forward_ready_tensors[virtual_microbatch_id] = None
-
-    def backward_step_helper(virtual_microbatch_id, dual_index):
-        """Helper method to run backward step with model split into chunks
-        (run set_virtual_pipeline_model_parallel_rank() before calling
-        backward_step())."""
-        model_chunk_id = get_model_chunk_id(virtual_microbatch_id, forward=False)
-        parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
-
-        computed_backward_indices.append(virtual_microbatch_id)
-
-        # launch grad synchronization (default)
-        if config.grad_sync_func is None and has_computed_all_microbatches(
-            model_chunk_id
-        ):
-            enable_grad_sync()
-            synchronized_model_chunks.add(model_chunk_id)
-        with tracers.scope("backward", microbatch=microbatch_id_table[virtual_microbatch_id], model_chunk=model_chunk_id, pp_rank=pipeline_parallel_rank):
-            output_tensor = backward_step(
-                forward_ready_tensors[dual_index], forward_finished_tensors[dual_index], backward_ready_tensors[virtual_microbatch_id], model_type, config
-            )
-        backward_finished_tensors[virtual_microbatch_id] = output_tensor
-        forward_ready_tensors[dual_index] = None
-        forward_finished_tensors[dual_index] = None
-        backward_ready_tensors[virtual_microbatch_id] = None
-
-        # launch grad synchronization (custom grad sync)
-        # Note: Asynchronous communication tends to slow down compute.
-        # To reduce idling from mismatched microbatch times, we launch
-        # asynchronous communication at the same time across the
-        # pipeline-parallel group.
-        if config.grad_sync_func is not None and has_computed_all_microbatches(
-            model_chunk_id
-        ):
-            enable_grad_sync()
-            config.grad_sync_func[model_chunk_id](model[model_chunk_id].parameters())
-            synchronized_model_chunks.add(model_chunk_id)
-        disable_grad_sync()
-
-    # start the threads
-    # shm_tensor_new_rdma_pre_alloc.thread_pool(num_model_chunks, pipeline_parallel_size, total_num_microbatches, parallel_state.is_pipeline_last_stage(ignore_virtual=True), parallel_state.is_pipeline_first_stage(ignore_virtual=True), torch.distributed.get_global_rank(group=parallel_state.get_pipeline_model_parallel_group(), group_rank=(pipeline_parallel_rank + 1) % pipeline_parallel_size), torch.distributed.get_global_rank(group=parallel_state.get_pipeline_model_parallel_group(), group_rank=(pipeline_parallel_rank - 1) % pipeline_parallel_size), torch.distributed.get_global_rank(group=parallel_state.get_pipeline_model_parallel_group(), group_rank=pipeline_parallel_rank), total_num_microbatches_to_send_forward, total_num_microbatches_to_recv_forward, total_num_microbatches_to_send_backward, total_num_microbatches_to_recv_backward, np.prod(tensor_shape), forward_only)
-
-    if parallel_state.get_tensor_model_parallel_world_size() > 1:
-        while computed_forward_count < total_num_microbatches or (
-            computed_backward_count < total_num_microbatches and not forward_only
-        ):
-            if not forward_only:
-                can_backward_compute = False
-                for i, k in enumerate(index_list):
-                    dual_index = dual_index_list[i]
-                    # ensure that all required forward tensors are present
-                    if k not in computed_backward_indices and forward_finished_tensors[dual_index] is not None and (forward_ready_tensors[dual_index] is not None or (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and dual_index % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size)):
-                        if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and k % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size:
-                            index_to_compute = k
-                            can_backward_compute = True
-                            break # no need backward tensors since it is the initial backward rank
-                        elif backward_ready_tensors[k] is not None:
-                            index_to_compute = k
-                            can_backward_compute = True
-                            break # needs backward tensor from previous rank (actually the next rank since it is backward)
-                        else:
-                            recved_tensor = shm_tensor_new_rdma_pre_alloc.get_backward_tensor(k) # try to get the kth tensor
-                            if recved_tensor is not None: # success
-                                backward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
-                                index_to_compute = k
-                                can_backward_compute = True
-                                break # needs backward tensor from previous rank (actually the next rank since it is backward)
-                if can_backward_compute:
-                    compute_index.copy_(index_to_compute + total_num_microbatches)
-                    torch.distributed.all_gather(gathered_compute_index, compute_index, group=parallel_state.get_tensor_model_parallel_group())
-                    all_equal = all(torch.equal(gathered_compute_index[0], t) for t in gathered_compute_index)
-                    if all_equal:
-                        deallocate_output_tensor(
-                            forward_finished_tensors[dual_index], config.deallocate_pipeline_outputs
-                        )
-                        backward_step_helper(index_to_compute, dual_index)
-                        # computed_backward_indices.append(index_to_compute)
-                        computed_backward_count += 1
-                        # print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward finished, {time.time()}%") # backward finished time，for latency and compute window/ratio
-                        if not (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and index_to_compute % (num_model_chunks * pipeline_parallel_size) >= (num_model_chunks - 1) * pipeline_parallel_size):
-                            shm_tensor_new_rdma_pre_alloc.put_backward_tensor(index_to_compute, backward_finished_tensors[index_to_compute])
-                    else:
-                        print(f"rank {torch.distributed.get_rank()} cannot compute backward tensor {index_to_compute}")
-                        continue
-            can_forward_compute = False
-            for k in index_list:
-                if k not in computed_forward_indices:
-                    if parallel_state.is_pipeline_first_stage(ignore_virtual=True) and k % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size:
-                        index_to_compute = k
-                        can_forward_compute = True
-                        break # the input is None in this case
-                    elif forward_ready_tensors[k] is not None:
-                        index_to_compute = k
-                        can_forward_compute = True
-                        break
-                    else:
-                        recved_tensor = shm_tensor_new_rdma_pre_alloc.get_forward_tensor(k) # try to get the kth tensor and store locally for backward
-                        if recved_tensor is not None: # success
-                            forward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
-                            index_to_compute = k
-                            can_forward_compute = True
-                            break
-            if can_forward_compute:
-                compute_index.copy_(index_to_compute)
-                torch.distributed.all_gather(gathered_compute_index, compute_index, group=parallel_state.get_tensor_model_parallel_group())
-                all_equal = all(torch.equal(gathered_compute_index[0], t) for t in gathered_compute_index)
-                if all_equal:
-                    if max_outstanding_backprops is not None:
-                        checkpoint_activations_microbatch = (
-                            index_to_compute % max_outstanding_backprops
-                            >= config.num_microbatches_with_partial_activation_checkpoints
-                        )
-                    else:
-                        checkpoint_activations_microbatch = None
-                    forward_step_helper(index_to_compute, microbatch_id_table[index_to_compute], checkpoint_activations_microbatch)
-                    computed_forward_indices.append(index_to_compute)
-                    computed_forward_count += 1
-                    # print(f"{torch.distributed.get_rank()}, {index_to_compute}, forward finished, {time.time()}%") # forward finished time，for latency and compute window/ratio
-                    if (
-                        not parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-                        or index_to_compute % (num_model_chunks * pipeline_parallel_size)
-                        < (num_model_chunks - 1) * pipeline_parallel_size
-                    ):
-                        shm_tensor_new_rdma_pre_alloc.put_forward_tensor(index_to_compute, forward_finished_tensors[index_to_compute]) # put the tensor into C
-                    else:
-                        deallocate_output_tensor(
-                            forward_finished_tensors[index_to_compute], config.deallocate_pipeline_outputs
-                        )
-                        assert forward_finished_tensors[index_to_compute].numel() == 1
-                else:
-                    print(f"rank {torch.distributed.get_rank()} cannot compute forward tensor {index_to_compute}")
-                    continue
-    else:
-        while computed_forward_count < total_num_microbatches or (
-            computed_backward_count < total_num_microbatches and not forward_only
-        ):
-            if not forward_only:
-                can_backward_compute = False
-                for i, k in enumerate(index_list):
-                    dual_index = dual_index_list[i]
-                    # ensure that all required forward tensors are present
-                    if k not in computed_backward_indices and forward_finished_tensors[dual_index] is not None and (forward_ready_tensors[dual_index] is not None or (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and dual_index % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size)):
-                        if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and k % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size:
-                            index_to_compute = k
-                            can_backward_compute = True
-                            break # no need backward tensors since it is the initial backward rank
-                        else:
-                            recved_tensor = shm_tensor_new_rdma_pre_alloc.get_backward_tensor(k) # try to get the kth tensor
-                            if recved_tensor is not None: # success
-                                backward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
-                                index_to_compute = k
-                                can_backward_compute = True
-                                break # needs backward tensor from previous rank (actually the next rank since it is backward)
-                if can_backward_compute:
-                    deallocate_output_tensor(
-                        forward_finished_tensors[dual_index], config.deallocate_pipeline_outputs
-                    )
-                    backward_step_helper(index_to_compute, dual_index)
-                    # computed_backward_indices.append(index_to_compute)
-                    computed_backward_count += 1
-                    # print(f"{torch.distributed.get_rank()}, {index_to_compute}, backward finished, {time.time()}%") # backward finished time，for latency and compute window/ratio
-                    if not (parallel_state.is_pipeline_first_stage(ignore_virtual=True) and index_to_compute % (num_model_chunks * pipeline_parallel_size) >= (num_model_chunks - 1) * pipeline_parallel_size):
-                        shm_tensor_new_rdma_pre_alloc.put_backward_tensor(index_to_compute, backward_finished_tensors[index_to_compute])
-            can_forward_compute = False
-            for k in index_list:
-                if k not in computed_forward_indices:
-                    if parallel_state.is_pipeline_first_stage(ignore_virtual=True) and k % (num_model_chunks * pipeline_parallel_size) < pipeline_parallel_size:
-                        index_to_compute = k
-                        can_forward_compute = True
-                        break # the input is None in this case
-                    else:
-                        recved_tensor = shm_tensor_new_rdma_pre_alloc.get_forward_tensor(k) # try to get the kth tensor and store locally for backward
-                        if recved_tensor is not None: # success
-                            forward_ready_tensors[k] = recved_tensor.reshape(tensor_shape)
-                            index_to_compute = k
-                            can_forward_compute = True
-                            break
-            if can_forward_compute:
-                if max_outstanding_backprops is not None:
-                    checkpoint_activations_microbatch = (
-                        index_to_compute % max_outstanding_backprops
-                        >= config.num_microbatches_with_partial_activation_checkpoints
-                    )
-                else:
-                    checkpoint_activations_microbatch = None
-                forward_step_helper(index_to_compute, microbatch_id_table[index_to_compute], checkpoint_activations_microbatch)
-                computed_forward_indices.append(index_to_compute)
-                computed_forward_count += 1
-                # print(f"{torch.distributed.get_rank()}, {index_to_compute}, forward finished, {time.time()}%") # forward finished time，for latency and compute window/ratio
-                if (
-                    not parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-                    or index_to_compute % (num_model_chunks * pipeline_parallel_size)
-                    < (num_model_chunks - 1) * pipeline_parallel_size
-                ):
-                    shm_tensor_new_rdma_pre_alloc.put_forward_tensor(index_to_compute, forward_finished_tensors[index_to_compute]) # put the tensor into C
-                else:
-                    deallocate_output_tensor(
-                    forward_finished_tensors[index_to_compute], config.deallocate_pipeline_outputs
-                    )
-                    assert forward_finished_tensors[index_to_compute].numel() == 1
-
-    while not shm_tensor_new_rdma_pre_alloc.check_send_finish(forward_only):
-        pass
-    # shm_tensor_new_rdma_pre_alloc.join_threads()
-    tracers.tick("reduce") # reduce start
-    if config.finalize_model_grads_func is not None and not forward_only:
-
-        # If defer_embedding_wgrad_compute is enabled we need to do the
-        # weight gradient GEMM's here.
-        finish_embedding_wgrad_compute(config, embedding_module)
-
-        # Finalize model grads (perform full grad all-reduce / reduce-scatter for
-        # data parallelism, layernorm all-reduce for sequence parallelism, and
-        # embedding all-reduce for pipeline parallelism).
-        config.finalize_model_grads_func(
-            model, total_num_tokens if config.calculate_per_token_loss else None
-        )
-
-    # Restore config.grad_sync_func and config.param_sync_func.
-    if forward_only:
-        config.grad_sync_func, config.param_sync_func = grad_sync_func, param_sync_func
-
-    if config.timers is not None:
-        config.timers('forward-backward').stop()
-
-    if hasattr(config, 'enable_cuda_graph') and config.enable_cuda_graph:
-        create_cudagraphs()
-
-    return forward_data_store
-
-
 def get_tensor_shapes(
     *,
     rank: int,
@@ -2976,8 +2031,6 @@ def forward_backward_pipelining_without_interleaving(
         output_tensors = []
     forward_data_store = []
 
-    args = get_args()
-
     # Run warmup forward passes.
     for i in range(num_warmup_microbatches):
         # Decide to checkpoint all layers' activations of the current micro-batch
@@ -2988,56 +2041,24 @@ def forward_backward_pipelining_without_interleaving(
             )
         else:
             checkpoint_activations_microbatch = None
-        
-        if args.trace:
-            tracers = get_tracer()
-            with tracers.scope(
-                "recv-warmup",
-                micro_batch_index=i,
-                expect="send-warmup",
-                slots=["data", "group"],
-            ):
-                input_tensor = recv_forward(recv_tensor_shapes, config)
-            with tracers.scope("forward-warmup", micro_batch_index=i):
-                output_tensor, num_tokens = forward_step(
-                    forward_step_func,
-                    data_iterator,
-                    model,
-                    num_microbatches,
-                    input_tensor,
-                    forward_data_store,
-                    config,
-                    collect_non_loss_data,
-                    checkpoint_activations_microbatch,
-                    check_first_val_step(first_val_step, forward_only, i == 0),
-                    current_microbatch=i,
-                    encoder_decoder_xattn=encoder_decoder_xattn,
-                )
-            with tracers.scope(
-                "send-warmup",
-                micro_batch_index=i,
-                expect="recv-warmup",
-                slots=["data", "group"],
-            ):
-                send_forward(output_tensor, send_tensor_shapes, config)
-        else:
-            input_tensor = recv_forward(recv_tensor_shapes, config)
-            output_tensor, num_tokens = forward_step(
-                forward_step_func,
-                data_iterator,
-                model,
-                num_microbatches,
-                input_tensor,
-                forward_data_store,
-                config,
-                collect_non_loss_data,
-                checkpoint_activations_microbatch,
-                check_first_val_step(first_val_step, forward_only, i == 0),
-                current_microbatch=i,
-                encoder_decoder_xattn=encoder_decoder_xattn,
-            )
-            send_forward(output_tensor, send_tensor_shapes, config)
-            total_num_tokens += num_tokens
+
+        input_tensor = recv_forward(recv_tensor_shapes, config)
+        output_tensor, num_tokens = forward_step(
+            forward_step_func,
+            data_iterator,
+            model,
+            num_microbatches,
+            input_tensor,
+            forward_data_store,
+            config,
+            collect_non_loss_data,
+            checkpoint_activations_microbatch,
+            check_first_val_step(first_val_step, forward_only, i == 0),
+            current_microbatch=i,
+            encoder_decoder_xattn=encoder_decoder_xattn,
+        )
+        send_forward(output_tensor, send_tensor_shapes, config)
+        total_num_tokens += num_tokens
 
         if not forward_only:
             input_tensors.append(input_tensor)
@@ -3048,19 +2069,11 @@ def forward_backward_pipelining_without_interleaving(
     # If all microbatches are run in warmup / cooldown phase, then no need to
     # receive this tensor here.
     if num_microbatches_remaining > 0:
-        if args.trace:
-            tracers = get_tracer()
-            with tracers.scope(
-                "recv-extra",
-                micro_batch_index=num_warmup_microbatches,
-                expect="send-warmup",
-                slots=["data", "group"],
-            ):
-                input_tensor = recv_forward(recv_tensor_shapes, config)
-        else:
-            input_tensor = recv_forward(recv_tensor_shapes, config)
+        input_tensor = recv_forward(recv_tensor_shapes, config)
 
     # Run 1F1B in steady state.
+    import time
+    import torch.distributed as dist
     for i in range(num_microbatches_remaining):
         last_iteration = i == (num_microbatches_remaining - 1)
 
@@ -3072,45 +2085,29 @@ def forward_backward_pipelining_without_interleaving(
         else:
             checkpoint_activations_microbatch = None
 
-        if args.trace:
-            tracers = get_tracer()
-            torch.distributed.barrier(
-                group=parallel_state.get_tensor_model_parallel_group()
-            )
-            with tracers.scope("forward", micro_batch_index=i + num_warmup_microbatches):
-                output_tensor, num_tokens = forward_step(
-                    forward_step_func,
-                    data_iterator,
-                    model,
-                    num_microbatches,
-                    input_tensor,
-                    forward_data_store,
-                    config,
-                    collect_non_loss_data,
-                    checkpoint_activations_microbatch,
-                    check_first_val_step(
-                        first_val_step, forward_only, (i == 0) and (num_warmup_microbatches == 0)
-                    ),
-                    current_microbatch=i + num_warmup_microbatches,
-                    encoder_decoder_xattn=encoder_decoder_xattn,
-                )
-        else:
-            output_tensor, num_tokens = forward_step(
-                forward_step_func,
-                data_iterator,
-                model,
-                num_microbatches,
-                input_tensor,
-                forward_data_store,
-                config,
-                collect_non_loss_data,
-                checkpoint_activations_microbatch,
-                check_first_val_step(
-                    first_val_step, forward_only, (i == 0) and (num_warmup_microbatches == 0)
-                ),
-                current_microbatch=i + num_warmup_microbatches,
-                encoder_decoder_xattn=encoder_decoder_xattn,
-            )
+        start_time = time.time()
+
+        output_tensor, num_tokens = forward_step(
+            forward_step_func,
+            data_iterator,
+            model,
+            num_microbatches,
+            input_tensor,
+            forward_data_store,
+            config,
+            collect_non_loss_data,
+            checkpoint_activations_microbatch,
+            check_first_val_step(
+                first_val_step, forward_only, (i == 0) and (num_warmup_microbatches == 0)
+            ),
+            current_microbatch=i + num_warmup_microbatches,
+            encoder_decoder_xattn=encoder_decoder_xattn,
+        )
+
+        if dist.get_rank() == 3:
+            end_time = time.time()
+            print('forward_step',end_time-start_time)
+
         total_num_tokens += num_tokens
 
         if forward_only:
@@ -3120,16 +2117,9 @@ def forward_backward_pipelining_without_interleaving(
                 input_tensor = recv_forward(recv_tensor_shapes, config)
 
         else:
-            tracers = get_tracer()
-            if args.trace:
-                with tracers.scope("exchange-next", ctx={"trace_p2p_recv": "recv-backward"}, expect="exchange-prev", slots=["data", "group"]):
-                    output_tensor_grad = send_forward_recv_backward(
-                        output_tensor, send_tensor_shapes, config
-                    )
-            else:
-                output_tensor_grad = send_forward_recv_backward(
-                    output_tensor, send_tensor_shapes, config
-                )
+            output_tensor_grad = send_forward_recv_backward(
+                output_tensor, send_tensor_shapes, config
+            )
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -3147,36 +2137,22 @@ def forward_backward_pipelining_without_interleaving(
                 if config.grad_sync_func is None or rank == 0:
                     enable_grad_sync()
             
-            if args.trace:
-                tracers = get_tracer()
-                with tracers.scope("backward", micro_batch_index=i):
-                    input_tensor_grad = backward_step(
-                        input_tensor, output_tensor, output_tensor_grad, model_type, config
-                    )
-            else:
-                input_tensor_grad = backward_step(
-                    input_tensor, output_tensor, output_tensor_grad, model_type, config
-                )
-
+            input_tensor_grad = backward_step(
+                input_tensor, output_tensor, output_tensor_grad, model_type, config
+            )
+            if dist.get_rank() == 3:
+                end_time = time.time()
+                print('backward_step',end_time-start_time)
             if last_iteration:
                 input_tensor = None
-                if args.trace:
-                    tracers = get_tracer()
-                    with tracers.scope("send-extra", micro_batch_index=num_microbatches - 1, slots=["data"]):
-                        send_backward(input_tensor_grad, recv_tensor_shapes, config)
-                else:
-                    send_backward(input_tensor_grad, recv_tensor_shapes, config)
+                send_backward(input_tensor_grad, recv_tensor_shapes, config)
             else:
-                if args.trace:
-                    tracers = get_tracer()
-                    with tracers.scope("exchange-prev", ctx={"trace_p2p_recv": "recv-forward"}, expect="exchange-next", slots=["data", "group"]):
-                        input_tensor = send_backward_recv_forward(
-                            input_tensor_grad, recv_tensor_shapes, config
-                        )
-                else:
-                    input_tensor = send_backward_recv_forward(
-                        input_tensor_grad, recv_tensor_shapes, config
-                    )
+                input_tensor = send_backward_recv_forward(
+                    input_tensor_grad, recv_tensor_shapes, config
+                )
+            if dist.get_rank() == 3:
+                end_time = time.time()
+                print('send_backward_recv_forward',end_time-start_time)
 
     # Run cooldown backward passes.
     if not forward_only:
@@ -3194,37 +2170,19 @@ def forward_backward_pipelining_without_interleaving(
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
-            if args.trace:
-                tracers = get_tracer()
-                with tracers.scope("recv-cooldown", micro_batch_index=num_microbatches_remaining + i, slots=["data"]):
-                    output_tensor_grad = recv_backward(send_tensor_shapes, config)
+            output_tensor_grad = recv_backward(send_tensor_shapes, config)
 
-                with tracers.scope("backward-cooldown", micro_batch_index=num_microbatches_remaining + i):
-                    input_tensor_grad = backward_step(
-                        input_tensor, output_tensor, output_tensor_grad, model_type, config
-                    )
+            input_tensor_grad = backward_step(
+                input_tensor, output_tensor, output_tensor_grad, model_type, config
+            )
 
-                with tracers.scope("send-cooldown", micro_batch_index=num_microbatches_remaining + i, slots=["data"]):
-                    send_backward(input_tensor_grad, recv_tensor_shapes, config)
-            else:
-                output_tensor_grad = recv_backward(send_tensor_shapes, config)
-
-                input_tensor_grad = backward_step(
-                    input_tensor, output_tensor, output_tensor_grad, model_type, config
-                )
-
-                send_backward(input_tensor_grad, recv_tensor_shapes, config)
+            send_backward(input_tensor_grad, recv_tensor_shapes, config)
 
         # Launch any remaining grad reductions.
         if no_sync_context is not None:
             enable_grad_sync()
             if config.grad_sync_func is not None:
-                if args.trace:
-                    tracers = get_tracer()
-                    with tracers.scope("grad-sync"):
-                        config.grad_sync_func(model.parameters())
-                else:
-                    config.grad_sync_func(model.parameters())
+                config.grad_sync_func(model.parameters())
 
     if config.finalize_model_grads_func is not None and not forward_only:
 
@@ -3235,19 +2193,9 @@ def forward_backward_pipelining_without_interleaving(
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for
         # data parallelism, layernorm all-reduce for sequence parallelism, and
         # embedding all-reduce for pipeline parallelism).
-        if args.trace:
-            tracers = get_tracer()
-            with tracers.scope(
-                name="allreduce",
-            ):
-                config.finalize_model_grads_func(
-                    [model], total_num_tokens if config.calculate_per_token_loss else None
-                )
-                torch.cuda.synchronize()
-        else:
-            config.finalize_model_grads_func(
-                [model], total_num_tokens if config.calculate_per_token_loss else None
-            )
+        config.finalize_model_grads_func(
+            [model], total_num_tokens if config.calculate_per_token_loss else None
+        )
 
     if config.timers is not None:
         config.timers('forward-backward').stop()
@@ -3355,6 +2303,12 @@ def forward_or_backward_pipelining_without_interleaving(
     # print(rank,forward_only,backward_only,num_microbatches)
 
     # Input, output tensors only need to be saved when doing backward passes
+    import time
+    import megatron.virtual_tensor_parallel_communication as dist
+
+    _ = torch.empty(0,device="cuda")
+    torch.distributed.all_reduce(_, group = parallel_state.get_pipeline_model_parallel_group(extracted = True))
+
     input_tensors = None
     output_tensors = None
     if not forward_only:
@@ -3362,17 +2316,57 @@ def forward_or_backward_pipelining_without_interleaving(
         output_tensors = []
     forward_data_store = []
 
-    # Run warmup forward passes.
+    num_warmup_microbatches = (
+        parallel_state.get_pipeline_model_parallel_world_size()
+        - parallel_state.get_pipeline_model_parallel_rank()
+        - 1
+    )
+    num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     # print('?')
+    
     if forward_only or parallel_state.is_forward_stage():
-
+        # Run warmup forward passes.
+        for i in range(num_warmup_microbatches):
+            input_tensor = recv_forward(recv_tensor_shapes, config)
+            if not forward_only:
+                input_tensors.append(input_tensor)
+            if max_outstanding_backprops is not None:
+                checkpoint_activations_microbatch = (
+                    i % max_outstanding_backprops
+                ) >= config.num_microbatches_with_partial_activation_checkpoints
+            else:
+                checkpoint_activations_microbatch = None
+            # if dist.get_rank() == 0:
+            #     start_time = time.time()
+            output_tensor, num_tokens = forward_step_no_grad(
+                forward_step_func,
+                data_iterator,
+                model,
+                num_microbatches,
+                input_tensor,
+                forward_data_store,
+                config,
+                collect_non_loss_data,
+                checkpoint_activations_microbatch,
+            )
+            # if dist.get_rank() == 0:
+            #     end_time = time.time()
+            #     print('forward_step', i, end_time-start_time)
+            send_forward(output_tensor, send_tensor_shapes, config)
+        
         # Run 1F1B in steady state.
-        for i in range(num_microbatches):
+        for i in range(num_warmup_microbatches, num_microbatches):
             input_tensor = recv_forward(recv_tensor_shapes, config)
             # print('#step', i, input_tensor)
+            # if dist.get_rank() == 4:
+            #     start_time = time.time()
             if not parallel_state.is_pipeline_first_stage() and not forward_only:
-                send_corresponding_forward(input_tensor, recv_tensor_shapes, config)
-            
+                input_tensors.append(input_tensor)
+                input_tensor_to_backward = input_tensors.pop(0)
+                send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config)
+            # if dist.get_rank() == 4:
+            #     end_time = time.time()
+            #     print('forward_step', i, end_time-start_time)
             if max_outstanding_backprops is not None:
                 checkpoint_activations_microbatch = (
                     i % max_outstanding_backprops
@@ -3381,8 +2375,9 @@ def forward_or_backward_pipelining_without_interleaving(
                 checkpoint_activations_microbatch = None
             
             # dist.tensor_parallel_barrier()
-            
-            output_tensor, num_tokens = forward_step(
+            # if dist.get_rank() == 0:
+            #     start_time = time.time()
+            output_tensor, num_tokens = forward_step_no_grad(
                 forward_step_func,
                 data_iterator,
                 model,
@@ -3395,6 +2390,11 @@ def forward_or_backward_pipelining_without_interleaving(
             )
             # print(output_tensor)
             send_forward(output_tensor, send_tensor_shapes, config)
+        
+        for i in range(num_warmup_microbatches):
+            if not parallel_state.is_pipeline_first_stage() and not forward_only:
+                input_tensor_to_backward = input_tensors.pop(0)
+                send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config)
 
     elif not forward_only:
         for i in range(num_microbatches):
@@ -3414,9 +2414,18 @@ def forward_or_backward_pipelining_without_interleaving(
             else:
                 checkpoint_activations_microbatch = None
 
+            # if dist.get_rank() == 7 or dist.get_rank() == 3:
+            #     print('receiving forward')
+
             input_tensor = None
             if not parallel_state.is_pipeline_first_stage():
                 input_tensor = recv_corresponding_forward(recv_tensor_shapes, config)
+            # if dist.get_rank() == 6:
+            #     start_time = time.time()
+            torch.cuda.synchronize()
+            if dist.get_rank() == 7 or dist.get_rank() == 3:
+                start_time = time.time()
+                # print('before forward start')
             output_tensor, num_tokens = forward_step(
                 forward_step_func,
                 data_iterator,
@@ -3428,17 +2437,53 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
-            # print('?',output_tensor[0])
-
+            torch.cuda.synchronize()
+            if dist.get_rank() == 7 or dist.get_rank() == 3:
+                end_time = time.time()
+                print('after forward finished', i, end_time-start_time)
+            # if dist.get_rank() == 2:
+            #     print('backward_step', i, time.time())
+            # if dist.get_rank() == 3:
+            #     start_time = time.time()
             output_tensor_grad = recv_backward(
                 send_tensor_shapes, config
             )
-
+            torch.cuda.synchronize()
+            if dist.get_rank() == 7 or dist.get_rank() == 3:
+                end_time = time.time()
+                print('after recv_backward finished', i, end_time-start_time)
+            # if dist.get_rank() == 3:
+            #     end_time = time.time()
+            #     print('forward_step', i, end_time-start_time)
+            # print('?',output_tensor[0])
+            # if dist.get_rank() == 3:
+            #     end_time = time.time()
+            #     print('backward_step', i, end_time-start_time)
+            # if dist.get_rank() == 6:
+            #     start_time = time.time()
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
-
+            torch.cuda.synchronize()
+            if dist.get_rank() == 7 or dist.get_rank() == 3:
+                end_time = time.time()
+                print('after backward finished', i, end_time-start_time)
+                if input_tensor_grad is not None:
+                    print(input_tensor_grad[0].shape)
+            # if dist.get_rank() == 6:
+            #     end_time = time.time()
+            #     print('backward_step', i, end_time-start_time)
+            # if dist.get_rank() == 6:
+            #     print('backward_step', i, time.time())
+            # if dist.get_rank() == 7:
+            #     start_time = time.time()
             send_backward(input_tensor_grad, recv_tensor_shapes, config)
+            if dist.get_rank() == 7 or dist.get_rank() == 3:
+                end_time = time.time()
+                print('forward_step', i, end_time-start_time)
+            # if dist.get_rank() == 7:
+            #     end_time = time.time()
+            #     print('forward_step', i, end_time-start_time)
 
 
     # Launch any remaining grad reductions
