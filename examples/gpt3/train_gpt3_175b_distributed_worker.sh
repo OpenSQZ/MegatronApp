@@ -6,20 +6,20 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1
 
 GPUS_PER_NODE=4
 # Change for multinode config
-MASTER_ADDR=10.233.103.70
+MASTER_ADDR=10.233.82.104
 MASTER_PORT=6000
 NUM_NODES=2
 NODE_RANK=1
 WORLD_SIZE=$(($GPUS_PER_NODE * $NUM_NODES))
-PIPELINE_PARALLEL=4
-VPP=1
-TENSOR_PARALLEL=1
+PIPELINE_PARALLEL=2
+VPP=2
+TENSOR_PARALLEL=4
 
-CHECKPOINT_PATH=ngc_models                                   #<Specify path>
-TENSORBOARD_LOGS_PATH=tensor_board                           #<Specify path>
-VOCAB_FILE=datasets/vocab.json                               #<Specify path to file>/gpt2-vocab.json
-MERGE_FILE=datasets/merges.txt                               #<Specify path to file>/gpt2-merges.txt
-DATA_PATH=datasets/gpt-large-cased-vocab-small_text_document #<Specify path and file prefix>_text_document
+CHECKPOINT_PATH=ngc_models_gpt                                   #<Specify path>
+TENSORBOARD_LOGS_PATH=tensor_board_gpt                           #<Specify path>
+VOCAB_FILE=datasets_gpt/vocab.json                               #<Specify path to file>/gpt2-vocab.json
+MERGE_FILE=datasets_gpt/merges.txt                               #<Specify path to file>/gpt2-merges.txt
+DATA_PATH=datasets/gpt_text_document #<Specify path and file prefix>_text_document
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -55,6 +55,10 @@ TRAINING_ARGS=(
     --lr-warmup-fraction .001
     --lr-decay-iters 430000
     --use-dpp
+    --node-ips "192.168.0.7,192.168.0.7,192.168.0.7,192.168.0.7,192.168.0.2,192.168.0.2,192.168.0.2,192.168.0.2"
+    --workload $((2048 * 512))
+    --num-gpus $GPUS_PER_NODE
+    --multi-node
 )
 
 MODEL_PARALLEL_ARGS=(

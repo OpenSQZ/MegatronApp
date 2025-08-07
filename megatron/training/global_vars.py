@@ -11,6 +11,7 @@ from megatron.core.num_microbatches_calculator import init_num_microbatches_calc
 from megatron.training import dist_signal_handler
 from megatron.training.tokenizer import build_tokenizer
 from megatron.training.trace import Tracer
+import megatron.virtual_tensor_parallel_communication as dist
 
 _GLOBAL_ARGS = None
 _GLOBAL_TOKENIZER = None
@@ -19,6 +20,7 @@ _GLOBAL_WANDB_WRITER = None
 _GLOBAL_ONE_LOGGER = None
 _GLOBAL_ADLR_AUTORESUME = None
 _GLOBAL_TIMERS = None
+_GLOBAL_TIMERS_LIST = None
 _GLOBAL_SIGNAL_HANDLER = None
 _GLOBAL_TRACER = Tracer()
 
@@ -56,11 +58,14 @@ def get_adlr_autoresume():
     to check if it is initialized."""
     return _GLOBAL_ADLR_AUTORESUME
 
-
 def get_timers():
     """Return timers."""
-    _ensure_var_is_initialized(_GLOBAL_TIMERS, 'timers')
-    return _GLOBAL_TIMERS
+    if not dist.if_use_thread_communication():
+        _ensure_var_is_initialized(_GLOBAL_TIMERS, 'timers')
+        return _GLOBAL_TIMERS
+    else:
+        # print('_GLOBAL_TIMERS_LIST', dist.get_thread_index())
+        return _GLOBAL_TIMERS_LIST[dist.get_thread_index()]
 
 
 def get_tracer():
@@ -152,8 +157,9 @@ def set_args(args):
         _GLOBAL_TRACER.interval = args.trace_interval
         _GLOBAL_TRACER.continuous_trace_iters = args.continuous_trace_iterations
     else:
-        _GLOBAL_TRACER.interval = 1
-        _GLOBAL_TRACER.continuous_trace_iters = 10000
+        # Provide default values if not set, to avoid runtime errors.
+        _GLOBAL_TRACER.interval = 1000
+        _GLOBAL_TRACER.continuous_trace_iters = 1
 
 
 def _build_tokenizer(args):
@@ -259,8 +265,14 @@ def _set_adlr_autoresume(args):
 def _set_timers(args):
     """Initialize timers."""
     global _GLOBAL_TIMERS
+    global _GLOBAL_TIMERS_LIST
     _ensure_var_is_not_initialized(_GLOBAL_TIMERS, 'timers')
     _GLOBAL_TIMERS = Timers(args.timing_log_level, args.timing_log_option)
+    _ensure_var_is_not_initialized(_GLOBAL_TIMERS_LIST, 'timers')
+    args = get_args()
+    _GLOBAL_TIMERS_LIST = []
+    for i in range(args.tensor_model_parallel_size):
+        _GLOBAL_TIMERS_LIST.append(Timers(args.timing_log_level, args.timing_log_option))
 
 
 def _ensure_var_is_initialized(var, name):

@@ -1,4 +1,19 @@
+# Copyright 2025 Suanzhi Future Co., Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+
 import torch
+import math
 import megatron.virtual_tensor_parallel_communication as dist
 from megatron.training import get_args, get_tokenizer
 from enum import Enum
@@ -59,33 +74,72 @@ class FlagType(Enum):
     MLP2_Plot = 7
 
 class DefaultCompressor:
-    def __init__(self): pass
+    def __init__(self):
+        self.configs = {
+            "QKV": {
+                "pixels": 96,
+                "method": "data.mean(dim=-1)"
+            },
+            "MLP": {
+                "pixels": 64,
+                "method": "data.mean(dim=-1)"
+            }
+        }
+    def set_by_configs(self, configs: Dict[str, Any]):
+        self.configs = configs
+    def compress_tensor(self, data_in, pixels, method):
+        B, S, F = data_in.shape
+        chunk_size = math.ceil(F / pixels)
+        padded_len = chunk_size * pixels
+        padded_data = torch.nn.functional.pad(data_in, (0, padded_len - F))
+        data_for_eval = padded_data.reshape(B, S, pixels, chunk_size)
+        try:
+            compressed = eval(method, {}, {"data": data_for_eval})
+        except Exception as e:
+            print(f"Error in compressing tensor with method '{method}': {e}")
+            compressed = data_for_eval.mean(dim=-1)
+        return compressed
+    def compress_1d_tensor(self, data_in, pixels, method):
+        B, S, F = data_in.shape
+        chunk_size = math.ceil(F / pixels)
+        padded_len = chunk_size * pixels
+        padded_data = torch.nn.functional.pad(data_in, (0, padded_len - F))
+        data_for_eval = padded_data.reshape(B, S, pixels, chunk_size)
+        try:
+            compressed = eval(method, {}, {"data": data_for_eval}).flatten()
+        except Exception as e:
+            print(f"Error in compressing tensor with method '{method}': {e}")
+            compressed = data_for_eval.mean(dim=-1).flatten()  # Fallback to mean if eval fails
+        return compressed
     def compress(self, name, data):
         flag_type = name[1]
         if flag_type == FlagType.QKV_mat_mul:
-            n = data.shape[1]; return True, [n], data.reshape(data.shape[0], n, 96, -1).mean(dim=-1).flatten()
+            n = data.shape[1]; return True, [n], self.compress_1d_tensor(data, self.configs["QKV"]["pixels"], self.configs["QKV"]["method"])
         elif flag_type == FlagType.RawAttentionScore_mat_mul:
             np, n, m = data.shape[1], data.shape[2], data.shape[3]; return True, [np, n, m], data[:, :, :, :].flatten()
         elif flag_type == FlagType.MLP1_mat_mul or flag_type == FlagType.MLP2_mat_mul or flag_type == FlagType.ContextLayer_mat_mul:
-            n = data.shape[1]; return True, [n], data.reshape(data.shape[0], n, 64, -1).mean(dim=-1).flatten()
+            n = data.shape[1]; return True, [n], self.compress_1d_tensor(data, self.configs["MLP"]["pixels"], self.configs["MLP"]["method"])
         return False, [], torch.tensor([])
 
 
 class TensorTracers:
     def __init__(self) -> None: pass
 
-    @staticmethod
-    def report(name, tensor_data):
+    def report(self, name, tensor_data):
+        from megatron.core.parallel_state import get_tensor_model_parallel_group, get_tensor_model_parallel_world_size, get_tensor_model_parallel_rank
         device = torch.cuda.current_device()
-        world_size = dist.get_world_size()
-        rank = dist.get_rank()
+        world_size = get_tensor_model_parallel_world_size()
+        rank = get_tensor_model_parallel_rank()
 
+        if name[1] == FlagType.QKV_mat_mul:
+            tensor_data = get_compressor().compress_tensor(tensor_data, get_compressor().configs["QKV"]["pixels"], get_compressor().configs["QKV"]["method"])
+        elif name[1] == FlagType.MLP1_mat_mul or name[1] == FlagType.MLP2_mat_mul or name[1] == FlagType.ContextLayer_mat_mul:
+            tensor_data = get_compressor().compress_tensor(tensor_data, get_compressor().configs["MLP"]["pixels"], get_compressor().configs["MLP"]["method"])
         tensor_data_cont = tensor_data.contiguous()
         if rank == 0:
             tensor_list = [torch.zeros_like(tensor_data_cont, dtype=tensor_data_cont.dtype, device=device) for _ in range(world_size)]
         else:
             tensor_list = None
-        from megatron.core.parallel_state import get_tensor_model_parallel_group
         dist.gather(tensor_data_cont, tensor_list, dst=0, group=get_tensor_model_parallel_group())
 
         if rank == 0:
@@ -111,7 +165,7 @@ class TensorTracers:
 
             elif name[1] == FlagType.MLP2_mat_mul:
                 current_token_mlp2_output = tensor_list[0]
-                if mlp2_record is not None and name[0] < len(mlp2_record) and name[0] > 0 :
+                if get_tt_flags().get_flag(FlagType.MLP2_Plot, name[0]) and mlp2_record is not None and name[0] < len(mlp2_record) and name[0] > 0 :
                     if mlp2_record[name[0]] is None:
                         mlp2_record[name[0]] = current_token_mlp2_output
                     else:
@@ -130,7 +184,7 @@ class TensorTracers:
 
     def tik_tensor(self, name, raw):
         with torch.no_grad():
-            TensorTracers.report(name, raw)
+            TensorTracers.report(self, name, raw.detach())
 
     def tik_result(self, result_logits, sampled_token_ids):
         name = (0, FlagType.Result)
@@ -180,6 +234,7 @@ class TTFlags:
             FlagType.ContextLayer_mat_mul: {i: False for i in range(1, self.num_layers + 1)},
             FlagType.MLP1_mat_mul: {i: False for i in range(1, self.num_layers + 1)},
             FlagType.MLP2_mat_mul: {i: False for i in range(1, self.num_layers + 1)},
+            FlagType.MLP2_Plot: {i: False for i in range(1, self.num_layers + 1)},
         }
 
     def get_flag(self, flag_type: FlagType, layer_index: int) -> bool:
@@ -205,3 +260,7 @@ class TTFlags:
         val = True if configs.get("MLP2_mat_mul", "True").lower() == "true" else False
         for i in range(1, self.num_layers + 1):
             self.flags[FlagType.MLP2_mat_mul][i] = val
+
+        val = True if configs.get("MLP2_Plot", "False").lower() == "true" else False
+        for i in range(1, self.num_layers + 1):
+            self.flags[FlagType.MLP2_Plot][i] = val

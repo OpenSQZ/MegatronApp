@@ -33,7 +33,7 @@ from megatron.core.utils import (
 )
 from megatron.core.fp8_utils import correct_amax_history_if_needed
 from megatron.training.checkpointing import load_checkpoint
-from megatron.training.checkpointing import save_checkpoint
+from megatron.training.checkpointing import (save_checkpoint, save_checkpoint_legacy)
 from megatron.training.checkpointing import checkpoint_exists
 from megatron.core.transformer.module import Float16Module
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -108,7 +108,6 @@ from .global_vars import (
     get_tensorboard_writer,
     get_wandb_writer,
     get_one_logger,
-    get_tracer,
 )
 from . import one_logger_utils
 
@@ -791,23 +790,15 @@ def pretrain_body(
                 non_loss_data_func)
 
         print_datetime('after training is done')
-        if args.trace:
-            data_parallel_rank = mpu.get_data_parallel_rank()
-            tensor_model_parallel_rank = mpu.get_tensor_model_parallel_rank()
-            pipeline_model_parallel_rank = mpu.get_pipeline_model_parallel_rank()
-            tracers = get_tracer()
-            tracers.log(f"benchmark-data-{data_parallel_rank}-pipeline-{pipeline_model_parallel_rank}-tensor-{tensor_model_parallel_rank}.json")
-            with open("gpu-rank-map.txt", "a") as f:
-                f.write(f"{data_parallel_rank}\t")
-                f.write(f"{pipeline_model_parallel_rank}\t")
-                f.write(f"{tensor_model_parallel_rank}\t")
-                f.write(f"{torch.cuda.current_device()}\n")
 
         if args.save and iteration != 0 and iteration % args.save_interval != 0:
-            save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
-                            num_floating_point_operations_so_far, checkpointing_context,
-                            train_data_iterator=train_data_iterator,
-                            preprocess_common_state_dict_fn=preprocess_common_state_dict)
+            if args.ignore_forward_tensor_parallel:
+                save_checkpoint_legacy(iteration, model, optimizer, opt_param_scheduler, )
+            else:
+                save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
+                                num_floating_point_operations_so_far, checkpointing_context,
+                                train_data_iterator=train_data_iterator,
+                                preprocess_common_state_dict_fn=preprocess_common_state_dict)
 
         one_logger and one_logger.log_metrics({
             'app_train_loop_finish_time': one_logger_utils.get_timestamp_in_ms()
@@ -937,7 +928,7 @@ def pretrain(
                     args_defaults,
                     non_loss_data_func)
     elif not mpu.is_forward_stage():
-        dist.start_backward_controller()
+        # dist.start_backward_controller()
         # print('xixi')
         pretrain_body(train_valid_test_dataset_provider,
                     model_provider,
@@ -1353,6 +1344,8 @@ def train_step(forward_step_func, data_iterator,
         optimizer.zero_grad()
 
         # Forward pass.
+        # dist.barrier()
+        # print('barrier')
         forward_backward_func = get_forward_backward_func()
         losses_reduced = forward_backward_func(
             forward_step_func=forward_step_func,
@@ -1380,12 +1373,7 @@ def train_step(forward_step_func, data_iterator,
     # Update parameters.
 
     # timers('optimizer', log_level=1).start(barrier=args.barrier_with_L1_time)
-    if args.trace:
-        tracers = get_tracer()
-        with tracers.scope('optimizer'):
-            update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
-    else:
-        update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
+    update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
     # timers('optimizer').stop()
 
     # when freezing sub-models we may have a mixture of successful and unsucessful ranks,
@@ -1775,10 +1763,13 @@ def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler,
     one_logger_utils.track_e2e_metrics()
     if should_disable_forward_pre_hook(args):
         disable_forward_pre_hook(model)
-    save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
-                    num_floating_point_operations_so_far, checkpointing_context,
-                    non_persistent_ckpt=non_persistent_ckpt, train_data_iterator=train_data_iterator,
-                    preprocess_common_state_dict_fn=preprocess_common_state_dict)
+    if args.ignore_forward_tensor_parallel:
+        save_checkpoint_legacy(iteration, model, optimizer, opt_param_scheduler,)
+    else:
+        save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
+                        num_floating_point_operations_so_far, checkpointing_context,
+                        non_persistent_ckpt=non_persistent_ckpt, train_data_iterator=train_data_iterator,
+                        preprocess_common_state_dict_fn=preprocess_common_state_dict)
     if should_disable_forward_pre_hook(args):
         enable_forward_pre_hook(model)
     timers(timer_key).stop(barrier=True)
@@ -2070,11 +2061,6 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Run training iterations till done.
     while iteration < args.train_iters:
-        if args.trace:
-            # Barrier to make sure all ranks start the iteration at the same time.
-            torch.distributed.barrier()
-            tracers = get_tracer()
-            tracers.iteration_begin()
         if args.profile and torch.distributed.get_rank() in args.profile_ranks:
             if args.use_pytorch_profiler:
                 prof.step()
@@ -2118,6 +2104,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         # Run training step.
         args.curr_iteration = iteration
         ft_integration.on_training_step_start()
+        # dist.barrier()
+        # print('barrier')
         loss_dict, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad = \
             train_step(forward_step_func,
                        train_data_iterator,
@@ -2152,10 +2140,6 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                     config.param_sync_func = param_sync_func
                     pre_hook_enabled = True
 
-        if args.trace:
-            tracers = get_tracer()
-            tracers.iteration_end()
-            
         iteration += 1
         batch_size = mpu.get_data_parallel_world_size() * \
                      args.micro_batch_size * \

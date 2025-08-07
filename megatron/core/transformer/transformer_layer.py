@@ -391,11 +391,11 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         if global_args.trace:
             tracer = get_tracer()
             with tracer.scope(
-                f"transformer_layer_{self.layer_number}",
+                "transformer_layer",
             ):
-                with tracer.scope(f"_forward_attention_{self.layer_number}"):
+                with tracer.scope("_forward_attention"):
                     pre_mlp_layernorm_output, residual, context = self._forward_attention(*args, **kwargs)
-                with tracer.scope(f"_forward_mlp_{self.layer_number}"):
+                with tracer.scope("_forward_mlp"):
                     output = self._forward_mlp(pre_mlp_layernorm_output, residual)
                 return output, context
         else:
@@ -541,7 +541,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         if self.recompute_mlp:
             if args.trace:
                 with get_tracer().scope(
-                    name=f"recompute_mlp_{self.layer_number}",
+                    name="recompute_mlp",
                     function_name="tensor_parallel.checkpoint",
                 ):
                     mlp_output_with_bias = tensor_parallel.checkpoint(
@@ -554,7 +554,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         else:
             if args.trace:
                 with get_tracer().scope(
-                    f"mlp_{self.layer_number}",
+                    "mlp",
                 ):
                     mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
             else:

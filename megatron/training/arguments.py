@@ -1660,6 +1660,8 @@ def _add_training_args(parser):
                              'global batch, versus the default behavior of assuming all tokens are non-padded.'))
     group.add_argument('--train-sync-interval', type=int, default=None,
                        help='Training CPU-GPU synchronization interval, to ensure that CPU is not running too far ahead of GPU.')
+    group.add_argument('--training-ws-port', type=int, default=None,
+                       help='Port for the training visualization WebSocket server. If set, training will be interactive and controlled by the frontend.')
 
     # deprecated
     group.add_argument('--checkpoint-activations', action='store_true',
@@ -2192,11 +2194,15 @@ def _add_distributed_args(parser):
                        "and must be consistent across all ranks.")
     group.add_argument('--replication-factor', default=2, type=int,
                        help="Number of machines storing the replica of a given rank's data.")
-    group.add_argument("--use-dpp", action='store_true', default=False, help="use dynamic pipeline or not")
     group.add_argument('--forward-backward-disaggregating', action='store_true',
                         help='If ranks should be forward or backward only')
     group.add_argument('--ignore-forward-tensor-parallel', action='store_true',
                        help='If forward ranks need to do tensor parallel when forward-backward-disaggregating')
+    group.add_argument("--use-dpp", action='store_true', default=False, help="use dynamic pipeline or not")
+    group.add_argument("--node-ips", type=str, default="", help="Comma-separated IP addresses for each node (used when DPP is enabled)")
+    group.add_argument("--workload", type=int, default=1048576, help="Workload of each thread")
+    group.add_argument("--num-gpus", type=int, default=4, help="Number of GPUs per node")
+    group.add_argument("--multi-node", action='store_true', default=False, help="Multinode training")
     return parser
 
 
@@ -2699,9 +2705,15 @@ def _add_experimental_args(parser):
     group.add_argument('--trace', action='store_true',
                        help='Enable tracing of the model. This will record '
                        'the execution time of each operation in the model.')
-    group.add_argument('--trace-interval', type=int,
-                          help='Interval at which to record the trace. This is '
-                          'useful for reducing the overhead of tracing.')
-    group.add_argument('--continuous-trace-iterations', type=int,
-                       help='Number of iterations to trace continuously.')
+    group.add_argument('--trace-dir', type=str, default='trace_output',
+                       help='Directory on rank 0 to save trace files from all ranks.')
+    group.add_argument('--trace-interval', type=int, default=1000,
+                          help='Interval for periodic tracing.')
+    group.add_argument('--continuous-trace-iterations', type=int, default=1,
+                       help='Number of continuous iterations to trace within each interval.')
+    group.add_argument('--trace-granularity', type=str, default='full',
+                       choices=['base', 'full'],
+                       help='Tracing granularity. "base" traces a small set of core events,'
+                            ' "full" traces more detailed events.')
+
     return parser

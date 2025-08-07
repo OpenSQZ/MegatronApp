@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Remove obsolete trace files
-rm benchmark-*.json
-
 # Runs the "345m" parameter model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -15,11 +12,11 @@ NUM_NODES=1
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 
-CHECKPOINT_PATH=/scratch1/checkpoints/gpt3_345m_distributed
-TENSORBOARD_LOGS_PATH=/scratch1/tb_logs/gpt3_345m_distributed
-VOCAB_FILE=datasets/vocab.json
-MERGE_FILE=datasets/merges.txt
-DATA_PATH=datasets/gpt-large-cased-vocab-small_text_document
+CHECKPOINT_PATH=checkpoints/gpt3_345m_distributed
+TENSORBOARD_LOGS_PATH=checkpoints/tb_logs/gpt3_345m_distributed
+VOCAB_FILE=datasets_gpt/vocab.json
+MERGE_FILE=datasets_gpt/merges.txt
+DATA_PATH=datasets_gpt/gpt_text_document # modify this to your dataset path
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE 
@@ -55,8 +52,10 @@ TRAINING_ARGS=(
     --lr-warmup-fraction .001 
     --lr-decay-iters 430000 
     --trace
+    --trace-dir trace_output
     --trace-interval 5
     --continuous-trace-iterations 2
+    --trace-granularity full
     --transformer-impl local
     # --sequence-parallel
 )
