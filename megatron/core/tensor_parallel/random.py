@@ -19,6 +19,7 @@ from megatron.core.parallel_state import (
     get_tensor_model_parallel_rank,
 )
 from megatron.core.utils import is_te_min_version, safely_set_viewless_tensor_data
+from megatron.core.activation_store import store_activation, load_activation
 
 from .utils import gather_split_1d_tensor, split_tensor_into_1d_equal_chunks
 
@@ -458,11 +459,154 @@ class CheckpointFunction(torch.autograd.Function):
         grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp for inp in detached_inputs)
         return (None, None) + grads
 
+class CheckpointFunctionWithSavedActivation(torch.autograd.Function):
+    """Checkpoint Function
+
+    This function is adapted from torch.utils.checkpoint with two main changes:
+    1) torch.cuda.set_rng_state is replaced with `_set_cuda_rng_state`
+    2) the states in the model parallel tracker are also properly tracked/set/reset.
+    """
+
+    # pylint: disable=missing-function-docstring
+    @staticmethod
+    def forward(ctx, run_function, distribute_saved_activations, *args):
+        """Forward pass."""
+        ctx.run_function = run_function
+        ctx.distribute_saved_activations = distribute_saved_activations
+
+        # Copy the rng states.
+        ctx.rng_states = _get_all_rng_states()
+
+        with torch.no_grad():
+            outputs = run_function(*args)
+
+        # Divide hidden states across model parallel group and only keep
+        # the chunk corresponding to the current rank.
+        if distribute_saved_activations:
+            ctx.input_0_shape = args[0].data.shape
+            safely_set_viewless_tensor_data(
+                args[0], split_tensor_into_1d_equal_chunks(args[0].data, new_buffer=True)
+            )
+
+        # Store everything.
+        ctx.save_for_backward(*args)
+        save_activation(outputs)
+
+        return outputs
+
+    # pylint: disable=missing-function-docstring
+    @staticmethod
+    def backward(ctx, *args):
+        """Backward pass."""
+        if not torch.autograd._is_checkpoint_valid():
+            raise RuntimeError(
+                "Checkpointing is not compatible with .grad(), "
+                "please use .backward() if possible"
+            )
+        inputs = ctx.saved_tensors
+        if ctx.distribute_saved_activations:
+            safely_set_viewless_tensor_data(
+                inputs[0], gather_split_1d_tensor(inputs[0].data).view(ctx.input_0_shape)
+            )
+
+        with _fork_rng():
+            # Set the states to what it used to be before the forward pass.
+            _set_all_rng_states(*ctx.rng_states)
+
+            # Compute the forward pass.
+            detached_inputs = detach_variable(inputs)
+            with torch.enable_grad():
+                outputs = ctx.run_function(*detached_inputs)
+
+        if isinstance(outputs, torch.Tensor):
+            outputs = (outputs,)
+
+        # filter out non tensor outputs for backward pass
+        outputs, args = zip(
+            *filter(lambda x: torch.is_tensor(x[0]) and x[0].requires_grad, zip(outputs, args))
+        )
+        torch.autograd.backward(outputs, args)
+        grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp for inp in detached_inputs)
+        return (None, None) + grads
+
+class NoRecomputeCheckpointFunction(torch.autograd.Function):
+
+    # pylint: disable=missing-function-docstring
+    @staticmethod
+    def forward(ctx, run_function, distribute_saved_activations, *args):
+        """Forward pass."""
+        ctx.run_function = run_function
+        ctx.distribute_saved_activations = distribute_saved_activations
+
+        # Copy the rng states.
+        ctx.rng_states = _get_all_rng_states()
+
+        # with torch.no_grad():
+        #     outputs = run_function(*args)
+        outputs = load_activation()
+
+        # Divide hidden states across model parallel group and only keep
+        # the chunk corresponding to the current rank.
+        if distribute_saved_activations:
+            ctx.input_0_shape = args[0].data.shape
+            safely_set_viewless_tensor_data(
+                args[0], split_tensor_into_1d_equal_chunks(args[0].data, new_buffer=True)
+            )
+
+        # Store everything.
+        ctx.save_for_backward(*args)
+
+        return outputs
+
+    # pylint: disable=missing-function-docstring
+    @staticmethod
+    def backward(ctx, *args):
+        """Backward pass."""
+        if not torch.autograd._is_checkpoint_valid():
+            raise RuntimeError(
+                "Checkpointing is not compatible with .grad(), "
+                "please use .backward() if possible"
+            )
+        inputs = ctx.saved_tensors
+        if ctx.distribute_saved_activations:
+            safely_set_viewless_tensor_data(
+                inputs[0], gather_split_1d_tensor(inputs[0].data).view(ctx.input_0_shape)
+            )
+
+        with _fork_rng():
+            # Set the states to what it used to be before the forward pass.
+            _set_all_rng_states(*ctx.rng_states)
+
+            # Compute the forward pass.
+            detached_inputs = detach_variable(inputs)
+            with torch.enable_grad():
+                outputs = ctx.run_function(*detached_inputs)
+
+        if isinstance(outputs, torch.Tensor):
+            outputs = (outputs,)
+
+        # filter out non tensor outputs for backward pass
+        outputs, args = zip(
+            *filter(lambda x: torch.is_tensor(x[0]) and x[0].requires_grad, zip(outputs, args))
+        )
+        torch.autograd.backward(outputs, args)
+        grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp for inp in detached_inputs)
+        return (None, None) + grads
+
 
 def checkpoint(function, distribute_saved_activations, *args):
     """Checkpoint a model or part of the model.
     This has been directly copied from torch.utils.checkpoint."""
-    return CheckpointFunction.apply(function, distribute_saved_activations, *args)
+    from megatron.training import get_args
+    args = get_args()
+    if args.ignore_forward_tensor_parallel:
+        from megatron.core.parallel_state import is_forward_rank
+        if is_forward_rank():
+            return CheckpointFunctionWithSavedActivation.apply(function, distribute_saved_activations, *args)
+        else:
+            return NoRecomputeCheckpointFunction.apply(function, distribute_saved_activations, *args)
+    else:
+        return CheckpointFunction.apply(function, distribute_saved_activations, *args)
 
 
 class CheckpointWithoutOutputFunction(torch.autograd.Function):

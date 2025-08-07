@@ -20,6 +20,7 @@ from megatron.core.utils import (
     get_model_xattn,
 )
 from megatron.training import get_args
+import megatron.core.activation_store as ACTS
 
 # Types
 Shape = Union[List[int], torch.Size]
@@ -2353,6 +2354,7 @@ def forward_or_backward_pipelining_without_interleaving(
             #     end_time = time.time()
             #     print('forward_step', i, end_time-start_time)
             send_forward(output_tensor, send_tensor_shapes, config)
+            ACTS.send_activations(config)
         
         # Run 1F1B in steady state.
         for i in range(num_warmup_microbatches, num_microbatches):
@@ -2390,6 +2392,7 @@ def forward_or_backward_pipelining_without_interleaving(
             )
             # print(output_tensor)
             send_forward(output_tensor, send_tensor_shapes, config)
+            ACTS.send_activations(config)
         
         for i in range(num_warmup_microbatches):
             if not parallel_state.is_pipeline_first_stage() and not forward_only:
@@ -2397,6 +2400,8 @@ def forward_or_backward_pipelining_without_interleaving(
                 send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config)
 
     elif not forward_only:
+        for i in range(num_warmup_microbatches):
+            ACTS.recv_activations(config)
         for i in range(num_microbatches):
             # Enable async grad reduction in the last backward pass
             # Note: If grad sync function is provided, only enable
@@ -2426,6 +2431,8 @@ def forward_or_backward_pipelining_without_interleaving(
             if dist.get_rank() == 7 or dist.get_rank() == 3:
                 start_time = time.time()
                 # print('before forward start')
+            if i < num_microbatches - num_warmup_microbatches
+                ACTS.recv_activations(config)
             output_tensor, num_tokens = forward_step(
                 forward_step_func,
                 data_iterator,
