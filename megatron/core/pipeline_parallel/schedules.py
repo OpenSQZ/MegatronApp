@@ -2444,6 +2444,7 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
+            ACTS.next_set()
             torch.cuda.synchronize()
             if dist.get_rank() == 7 or dist.get_rank() == 3:
                 end_time = time.time()
