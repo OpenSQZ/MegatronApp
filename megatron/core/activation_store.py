@@ -38,7 +38,7 @@ class ActivationSet:
             p2p_communication.recv_corresponding_forward(shape, config)
             shapes.append(tuple(shape.tolist()))
         for i in range(num):
-            activation = torch.empty(shapes[i])
+            activation = torch.empty(shapes[i], dtype=config.params_dtype)
             p2p_communication.recv_corresponding_forward(activation, config)
             self.activations.append(activation)
 
