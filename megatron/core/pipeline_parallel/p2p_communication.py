@@ -16,6 +16,9 @@ from megatron.core.parallel_state import (
     get_forward_backward_parallel_group,
     get_forward_backward_parallel_dual_rank,
 )
+from megatron.training import get_args
+from megatron.training.trace import get_tensor_bytes
+from megatron.training.global_vars import get_tracer
 
 # Types
 Shape = Union[List[int], torch.Size]
@@ -131,28 +134,53 @@ def _batched_p2p_ops(
     bypass_controller: bool = False,
 ):
     ops = []
+    args = get_args()
+    if args.trace:
+        group_rank = set()
+        group_rank.add(torch.distributed.get_rank())
     if tensor_send_prev is not None:
         send_prev_op = dist.P2POp(
             dist.isend, tensor_send_prev, prev_pipeline_rank, group
         )
+        if args.trace:
+            tracers = get_tracer()
+            if tracers.get("group") is not None:
+                group_rank.add(prev_pipeline_rank)
         ops.append(send_prev_op)
     if tensor_recv_prev is not None:
         # print('#', dist.get_rank(), prev_pipeline_rank, tensor_recv_prev)
         recv_prev_op = dist.P2POp(
             dist.irecv, tensor_recv_prev, prev_pipeline_rank, group
         )
+        if args.trace:
+            tracers = get_tracer()
+            if tracers.get("group") is not None:
+                group_rank.add(prev_pipeline_rank)
         ops.append(recv_prev_op)
     if tensor_send_next is not None:
         # print(tensor_send_next)
         send_next_op = dist.P2POp(
             dist.isend, tensor_send_next, next_pipeline_rank, group
         )
+        if args.trace:
+            tracers = get_tracer()
+            if tracers.get("group") is not None:
+                group_rank.add(next_pipeline_rank)
         ops.append(send_next_op)
     if tensor_recv_next is not None:
         recv_next_op = dist.P2POp(
             dist.irecv, tensor_recv_next, next_pipeline_rank, group
         )
+        if args.trace:
+            tracers = get_tracer()
+            if tracers.get("group") is not None:
+                group_rank.add(next_pipeline_rank)
         ops.append(recv_next_op)
+    
+    if args.trace:
+        tracers = get_tracer()
+        if tracers.get("group") is not None:
+            tracers.set_group(list(group_rank))
     if len(ops) > 0:
         reqs = dist.batch_isend_irecv(ops, bypass_controller)
     else:
@@ -315,7 +343,7 @@ def _communicate(
         - tensor_recv_next: torch.Tensor if recv_next is True, None otherwise.
 
     """
-    # print(dist.get_rank(), torch.cuda.current_device())
+
     tensor_recv_prev_func = None
     tensor_recv_next_func = None
 
@@ -383,8 +411,6 @@ def _communicate(
     # several different decoder ranks. We therefore have to receive or send tensors
     # from several groups. For convenience, I wrap everything into lists.
     pp_group = get_pipeline_model_parallel_group(extracted=True)
-    # pp = get_pipeline_model_parallel_group()
-    # print(dist.get_rank(), ':', pp[1])
     next_rank = get_pipeline_model_parallel_next_rank()
     prev_rank = get_pipeline_model_parallel_prev_rank()
     if not isinstance(pp_group, list):
@@ -413,7 +439,7 @@ def _communicate(
             tensor_recv_next_list.append(tensor_recv_next)
         else:
             tensor_recv_next = None
-        # print('cm req:', dist.get_rank())
+
         if p2p_func is _batched_p2p_ops:
             p2p_reqs = p2p_func(
                 tensor_send_prev=tensor_send_prev,
@@ -439,14 +465,32 @@ def _communicate(
             reqs.extend(p2p_reqs)
         else:
             reqs.update(p2p_reqs)
-    
+
+    args = get_args()
+    if args.trace:
+        tracers = get_tracer()
+        if tracers.get("data") is not None:
+            data_bytes = 0
+            for t in [tensor_send_prev, tensor_recv_prev, tensor_send_next, tensor_recv_next]:
+                if t is not None:
+                    data_bytes += get_tensor_bytes(t)
+            tracers.set("data", data_bytes)
+
+    if args.trace:
+        tracers = get_tracer()
+        trace_p2p_recv = tracers.get("trace_p2p_recv")
+
+        # For simplicity, we now only support tracing for batched p2p communication.
+        if trace_p2p_recv is not None:
+            assert not config.use_ring_exchange_p2p
+            assert config.batch_p2p_comm
+            assert wait_on_reqs
+
     if wait_on_reqs and len(reqs) > 0:
         for req in reqs if isinstance(reqs, list) else reqs.values():
             req.wait()
         reqs = None
-    
-    import time
-    start_time = time.time()
+
     if (
         (config.batch_p2p_comm and config.batch_p2p_sync)
         # The lists below have a size > 1 only when ETP ≠ DTP,
@@ -457,10 +501,6 @@ def _communicate(
         # To protect against race condition when using batch_isend_irecv().
         # User should assert that we have a modern enough PyTorch to not need this
         torch.cuda.synchronize()
-    
-    end_time = time.time()
-    if dist.get_rank() == 7:
-        print('communicate', end_time-start_time)
 
     def _handle_tensor_list(x):
         """This basically handles all the cases that we expect to see. Either the list None,
@@ -568,7 +608,6 @@ def _forward_backward_communicate(
 
     p2p_func = _forward_backward_p2p_ops
 
-    # print('fbd req:', dist.get_rank())
     reqs = p2p_func(
         tensor_recv_prev=tensor_recv_prev,
         tensor_send_next=tensor_send_next,
