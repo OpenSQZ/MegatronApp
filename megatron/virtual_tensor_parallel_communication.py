@@ -667,7 +667,11 @@ def batch_isend_irecv(p2p_op_list, bypass_controller = False):
     
     # print('batch_isend_irecv start',dist.get_rank())
     # start_time = time.time()
-    reqs = perform_p2p_func(dist.batch_isend_irecv, p2p_op_list)
+    if bypass_controller:
+        reqs = dist.batch_isend_irecv(p2p_op_list)
+        thread_barrier.wait()
+    else:
+        reqs = perform_p2p_func(dist.batch_isend_irecv, p2p_op_list)
     # end_time = time.time()
     # print('batch_isend_irecv', dist.get_rank(), end_time-start_time)
     # reqs = dist.batch_isend_irecv(p2p_op_list)

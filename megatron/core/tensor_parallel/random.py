@@ -490,7 +490,7 @@ class CheckpointFunctionWithSavedActivation(torch.autograd.Function):
 
         # Store everything.
         ctx.save_for_backward(*args)
-        save_activation(outputs)
+        store_activation(outputs)
 
         return outputs
 
@@ -598,10 +598,10 @@ def checkpoint(function, distribute_saved_activations, *args):
     """Checkpoint a model or part of the model.
     This has been directly copied from torch.utils.checkpoint."""
     from megatron.training import get_args
-    args = get_args()
-    if args.ignore_forward_tensor_parallel:
-        from megatron.core.parallel_state import is_forward_rank
-        if is_forward_rank():
+    megatron_args = get_args()
+    if megatron_args.ignore_forward_tensor_parallel:
+        from megatron.core.parallel_state import is_forward_stage
+        if is_forward_stage():
             return CheckpointFunctionWithSavedActivation.apply(function, distribute_saved_activations, *args)
         else:
             return NoRecomputeCheckpointFunction.apply(function, distribute_saved_activations, *args)

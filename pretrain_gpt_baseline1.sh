@@ -5,17 +5,12 @@
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 # export CUDA_LAUNCH_BLOCKING=1
 
-GPUS_PER_NODE=3
+GPUS_PER_NODE=4
 # Change for multinode config
 MASTER_ADDR=192.168.0.1
 MASTER_PORT=6002
 NNODES=2
 NODE_RANK=$1
-WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES+1))
-if [ "$NODE_RANK" -eq 0 ]; then
-    ((GPUS_PER_NODE++))
-fi
-echo $GPUS_PER_NODE
 TENSOR_MP_SIZE=2
 PIPELINE_MP_SIZE=2
 VIRTUAL_STAGE_LAYER=1
@@ -56,8 +51,6 @@ GPT_ARGS="
     --pipeline-model-parallel-size $PIPELINE_MP_SIZE \
     --tensor-model-parallel-size $TENSOR_MP_SIZE
     --transformer-impl local
-    --forward-backward-disaggregating
-    --ignore-forward-tensor-parallel
 "
 
 # granularity
@@ -77,7 +70,7 @@ OUTPUT_ARGS="
     --eval-iters 10
 "
 
-REPORT_NAME="report$NODE_RANK.txt"
+REPORT_NAME="report_baseline1_$NODE_RANK.txt"
 
 # nsys profile \
 #     --stats=true \

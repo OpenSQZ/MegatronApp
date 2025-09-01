@@ -380,8 +380,6 @@ class TransformerBlock(MegatronModule):
                 hidden_states, context = checkpoint_handler(
                     custom(layer_idx, layer_idx + self.config.recompute_num_layers)
                 )
-                if args.ignore_forward_tensor_parallel:
-                    store_activation(hidden_states)
 
                 layer_idx += self.config.recompute_num_layers
 

@@ -242,7 +242,8 @@ def _forward_backward_p2p_ops(
     *,
     tensor_recv_prev: Optional[torch.Tensor],
     tensor_send_next: Optional[torch.Tensor],
-    group: torch.distributed.ProcessGroup
+    group: torch.distributed.ProcessGroup,
+    bypass_controller: bool = False
 ):
     ops = []
     if tensor_recv_prev is not None:
@@ -265,7 +266,7 @@ def _forward_backward_p2p_ops(
         ops.append(send_next_op)
     # print('#',len(ops),'#')
     if len(ops) > 0:
-        reqs = dist.batch_isend_irecv(ops)
+        reqs = dist.batch_isend_irecv(ops, bypass_controller)
     else:
         reqs = []
     return reqs
@@ -494,7 +495,9 @@ def _forward_backward_communicate(
     recv_next: bool,
     tensor_shape: Shape,
     config: ModelParallelConfig,
-    wait_on_reqs: bool = True
+    wait_on_reqs: bool = True,
+    dtype = None,
+    bypass_controller: bool = False
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Communicate tensors between stages. Used as helper method in other
     communication methods that are used in megatron/schedules.py.
@@ -545,12 +548,19 @@ def _forward_backward_communicate(
                 "tensor_shape must be specified if recv_prev is True. "
                 "Common tensor_shape is (seq_length, micro_batch_size, hidden_size)"
             )
-        tensor_recv_prev = torch.empty(
-            recv_prev_shape,
-            requires_grad=True,
-            device=torch.cuda.current_device(),
-            dtype=config.pipeline_dtype,
-        )
+        if dtype is not None:
+            tensor_recv_prev = torch.empty(
+                recv_prev_shape,
+                device=torch.cuda.current_device(),
+                dtype=dtype,
+            )
+        else:
+            tensor_recv_prev = torch.empty(
+                recv_prev_shape,
+                requires_grad=True,
+                device=torch.cuda.current_device(),
+                dtype=config.pipeline_dtype,
+            )
     if recv_next:
         if config.pipeline_dtype is None:
             raise RuntimeError("dtype must be provided if recv_next is True")
@@ -559,21 +569,34 @@ def _forward_backward_communicate(
                 "tensor_shape must be specified if recv_next is True. "
                 "Common tensor_shape is (seq_length, micro_batch_size, hidden_size)"
             )
-        tensor_recv_next = torch.empty(
-            recv_next_shape,
-            requires_grad=True,
-            device=torch.cuda.current_device(),
-            dtype=config.pipeline_dtype,
-        )
+        if dtype is not None:
+            tensor_recv_next = torch.empty(
+                recv_next_shape,
+                device=torch.cuda.current_device(),
+                dtype=config.pipeline_dtype,
+            )
+        else:
+            tensor_recv_next = torch.empty(
+                recv_next_shape,
+                requires_grad=True,
+                device=torch.cuda.current_device(),
+                dtype=dtype,
+            )
 
     p2p_func = _forward_backward_p2p_ops
 
     # print('fbd req:', dist.get_rank())
+    import time
+    start_time = time.time()
     reqs = p2p_func(
         tensor_recv_prev=tensor_recv_prev,
         tensor_send_next=tensor_send_next,
         group=get_forward_backward_parallel_group(extracted = True),
+        bypass_controller = bypass_controller
     )
+    end_time = time.time()
+    # if dist.get_rank() == 3 or dist.get_rank() == 7:
+    #     print('p2p time:', end_time-start_time)
 
     if wait_on_reqs and len(reqs) > 0:
         for req in reqs:
@@ -613,7 +636,7 @@ def recv_forward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Tens
             config.timers('forward-recv').stop()
     return input_tensor
 
-def recv_corresponding_forward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Tensor:
+def recv_corresponding_forward(tensor_shape: Shape, config: ModelParallelConfig, dtype = None, bypass_controller = False) -> torch.Tensor:
     """ Receive tensor from previous rank in pipeline (forward receive).
 
 
@@ -629,6 +652,8 @@ def recv_corresponding_forward(tensor_shape: Shape, config: ModelParallelConfig)
         recv_next=False,
         tensor_shape=tensor_shape,
         config=config,
+        dtype=dtype,
+        bypass_controller=bypass_controller 
     )
 
     assert output_tensor_grad is not None
@@ -681,7 +706,7 @@ def send_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> No
         if config.timers is not None:
             config.timers('forward-send').stop()
 
-def send_corresponding_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> None:
+def send_corresponding_forward(output_tensor: torch.Tensor, config: ModelParallelConfig, bypass_controller = False) -> None:
     """Send tensor to next rank in pipeline (forward send).
 
     See _communicate for argument details.
@@ -695,6 +720,7 @@ def send_corresponding_forward(output_tensor: torch.Tensor, config: ModelParalle
         recv_next=False,
         tensor_shape=None,
         config=config,
+        bypass_controller=bypass_controller,
     )
     if config.timers is not None:
         config.timers('forward-send').stop()

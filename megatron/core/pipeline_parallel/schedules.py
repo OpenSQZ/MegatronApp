@@ -1835,13 +1835,13 @@ def recv_forward(tensor_shapes, config):
             input_tensors.append(p2p_communication.recv_forward(tensor_shape, config))
     return input_tensors
 
-def recv_corresponding_forward(tensor_shapes, config):
+def recv_corresponding_forward(tensor_shapes, config, bypass_controller = False):
     input_tensors = []
     for tensor_shape in tensor_shapes:
         if tensor_shape is None:
             input_tensors.append(None)
         else:
-            input_tensors.append(p2p_communication.recv_corresponding_forward(tensor_shape, config))
+            input_tensors.append(p2p_communication.recv_corresponding_forward(tensor_shape, config, bypass_controller=bypass_controller))
     return input_tensors
 
 def recv_backward(tensor_shapes, config):
@@ -1864,13 +1864,13 @@ def send_forward(output_tensors, tensor_shapes, config):
             continue
         p2p_communication.send_forward(output_tensor, config)
 
-def send_corresponding_forward(output_tensors, tensor_shapes, config):
+def send_corresponding_forward(output_tensors, tensor_shapes, config, bypass_controller = False):
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
     for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
         if tensor_shape is None:
             continue
-        p2p_communication.send_corresponding_forward(output_tensor, config)
+        p2p_communication.send_corresponding_forward(output_tensor, config, bypass_controller=bypass_controller)
 
 def send_backward(input_tensor_grads, tensor_shapes, config):
     """Wrapper for p2p_communication.send_backward used with non-interleaving schedule."""
@@ -2105,7 +2105,7 @@ def forward_backward_pipelining_without_interleaving(
             encoder_decoder_xattn=encoder_decoder_xattn,
         )
 
-        if dist.get_rank() == 3:
+        if dist.get_rank() == 3 or dist.get_rank() == 7:
             end_time = time.time()
             print('forward_step',end_time-start_time)
 
@@ -2141,7 +2141,7 @@ def forward_backward_pipelining_without_interleaving(
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
-            if dist.get_rank() == 3:
+            if dist.get_rank() == 3 or dist.get_rank() == 7:
                 end_time = time.time()
                 print('backward_step',end_time-start_time)
             if last_iteration:
@@ -2151,7 +2151,7 @@ def forward_backward_pipelining_without_interleaving(
                 input_tensor = send_backward_recv_forward(
                     input_tensor_grad, recv_tensor_shapes, config
                 )
-            if dist.get_rank() == 3:
+            if dist.get_rank() == 3 or dist.get_rank() == 7:
                 end_time = time.time()
                 print('send_backward_recv_forward',end_time-start_time)
 
@@ -2324,6 +2324,8 @@ def forward_or_backward_pipelining_without_interleaving(
     )
     num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     # print('?')
+    ACTS.init_sets()
+    dist.barrier()
     
     if forward_only or parallel_state.is_forward_stage():
         # Run warmup forward passes.
@@ -2354,7 +2356,8 @@ def forward_or_backward_pipelining_without_interleaving(
             #     end_time = time.time()
             #     print('forward_step', i, end_time-start_time)
             send_forward(output_tensor, send_tensor_shapes, config)
-            ACTS.send_activations(config)
+            if not forward_only:
+                ACTS.send_activations(config)
         
         # Run 1F1B in steady state.
         for i in range(num_warmup_microbatches, num_microbatches):
@@ -2362,10 +2365,6 @@ def forward_or_backward_pipelining_without_interleaving(
             # print('#step', i, input_tensor)
             # if dist.get_rank() == 4:
             #     start_time = time.time()
-            if not parallel_state.is_pipeline_first_stage() and not forward_only:
-                input_tensors.append(input_tensor)
-                input_tensor_to_backward = input_tensors.pop(0)
-                send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config)
             # if dist.get_rank() == 4:
             #     end_time = time.time()
             #     print('forward_step', i, end_time-start_time)
@@ -2391,8 +2390,18 @@ def forward_or_backward_pipelining_without_interleaving(
                 checkpoint_activations_microbatch,
             )
             # print(output_tensor)
+            # if dist.get_rank() == 1:
+            #     start_time = time.time()
             send_forward(output_tensor, send_tensor_shapes, config)
-            ACTS.send_activations(config)
+            if not parallel_state.is_pipeline_first_stage() and not forward_only:
+                input_tensors.append(input_tensor)
+                input_tensor_to_backward = input_tensors.pop(0)
+                send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config, bypass_controller = True)
+            if not forward_only:
+                ACTS.send_activations(config)
+            # if dist.get_rank() == 1:
+            #     end_time = time.time()
+            #     print('after send acts', i, end_time-start_time)
         
         for i in range(num_warmup_microbatches):
             if not parallel_state.is_pipeline_first_stage() and not forward_only:
@@ -2421,18 +2430,19 @@ def forward_or_backward_pipelining_without_interleaving(
 
             # if dist.get_rank() == 7 or dist.get_rank() == 3:
             #     print('receiving forward')
-
-            input_tensor = None
-            if not parallel_state.is_pipeline_first_stage():
-                input_tensor = recv_corresponding_forward(recv_tensor_shapes, config)
-            # if dist.get_rank() == 6:
-            #     start_time = time.time()
-            torch.cuda.synchronize()
             if dist.get_rank() == 7 or dist.get_rank() == 3:
                 start_time = time.time()
+            input_tensor = None
+            if not parallel_state.is_pipeline_first_stage():
+                input_tensor = recv_corresponding_forward(recv_tensor_shapes, config, bypass_controller = True)
+            # if dist.get_rank() == 6:
+            #     start_time = time.time()
                 # print('before forward start')
-            if i < num_microbatches - num_warmup_microbatches
+            if i < num_microbatches - num_warmup_microbatches:
                 ACTS.recv_activations(config)
+            if dist.get_rank() == 7 or dist.get_rank() == 3:
+                end_time = time.time()
+                print('after recv acts', i, end_time-start_time)
             output_tensor, num_tokens = forward_step(
                 forward_step_func,
                 data_iterator,
