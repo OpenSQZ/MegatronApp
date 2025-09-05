@@ -140,22 +140,28 @@ class TensorTracers:
             tensor_list = [torch.zeros_like(tensor_data_cont, dtype=tensor_data_cont.dtype, device=device) for _ in range(world_size)]
         else:
             tensor_list = None
-        dist.gather(tensor_data_cont, tensor_list, dst=0, group=get_tensor_model_parallel_group())
+        if world_size > 1:
+            dist.gather(tensor_data_cont, tensor_list, dst=0, group=get_tensor_model_parallel_group())
+        else:
+            tensor_list = [tensor_data_cont]
 
         if rank == 0:
             aggregated_tensor = None
 
             if name[1] == FlagType.QKV_mat_mul:
-                tensor_list0, tensor_list1, tensor_list2 = [], [], []
-                for id_rank in range(world_size):
-                    chunks = torch.chunk(tensor_list[id_rank], 3, dim=2)
-                    tensor_list0.append(chunks[0])
-                    tensor_list1.append(chunks[1])
-                    tensor_list2.append(chunks[2])
-                tensor0 = torch.cat(tensor_list0, dim=2)
-                tensor1 = torch.cat(tensor_list1, dim=2)
-                tensor2 = torch.cat(tensor_list2, dim=2)
-                aggregated_tensor = torch.cat([tensor0, tensor1, tensor2], dim=2)
+                if world_size > 1:
+                    tensor_list0, tensor_list1, tensor_list2 = [], [], []
+                    for id_rank in range(world_size):
+                        chunks = torch.chunk(tensor_list[id_rank], 3, dim=2)
+                        tensor_list0.append(chunks[0])
+                        tensor_list1.append(chunks[1])
+                        tensor_list2.append(chunks[2])
+                    tensor0 = torch.cat(tensor_list0, dim=2)
+                    tensor1 = torch.cat(tensor_list1, dim=2)
+                    tensor2 = torch.cat(tensor_list2, dim=2)
+                    aggregated_tensor = torch.cat([tensor0, tensor1, tensor2], dim=2)
+                else:
+                    aggregated_tensor = tensor_data_cont
 
             elif name[1] == FlagType.RawAttentionScore_mat_mul:
                 aggregated_tensor = torch.cat(tensor_list, dim=1)
@@ -236,9 +242,10 @@ class TTFlags:
             FlagType.MLP2_mat_mul: {i: False for i in range(1, self.num_layers + 1)},
             FlagType.MLP2_Plot: {i: False for i in range(1, self.num_layers + 1)},
         }
+        self.should_trace = True
 
     def get_flag(self, flag_type: FlagType, layer_index: int) -> bool:
-        return self.flags.get(flag_type, {}).get(layer_index, False)
+        return self.should_trace and self.flags.get(flag_type, {}).get(layer_index, False)
 
     def set_by_configs(self, configs: Dict[str, Any]):
         val = True if configs.get("QKV_mat_mul", "False").lower() == "true" else False

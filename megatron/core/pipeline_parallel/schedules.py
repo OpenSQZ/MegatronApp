@@ -266,6 +266,9 @@ def forward_step(
         Tensor or list[Tensor]: The output object(s) from the forward step.
         Tensor: The number of tokens.
     """
+    from megatron.core.tensor_tracer import get_tt_flags
+    get_tt_flags().should_trace = True
+
     if config.timers is not None:
         config.timers('forward-compute', log_level=2).start()
 
@@ -371,6 +374,7 @@ def forward_step(
         else:
             MTPLossAutoScaler.set_loss_scale(loss_scale / num_microbatches)
 
+    get_tt_flags().should_trace = False
     # If T5 model and in decoder stack, then send encoder_hidden_state
     # downstream as well.
     model_type = get_model_type(model)

@@ -115,7 +115,9 @@ from . import one_logger_utils
 
 from . import ft_integration
 
-from .training_wsserver import TrainingWSServer, start_training_event, _request_configs, _request_lock, get_websocket, data_queue
+from .training_wsserver import websocket_server_process
+import multiprocessing
+import queue
 
 import shm_tensor_new_rdma, shm_tensor_new_rdma_pre_alloc
 import numpy as np
@@ -1969,9 +1971,27 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     timers = get_timers()
     one_logger = get_one_logger()
 
+    ws_process = None
+    try:
+        multiprocessing.set_start_method('spawn', force=True)
+    except RuntimeError:
+        pass
     if args.training_ws_port is not None and mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
-        server = TrainingWSServer(port=args.training_ws_port)
-        server.start()
+        data_queue = multiprocessing.Queue()
+        config_queue = multiprocessing.Queue(maxsize=1)
+        start_training_event = multiprocessing.Event()
+        shutdown_event = multiprocessing.Event()
+        training_args_dict = {
+            "micro_batch_size": args.micro_batch_size,
+            "seq_length": args.seq_length,
+            "num_layers": args.num_layers
+        }
+        ws_process = multiprocessing.Process(
+            target=websocket_server_process,
+            args=(args.training_ws_port, data_queue, config_queue, start_training_event, shutdown_event, training_args_dict),
+            daemon=True
+        )
+        ws_process.start()
         from megatron.core.tensor_tracer import FlagType, set_report
         def report_func(name_tuple, report_args, tensor_data):
             # name_tuple is (layer_id, FlagType)
@@ -1980,6 +2000,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             try:
                 if name_tuple[1] == FlagType.INVALID_FLAG:
                     return
+                torch.cuda.synchronize()
                 data_queue.put_nowait((name_tuple, report_args, tensor_data.to('cpu', non_blocking=True)))
             except Exception as e:
                 pass
@@ -1992,10 +2013,10 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             print_rank_0("Command received. Synchronizing configs across all ranks...")
 
         if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
-            with _request_lock:
-                vis_flags = _request_configs.get('visualization_flags', {})
-                dist_configs = _request_configs.get('disturbance_configs', {})
-                comp_configs = _request_configs.get('compressor_config', {})
+            received_configs = config_queue.get()
+            vis_flags = received_configs.get('visualization_flags', {})
+            dist_configs = received_configs.get('disturbance_configs', {})
+            comp_configs = received_configs.get('compressor_config', {})
             configs_to_broadcast = [vis_flags, dist_configs, comp_configs]
         else:
             configs_to_broadcast = [None, None, None]
@@ -2010,14 +2031,6 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         get_compressor().set_by_configs(comp_configs)
 
         print_rank_0("Configs synchronized. Starting training.")
-
-        if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
-            get_websocket().send(json.dumps({
-                "type": "start",
-                "micro_batch_size": args.micro_batch_size,
-                "seq_length": args.seq_length,
-                "num_layers": args.num_layers
-            }))
 
     if args.run_workload_inspector_server:
         try:
@@ -2329,6 +2342,18 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                                  checkpointing_context, train_data_iterator)
         if should_exit:
             break
+
+    if ws_process:
+        print_rank_0("Signaling WebSocket process to shut down...")
+        shutdown_event.set()
+        data_queue.close()
+        config_queue.close()
+        data_queue.cancel_join_thread()
+        config_queue.cancel_join_thread()
+        ws_process.join(timeout=5)
+        if ws_process.is_alive():
+            print_rank_0("WebSocket process did not shut down cleanly, terminating.")
+            ws_process.terminate()
 
     one_logger_utils.track_e2e_metrics()
     
