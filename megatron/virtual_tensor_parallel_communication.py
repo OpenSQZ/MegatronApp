@@ -989,7 +989,7 @@ def all_gather_object(object_list, obj, group=None):
 
 def gather_object(obj, object_list, dst=0, group=None):
     if normal_communication:
-        return gather_object(obj, object_list, dst, group)
+        return dist.gather_object(obj, object_list, dst, group)
     global use_thread_communication
     global result
     global new_tensor
