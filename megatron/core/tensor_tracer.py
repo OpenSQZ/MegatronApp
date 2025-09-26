@@ -1,3 +1,17 @@
+# Copyright 2025 Suanzhi Future Co., Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+
 import torch
 import math
 import megatron.virtual_tensor_parallel_communication as dist
@@ -73,6 +87,18 @@ class DefaultCompressor:
         }
     def set_by_configs(self, configs: Dict[str, Any]):
         self.configs = configs
+    def compress_tensor(self, data_in, pixels, method):
+        B, S, F = data_in.shape
+        chunk_size = math.ceil(F / pixels)
+        padded_len = chunk_size * pixels
+        padded_data = torch.nn.functional.pad(data_in, (0, padded_len - F))
+        data_for_eval = padded_data.reshape(B, S, pixels, chunk_size)
+        try:
+            compressed = eval(method, {}, {"data": data_for_eval})
+        except Exception as e:
+            print(f"Error in compressing tensor with method '{method}': {e}")
+            compressed = data_for_eval.mean(dim=-1)
+        return compressed
     def compress_1d_tensor(self, data_in, pixels, method):
         B, S, F = data_in.shape
         chunk_size = math.ceil(F / pixels)
@@ -99,18 +125,21 @@ class DefaultCompressor:
 class TensorTracers:
     def __init__(self) -> None: pass
 
-    @staticmethod
-    def report(name, tensor_data):
+    def report(self, name, tensor_data):
+        from megatron.core.parallel_state import get_tensor_model_parallel_group, get_tensor_model_parallel_world_size, get_tensor_model_parallel_rank
         device = torch.cuda.current_device()
-        world_size = dist.get_world_size()
-        rank = dist.get_rank()
+        world_size = get_tensor_model_parallel_world_size()
+        rank = get_tensor_model_parallel_rank()
 
+        if name[1] == FlagType.QKV_mat_mul:
+            tensor_data = get_compressor().compress_tensor(tensor_data, get_compressor().configs["QKV"]["pixels"], get_compressor().configs["QKV"]["method"])
+        elif name[1] == FlagType.MLP1_mat_mul or name[1] == FlagType.MLP2_mat_mul or name[1] == FlagType.ContextLayer_mat_mul:
+            tensor_data = get_compressor().compress_tensor(tensor_data, get_compressor().configs["MLP"]["pixels"], get_compressor().configs["MLP"]["method"])
         tensor_data_cont = tensor_data.contiguous()
         if rank == 0:
             tensor_list = [torch.zeros_like(tensor_data_cont, dtype=tensor_data_cont.dtype, device=device) for _ in range(world_size)]
         else:
             tensor_list = None
-        from megatron.core.parallel_state import get_tensor_model_parallel_group
         dist.gather(tensor_data_cont, tensor_list, dst=0, group=get_tensor_model_parallel_group())
 
         if rank == 0:
@@ -155,7 +184,7 @@ class TensorTracers:
 
     def tik_tensor(self, name, raw):
         with torch.no_grad():
-            TensorTracers.report(name, raw)
+            TensorTracers.report(self, name, raw.detach())
 
     def tik_result(self, result_logits, sampled_token_ids):
         name = (0, FlagType.Result)

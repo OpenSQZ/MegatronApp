@@ -16,9 +16,18 @@ Extension for performance tuning, slow-node detection, and training-process visu
 </div>
 
 # 🔥 Demo
-Insert a product demo.
+**MegaScan**
 
-It is recommended that the demo is within 2mins.
+<img width="540" height="295" alt="image" src="https://github.com/user-attachments/assets/393e833d-d356-4611-82bb-ab782874e92c" />
+
+<img width="540" height="295" alt="image" src="https://github.com/user-attachments/assets/d00c387c-78eb-42eb-8f13-8001782c9e9e" />
+
+
+**MegaScope**
+
+<img width="540" height="295" alt="image" src="https://github.com/user-attachments/assets/ac39289d-de2c-474c-a173-b4bd23e98299" />
+
+
 
 # 🌟 Overview
 <!-- TraceMegatron is a tool designed to identify and diagnose performance bottlenecks in distributed training environments, particularly in the context of Megatron-LM. It helps visualize the training process in a global view and gives a heuristic-based algorithm to pinpoint the slowest rank with the most probable cause of the slowdown. This tool is particularly useful for developers and researchers working with large-scale distributed training systems, enabling them to optimize their training processes and improve overall efficiency. -->
@@ -33,6 +42,8 @@ The project currently offers four core modules:
 - MegaScope – Dynamically captures, processes, and caches intermediate results during training according to user-defined metrics, then displays them through an interactive visualization interface. MegaScope aims to make the "black box" of Large Language Models transparent. With this tool, user can observe and analyze things that happen inside a model as it processes text, such as how attention scores and output probabilities are distributed, how the vector representations change among different tokens and prompts.
 
 The four modules are fully isolated and integrated into the Megatron-LM codebase as plugins; users can flexibly enable or disable any of them at launch via control flags.
+
+The technical report of MegatronApp can be seen [here](./MegatronApp.pdf).
 
 # ✨ Core Features
 <!-- List 3~5 core features of the project.
@@ -157,6 +168,10 @@ pip install -r requirements.txt
 
 We provide a basic repro for you to quickly get started with MegaScan.
 
+0. Data preparation:
+
+Please refer to [README_Megatron.md](README_Megatron.md) section "Dataset Preparation" and Nvidia's [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) for more details.
+
 1. Run Megatron-LM training with MegaScan enabled by adding the following command line arguments:
 
 ```bash
@@ -164,10 +179,14 @@ We provide a basic repro for you to quickly get started with MegaScan.
 --trace-dir trace_output
 --trace-interval 5 # optional, default is 5 iterations
 --continuous-trace-iterations 2 # optional, default is 2 iterations
+--trace-granularity full # optional, default is full
 --transformer-impl local # currently only support local transformer implementation
 ```
 
 `examples/gpt3/train_gpt3_345m_distributed.sh` is an example script. You can modify the script to suit your needs.
+
+If you want to train on multiple nodes, change the `GPU_PER_NODE`, `NUM_NODES`, `MASTER_ADDR`, `MASTER_PORT`, `NODE_RANK`, `WORLD_SIZE` in the script accordingly.
+Alternatively you can use elastic training. See [torchrun](https://docs.pytorch.org/docs/stable/elastic/run.html) for more details.
 
 2. After training, you will find separated trace files in the current directory. The trace files are named as `benchmark-data-{}-pipeline-{}-tensor-{}.json`, where `{}` is the rank number. Now we should aggregate the trace files into a single trace file:
 
@@ -206,13 +225,21 @@ python scripts/aggregate.py --b trace_output --output benchmark.json
 ### 1. Launch the Service
 First, start the backend and frontend servers.
 
-**Backend (Megatron)**: Run the text generation server script, pointing it to your model and tokenizer paths.
+**Backend (Megatron)**: For inference mode, run the text generation server script, pointing it to your model and tokenizer paths, **and make sure to turn on the switch `--enable-ws-server` in the argument**.
 ```bash
 bash examples/inference/a_text_generation_server_bash_script.sh /path/to/model /path/to/tokenizer
 ```
 For example
 ```bash
 bash examples/inference/llama_mistral/run_text_generation_llama3.sh /gfshome/llama3-ckpts/Meta-Llama-3-8B-Instruct-megatron-core-v0.12.0-TP1PP1 /root/llama3-ckpts/Meta-Llama-3-8B-Instruct
+```
+For training mode, run the training script, **and add `--training-ws-port XXX` (e.g. `--training-ws-port 5000`) to the argument**. The typical command is
+```bash
+bash a_pretrain_script.sh $RANK
+```
+For example
+```bash
+bash pretrain_gpt.sh 0
 ```
 
 **Frontend (Vue)**: Navigate to the frontend directory and start the development server.
@@ -247,7 +274,7 @@ The currently supported noise types include:
 ![](images/perturbation.jpg)
 
 ### 4. Support for training process
-The preliminary support for visualization during training process are provided as well. By adding argument `--training-ws-port XXX` in the training script args, the training process will be controlled on the frontend page. Critical intermediate results and perturbations are supported in training.
+The similar support for visualization during training process are provided as well. The overall control is the same, and the training process will be controlled on the frontend page. Critical intermediate results and perturbations are supported in training.
 ![](images/training.jpg)
 
 ## MegaDPP
@@ -452,6 +479,7 @@ There are two extra options: `--forward-backward-disaggregating` and `--ignore-f
 
   Enables merging forward ranks within the same TP group. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the correct number of ranks.
 
+Currently Context Parallel and Expert parallel are not supported. `--tranformer-impl` should be `local`.
 
 # 🛠️ Security Policy
 
@@ -467,9 +495,6 @@ An overview of the vulnerability handling process is:
 
 - The project publicly announces the vulnerability and describes how to apply the fix.
 
-# 🚰 Citation
-If you use or extend our work, please kindly cite xxx.
-
 # Contributing
 Contributions and collaborations are welcome and highly appreciated. Check out the [contributor guide]() and get involved.
 
@@ -477,9 +502,6 @@ Contributions and collaborations are welcome and highly appreciated. Check out t
 This project is licensed under the Apache 2.0 License, see the LICENSE file for details. 
 
 # 🌐 Community and Support
-Provide contact information, including
+Use WeChat to scan blow QR code.
 
-- Email(user/dev email addresses, with self-subscribe service)
-- Discord / Slack
-- WeChat / DingTalk
-- Twitter / Zhihu...
+![](images/code.png)

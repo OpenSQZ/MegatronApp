@@ -131,6 +131,7 @@ def _batched_p2p_ops(
     group: torch.distributed.ProcessGroup,
     prev_pipeline_rank: int,
     next_pipeline_rank: int,
+    bypass_controller: bool = False,
 ):
     ops = []
     args = get_args()
@@ -181,7 +182,7 @@ def _batched_p2p_ops(
         if tracers.get("group") is not None:
             tracers.set_group(list(group_rank))
     if len(ops) > 0:
-        reqs = dist.batch_isend_irecv(ops)
+        reqs = dist.batch_isend_irecv(ops, bypass_controller)
     else:
         reqs = []
     return reqs
@@ -308,6 +309,7 @@ def _communicate(
     tensor_shape: Shape,
     config: ModelParallelConfig,
     wait_on_reqs: bool = True,
+    bypass_controller: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Communicate tensors between stages. Used as helper method in other
     communication methods that are used in megatron/schedules.py.
@@ -438,15 +440,27 @@ def _communicate(
         else:
             tensor_recv_next = None
 
-        p2p_reqs = p2p_func(
-            tensor_send_prev=tensor_send_prev,
-            tensor_recv_prev=tensor_recv_prev,
-            tensor_send_next=tensor_send_next,
-            tensor_recv_next=tensor_recv_next,
-            group=group,
-            prev_pipeline_rank=pr,
-            next_pipeline_rank=nr,
-        )
+        if p2p_func is _batched_p2p_ops:
+            p2p_reqs = p2p_func(
+                tensor_send_prev=tensor_send_prev,
+                tensor_recv_prev=tensor_recv_prev,
+                tensor_send_next=tensor_send_next,
+                tensor_recv_next=tensor_recv_next,
+                group=group,
+                prev_pipeline_rank=pr,
+                next_pipeline_rank=nr,
+                bypass_controller=bypass_controller,
+            )
+        else:
+            p2p_reqs = p2p_func(
+                tensor_send_prev=tensor_send_prev,
+                tensor_recv_prev=tensor_recv_prev,
+                tensor_send_next=tensor_send_next,
+                tensor_recv_next=tensor_recv_next,
+                group=group,
+                prev_pipeline_rank=pr,
+                next_pipeline_rank=nr,
+            )
         if isinstance(p2p_reqs, list):
             reqs.extend(p2p_reqs)
         else:
@@ -679,6 +693,7 @@ def recv_backward(tensor_shape: Shape, config: ModelParallelConfig) -> torch.Ten
             recv_next=True,
             tensor_shape=tensor_shape,
             config=config,
+            bypass_controller=True,
         )
         if config.timers is not None:
             config.timers('backward-recv').stop()
@@ -738,6 +753,7 @@ def send_backward(input_tensor_grad: torch.Tensor, config: ModelParallelConfig) 
             recv_next=False,
             tensor_shape=None,
             config=config,
+            bypass_controller=True,
         )
         if config.timers is not None:
             config.timers('backward-send').stop()

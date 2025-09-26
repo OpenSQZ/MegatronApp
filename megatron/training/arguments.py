@@ -2711,4 +2711,9 @@ def _add_experimental_args(parser):
                           help='Interval for periodic tracing.')
     group.add_argument('--continuous-trace-iterations', type=int, default=1,
                        help='Number of continuous iterations to trace within each interval.')
+    group.add_argument('--trace-granularity', type=str, default='full',
+                       choices=['base', 'full'],
+                       help='Tracing granularity. "base" traces a small set of core events,'
+                            ' "full" traces more detailed events.')
+
     return parser
