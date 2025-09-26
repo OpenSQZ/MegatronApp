@@ -252,7 +252,7 @@ The preliminary support for visualization during training process are provided a
 
 ## MegaDPP
 
-## Environment Configuration
+### Environment Configuration
 
 - The following is the pod configuration.
 
@@ -295,9 +295,9 @@ cd megatron/shm_tensor_new_rdma_pre_alloc
 pip install -e .
 ```
 
-## Run
+### Run
 
-### Dataset Preparation
+#### Dataset Preparation
 
 The dataset preparation step follows largely from the Megatron framework.
 
@@ -340,7 +340,7 @@ python ../tools/preprocess_data.py \
 
 For other models, please refer to `nvidia/megatron` for the corresponding datasets.
 
-### Single Node Distributed Training
+#### Single Node Distributed Training
 To run distributed training on a single node, go to the project root directory and run
 
 ```bash
@@ -379,7 +379,7 @@ bash examples/<model>/<train_file>.sh
 ```
 or write a file similar to `run_{single,master,worker}_<model>.sh` that sets up configurations and runs the shell under `examples/`
 
-### Multinode Distributed Training
+#### Multinode Distributed Training
 To run distributed training on multiple nodes, go to the root directory. First run
 
 ```bash
