@@ -2204,6 +2204,9 @@ def forward_backward_pipelining_without_interleaving(
     if hasattr(config, 'enable_cuda_graph') and config.enable_cuda_graph:
         create_cudagraphs()
 
+    import megatron.virtual_tensor_parallel_communication as vt
+    vt.print_memory_usage()
+
     return forward_data_store
 
 def forward_or_backward_pipelining_without_interleaving(
@@ -2316,6 +2319,7 @@ def forward_or_backward_pipelining_without_interleaving(
         input_tensors = []
         output_tensors = []
     forward_data_store = []
+    total_num_tokens = torch.tensor(0, dtype=torch.int).cuda()
 
     num_warmup_microbatches = (
         parallel_state.get_pipeline_model_parallel_world_size()
@@ -2352,6 +2356,7 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
+            total_num_tokens += num_tokens
             # if dist.get_rank() == 0:
             #     end_time = time.time()
             #     print('forward_step', i, end_time-start_time)
@@ -2389,6 +2394,7 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
+            total_num_tokens += num_tokens
             # print(output_tensor)
             # if dist.get_rank() == 1:
             #     start_time = time.time()
@@ -2454,6 +2460,7 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
+            total_num_tokens += num_tokens
             ACTS.next_set()
             torch.cuda.synchronize()
             if dist.get_rank() == 7 or dist.get_rank() == 3:
@@ -2520,5 +2527,6 @@ def forward_or_backward_pipelining_without_interleaving(
             [model], total_num_tokens if config.calculate_per_token_loss else None
         )
         # distrib_grad.finalize_model_grads([model])
+    dist.print_memory_usage()
 
     return forward_data_store

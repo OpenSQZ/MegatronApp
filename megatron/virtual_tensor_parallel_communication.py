@@ -29,6 +29,35 @@ class Handle():
     def wait(self):
         pass
 
+class VirtualGroup():
+    def __init__(self, group, controller, tag):
+        self.tag = tag
+        self.controller = controller
+        self.group = group
+
+    def rank(self,):
+        if self.tag == 2:
+            if not use_thread_communication:
+                res = self.group.rank()
+            else:
+                res = get_thread_index()
+        else:
+            res = self.group.rank()
+        return res
+    
+    def size(self,):
+        if self.tag == 2:
+            if not use_thread_communication:
+                res = self.group.size()
+            else:
+                res = num_threads
+        else:
+            res = self.group.size()
+        return res
+
+def construct_virtual_group(group, controller, tag = 0):
+    return VirtualGroup(group, controller, tag)
+
 num_threads = 4
 num_forward_ranks = 2
 use_thread_communication = False
@@ -176,7 +205,7 @@ class Backward_Controller (threading.Thread):
                 self.BitVector[self.tensor_parallel_rank][self.rank] = compress(request[3][1])
                 request_func[0] = request[1]
                 request_args[0] = request[2]
-                request_group[0] = request[3]
+                request_group.group = request[3]
 
             while not p2p_queue.empty():
                 request = p2p_queue.get()
@@ -187,24 +216,24 @@ class Backward_Controller (threading.Thread):
     
             tmp_BitVector = self.BitVector.clone()
             if global_request_func is not None:
-                tmp_BitVector[num_threads][self.rank] = compress(global_request_group[1])
+                tmp_BitVector[num_threads][self.rank] = compress(global_request_group.controller)
             
             dist.all_reduce(tmp_BitVector, ReduceOp.SUM, self._CONTROLLER_GROUP)
             # print(tmp_BitVector)
 
             if tmp_BitVector[num_threads][self.rank] != 0:
-                if is_ready(tmp_BitVector[num_threads], global_request_group[1]):
+                if is_ready(tmp_BitVector[num_threads], global_request_group.controller):
                     with global_condition:
                         # print(dist.get_rank(), global_request_args, global_request_group)
-                        global_request_func(*global_request_args,global_request_group[0])
+                        global_request_func(*global_request_args,global_request_group.group)
                         # print(global_request_func, 'finished')
                         global_request_func = None
                         global_condition.notify()
             
-            if self.BitVector[self.tensor_parallel_rank][self.rank] != 0 and is_ready_backward(self.tensor_parallel_rank,tmp_BitVector,request_group[0][1]):
-                # print('dealing with', tmp_BitVector, request_group[0][1])
+            if self.BitVector[self.tensor_parallel_rank][self.rank] != 0 and is_ready_backward(self.tensor_parallel_rank,tmp_BitVector,request_group.group.controller):
+                # print('dealing with', tmp_BitVector, request_group.group.controller)
                 with request_conditions[0]:
-                    request_func[0](*request_args[0], request_group[0][0])
+                    request_func[0](*request_args[0], request_group.group[0])
                     # print('finished')
                     self.BitVector[self.tensor_parallel_rank][self.rank] = 0
                     finished_thread[0] = 0
@@ -302,7 +331,7 @@ class Communication_Controller (threading.Thread):
 
             tmp_BitVector = self.BitVector.clone()
             if global_request_func is not None:
-                tmp_BitVector[num_threads][self.rank] = compress(global_request_group[1])
+                tmp_BitVector[num_threads][self.rank] = compress(global_request_group.controller)
             # print('before:',self.BitVector)
             
             dist.all_reduce(tmp_BitVector, ReduceOp.SUM, self._CONTROLLER_GROUP)
@@ -313,12 +342,12 @@ class Communication_Controller (threading.Thread):
             # start_time = time.time()
             # print()
             if tmp_BitVector[num_threads][self.rank] != 0:
-                if is_ready(tmp_BitVector[num_threads],global_request_group[1]):
+                if is_ready(tmp_BitVector[num_threads],global_request_group.controller):
                     # print(global_request_func, global_request_args)
                     # print('dealing with global', global_request_func, tmp_BitVector, global_request_group)
                     with global_condition:
                         # print(dist.get_rank(), global_request_args, global_request_group)
-                        global_request_func(*global_request_args,global_request_group[0])
+                        global_request_func(*global_request_args,global_request_group.group)
                         # print(dist.get_rank(), global_request_args)
                         # print(global_request_func, 'finished')
                         global_request_func = None
@@ -530,13 +559,13 @@ def barrier(group = None):
     # print(dist.get_rank(), 'attend')
     if not use_thread_communication:
         if group is None:
-            group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
-        perform_normal_func(dist.barrier,(group[0]), group[1])
+            group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
+        perform_normal_func(dist.barrier,(group.group), group.controller)
     else:
         if get_thread_index() == 0 or get_thread_index() == -1:
             if group is None:
-                group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
-            perform_normal_func(dist.barrier,(group[0]), group[1])
+                group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
+            perform_normal_func(dist.barrier,(group.group), group.controller)
         # global controller
         # print(dist.get_rank(),controller.is_alive())
         if get_thread_index() != -1:
@@ -545,18 +574,23 @@ def barrier(group = None):
 def tensor_parallel_barrier():
     thread_barrier.wait()
 
+#TODO group.tag == 1
+
 def get_world_size(group = None,):
     if normal_communication:
         return dist.get_world_size(group)
-    if isinstance(group, list):
-        return dist.get_world_size(group[0])
-    elif isinstance(group, int):
-        return num_threads
-    elif group is None:
+    if group is None:
         if _GLOBAL_RANK_INFO is None:
             return dist.get_world_size() - 1
         else:
             return len(_GLOBAL_RANK_INFO)
+    elif group.tag == 0:
+        return dist.get_world_size(group.group)
+    elif group.tag == 2:
+        if not use_thread_communication:
+            return dist.get_world_size(group.group)
+        else:
+            return num_threads
     else:
         return dist.get_world_size(group)
 
@@ -564,14 +598,17 @@ def get_rank(group = None,):
     # start_time = time.time()
     if normal_communication:
         return dist.get_rank(group)
-    if isinstance(group, list):
-        res = dist.get_rank(group[0])
-    elif isinstance(group, int):
-        res = get_thread_index()
-    elif group is None:
+    if group is None:
         res = get_virtual_rank(dist.get_rank() - 1)
+    elif group.tag == 0:
+        res = dist.get_rank(group.group)
+    elif group.tag == 2:
+        if not use_thread_communication:
+            res = dist.get_rank(group.group)
+        else:
+            res = get_thread_index()
     else:
-        res = dist.get_rank(group)
+        res = dist.get_rank(group.group)
     # end_time = time.time()
     # print(dist.get_rank(),"get_rank ~ duration",end_time-start_time)
     return res
@@ -699,51 +736,29 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=None, async_op=False):
         # print('all_reduce start')
         # start_time = time.time()
         if group is None:
-            group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
-        # print('all_reduce start', dist.get_rank(), backward_rank_only(group[1]))
-        if backward_rank_only(group[1]):
+            group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
+        # print('all_reduce start', dist.get_rank(), backward_rank_only(group.controller))
+        if backward_rank_only(group.controller):
             # print('&&')
             # if dist.get_rank() == 5:
             #     end_time = time.time()
             #     print("all_reduce ~ duration",end_time-start_time)
             # print('all_reduce start', dist.get_rank())
-            req = dist.all_reduce(tensor, op, group[0], async_op)
+            req = dist.all_reduce(tensor, op, group.group, async_op)
             # print('all_reduce finish', dist.get_rank())
             return req
         else:
-            perform_normal_func(dist.all_reduce,(tensor, op, group[0]), group[1])
+            perform_normal_func(dist.all_reduce,(tensor, op, group.group), group.controller)
         # if dist.get_rank() == 5:
         #     if group is not None:
-        #         print('??????', group[1])
+        #         print('??????', group.controller)
         # handle = dist.all_reduce(tensor, op, group, async_op)
         
         # print('all_reduce finished')
-    elif isinstance(group, int):
-        thread_barrier.wait()
-        # start_time = time.time()
-        lock.acquire()
-        if op == ReduceOp.SUM:
-            if result is None:
-                result = tensor.clone()
-            else:
-                result.add_(tensor)
-        elif op == ReduceOp.MAX:
-            if result is None:
-                result = tensor.clone()
-            else:
-                result = torch.max(result, tensor)
-        lock.release()
-        thread_barrier.wait()
-        tensor.copy_(result)
-        thread_barrier.wait()
-        result = None
-        thread_barrier.wait()
-        # end_time = time.time()
-        # print(dist.get_rank(),"all_reduce ! duration",end_time-start_time)
-    elif group is None or len(group) == 3:
+    elif group is None or group.tag == 1:
         # start_time = time.time()
         if group is None:
-            group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
+            group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
         if get_thread_index() == -1:
             with global_condition:
                 global_request_group = group
@@ -775,7 +790,7 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=None, async_op=False):
             thread_barrier.wait()
             # print(get_thread_index(), num_threads)
             if get_thread_index() == 0:
-                perform_normal_func(dist.all_reduce,(tensor, op, group[0]), group[1])
+                perform_normal_func(dist.all_reduce,(tensor, op, group.group), group.controller)
             # print('?', get_thread_index(), num_threads)
             thread_barrier.wait()
             # print(get_thread_index(), tensor, result)
@@ -788,9 +803,31 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=None, async_op=False):
         # print('all_reduce', get_rank(),'finished')
         # end_time = time.time()
         # print(dist.get_rank(),"all_reduce @ duration",end_time-start_time)
+    elif group.tag == 2:
+        thread_barrier.wait()
+        # start_time = time.time()
+        lock.acquire()
+        if op == ReduceOp.SUM:
+            if result is None:
+                result = tensor.clone()
+            else:
+                result.add_(tensor)
+        elif op == ReduceOp.MAX:
+            if result is None:
+                result = tensor.clone()
+            else:
+                result = torch.max(result, tensor)
+        lock.release()
+        thread_barrier.wait()
+        tensor.copy_(result)
+        thread_barrier.wait()
+        result = None
+        thread_barrier.wait()
+        # end_time = time.time()
+        # print(dist.get_rank(),"all_reduce ! duration",end_time-start_time)
     else:
         # start_time = time.time()
-        perform_normal_func(dist.all_reduce,(tensor, op, group[0]), group[1])
+        perform_normal_func(dist.all_reduce,(tensor, op, group.group), group.controller)
         # print('ed', index)
         # end_time = time.time()
         # print(dist.get_rank(),"all_reduce # duration",end_time-start_time)
@@ -841,7 +878,7 @@ def _all_gather_base(tensor_list, tensor, group=None, async_op=False):
         #     # print(dist.get_rank(),"_all_gather_base ~ duration",end_time-start_time)
         # # print('all_gather finished')
         if group is None:
-            group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
+            group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
             new_tensor = get_global_shape(tensor)
             result = new_tensor.repeat(dist.get_world_size() - 1)
             # print(dist.get_rank(), result)
@@ -851,31 +888,16 @@ def _all_gather_base(tensor_list, tensor, group=None, async_op=False):
             #     global_request_func = dist._all_gather_base
             #     while global_request_func is not None:
             #         global_condition.wait()
-            perform_normal_func(dist._all_gather_base, (result, new_tensor, group[0]), group[1])
+            perform_normal_func(dist._all_gather_base, (result, new_tensor, group.group), group.controller)
             Recover(tensor_list, result, tensor.shape[0])
-        elif len(group) == 3:
-            return dist._all_gather_base(tensor_list, tensor, group, async_op)
+        elif group.tag == 2:
+            return dist._all_gather_base(tensor_list, tensor, group.group, async_op)
         else:
-            perform_normal_func(dist._all_gather_base, (tensor_list, tensor, group[0]), group[1])
+            perform_normal_func(dist._all_gather_base, (tensor_list, tensor, group.group), group.controller)
         # if dist.get_rank() == 5:
         #     print('??????')
-    elif isinstance(group, int):
-        # start_time = time.time()
-        lock.acquire()
-        if result is None:
-            result = []
-        result.append((get_thread_index(),tensor))
-        lock.release()
-        thread_barrier.wait()
-        for x in result:
-            tensor_list[x[0]]=x[1].clone()
-        thread_barrier.wait()
-        result = None
-        thread_barrier.wait()
-        # end_time = time.time()
-        # print(dist.get_rank(),"_all_gather_base @ duration",end_time-start_time)
     elif group is None:
-        group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
+        group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
         lock.acquire()
         if new_tensor is None:
             new_tensor = get_global_shape(tensor).view(-1)
@@ -886,15 +908,35 @@ def _all_gather_base(tensor_list, tensor, group=None, async_op=False):
         lock.release()
         thread_barrier.wait()
         if get_thread_index() == 0:
-            perform_normal_func(dist._all_gather_base, (result, new_tensor, group[0]), group[1])
+            perform_normal_func(dist._all_gather_base, (result, new_tensor, group.group), group.controller)
         thread_barrier.wait()
         Recover(tensor_list, result, tensor.shape[0])
         thread_barrier.wait()
         result = None
         new_tensor = None
         thread_barrier.wait()
+    elif group.tag == 2:
+        # start_time = time.time()
+        lock.acquire()
+        if result is None:
+            result = []
+        result.append((get_thread_index(),tensor))
+        lock.release()
+        thread_barrier.wait()
+        # print(tensor_list.shape, tensor.shape)
+        if len(tensor_list.shape) == len(tensor.shape):
+            result = sorted(result, key=lambda x: x[0])
+            tensor_list = torch.stack([x[1].clone() for x in result], dim=0)
+        else:
+            for x in result:
+                tensor_list[x[0]]=x[1].clone()
+        thread_barrier.wait()
+        result = None
+        thread_barrier.wait()
+        # end_time = time.time()
+        # print(dist.get_rank(),"_all_gather_base @ duration",end_time-start_time)
     else:
-        perform_normal_func(dist._all_gather_base, (tensor_list, tensor, group[0]), group[1])
+        perform_normal_func(dist._all_gather_base, (tensor_list, tensor, group.group), group.controller)
     # print('all_gather finished')
     if async_op:
         return Handle()
@@ -908,21 +950,21 @@ def Recover_object_list(result, object_list):
 
 def all_gather_object(object_list, obj, group=None):
     if normal_communication:
-        return dist.all_gather_object(object_list, obj, group=None)
+        return dist.all_gather_object(object_list, obj, group)
     global use_thread_communication
     global result
     global new_tensor
     if not use_thread_communication:
         if group is None:
-            group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
+            group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
             result = [None for i in range(0, dist.get_world_size()-1)]
-            perform_normal_func(dist.all_gather_object, (result, [obj], group[0]), group[1])
+            perform_normal_func(dist.all_gather_object, (result, [obj], group.group), group.controller)
             Recover_object_list(result, object_list)
-        elif len(group) == 3:
-            return dist.all_gather_object(object_list, obj, group)
+        elif group.tag == 2:
+            return dist.all_gather_object(object_list, obj, group.group)
         else:
-            perform_normal_func(dist.all_gather_object, (object_list, [obj], group[0]), group[1])
-    elif isinstance(group, int):
+            perform_normal_func(dist.all_gather_object, (object_list, [obj], group.group), group.controller)
+    elif group.tag == 2:
         lock.acquire()
         if result is None:
             result = []
@@ -947,7 +989,7 @@ def all_gather_object(object_list, obj, group=None):
         lock.release()
         thread_barrier.wait()
         if get_thread_index() == 0:
-            perform_normal_func(dist.all_gather_object, (result, new_tensor, group[0]), group[1])
+            perform_normal_func(dist.all_gather_object, (result, new_tensor, group.group), group.controller)
         thread_barrier.wait()
         Recover_object_list(result, object_list)
         thread_barrier.wait()
@@ -975,36 +1017,24 @@ def all_gather_object(object_list, obj, group=None):
         # new_tensor = None
         # thread_barrier.wait()
     else:
-        perform_normal_func(dist.all_gather_object, (object_list, obj, group[0]), group[1])
+        perform_normal_func(dist.all_gather_object, (object_list, obj, group.group), group.controller)
 
 def gather_object(obj, object_list, dst=0, group=None):
     if normal_communication:
-        return gather_object(obj, object_list, dst, group)
+        return dist.gather_object(obj, object_list, dst, group)
     global use_thread_communication
     global result
     global new_tensor
     if not use_thread_communication:
         if group is None:
-            group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
+            group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
             result = [None for i in range(0, dist.get_world_size()-1)]
-            perform_normal_func(dist.all_gather_object, (result, [obj], group[0]), group[1])
+            perform_normal_func(dist.all_gather_object, (result, [obj], group.group), group.controller)
             Recover_object_list(result, object_list)
-        elif len(group) == 3:
-            return dist.all_gather_object(object_list, obj, group)
+        elif group.tag == 2:
+            return dist.all_gather_object(object_list, obj, group.group)
         else:
-            perform_normal_func(dist.all_gather_object, (object_list, [obj], group[0]), group[1])
-    elif isinstance(group, int):
-        lock.acquire()
-        if result is None:
-            result = []
-        result.append((get_thread_index(),obj))
-        lock.release()
-        thread_barrier.wait()
-        for x in result:
-            object_list[x[0]]=x[1].clone()
-        thread_barrier.wait()
-        result = None
-        thread_barrier.wait()
+            perform_normal_func(dist.all_gather_object, (object_list, [obj], group.group), group.controller)
     elif group is None:
         group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
         lock.acquire()
@@ -1018,7 +1048,7 @@ def gather_object(obj, object_list, dst=0, group=None):
         lock.release()
         thread_barrier.wait()
         if get_thread_index() == 0:
-            perform_normal_func(dist.all_gather_object, (result, new_tensor, group[0]), group[1])
+            perform_normal_func(dist.all_gather_object, (result, new_tensor, group.group), group.controller)
         thread_barrier.wait()
         Recover_object_list(result, object_list)
         thread_barrier.wait()
@@ -1045,10 +1075,24 @@ def gather_object(obj, object_list, dst=0, group=None):
         # result = None
         # new_tensor = None
         # thread_barrier.wait()
+    elif group.tag == 2:
+        lock.acquire()
+        if result is None:
+            result = []
+        result.append((get_thread_index(),obj))
+        lock.release()
+        thread_barrier.wait()
+        for x in result:
+            object_list[x[0]]=x[1].clone()
+        thread_barrier.wait()
+        result = None
+        thread_barrier.wait()
     else:
-        perform_normal_func(dist.all_gather_object, (object_list, obj, group[0]), group[1])
+        perform_normal_func(dist.all_gather_object, (object_list, obj, group.group), group.controller)
 
 def _reduce_scatter_base(tensor, tensor_list, op=ReduceOp.SUM, group=None, async_op=False):
+    # if group is None:
+    #     raise TypeError("???")
     if normal_communication:
         return dist._reduce_scatter_base(tensor, tensor_list, op, group, async_op)
     global use_thread_communication
@@ -1058,14 +1102,14 @@ def _reduce_scatter_base(tensor, tensor_list, op=ReduceOp.SUM, group=None, async
         # end_time = time.time()
         # print(dist.get_rank(),"_reduce_scatter_base ~ duration",end_time-start_time)
         if group is None:
-            group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
-        if len(group) == 3:
-            return dist._reduce_scatter_base(tensor, tensor_list, op, group, async_op)
+            group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
+        if group.tag == 2:
+            return dist._reduce_scatter_base(tensor, tensor_list, op, group.group, async_op)
         else:
-            perform_normal_func(dist._reduce_scatter_base, (tensor, tensor_list, op, group[0]), group[1])
+            perform_normal_func(dist._reduce_scatter_base, (tensor, tensor_list, op, group.group), group.controller)
         # if dist.get_rank() == 5:
         #     print('??????')
-    elif isinstance(group, int):
+    elif group.tag == 2:
         # start_time = time.time()
         lock.acquire()
         global result
@@ -1085,7 +1129,7 @@ def _reduce_scatter_base(tensor, tensor_list, op=ReduceOp.SUM, group=None, async
     else:
         # start_time = time.time()
         # print('st')
-        perform_normal_func(dist._reduce_scatter_base, (tensor, tensor_list, op, group[0]), group[1])
+        perform_normal_func(dist._reduce_scatter_base, (tensor, tensor_list, op, group.group), group.controller)
         # print('ed')
         # end_time = time.time()
         # print(dist.get_rank(),"_reduce_scatter_base # duration",end_time-start_time)
@@ -1110,24 +1154,24 @@ def broadcast(tensor, src, group=None):
         # end_time = time.time()
         # print(dist.get_rank(),"broadcast ! duration",end_time-start_time)
         if group is None:
-            group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
-        if len(group) == 3:
+            group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
+        if group.tag == 2:
             # print('broadcast start', dist.get_rank(), src)
-            req = dist.broadcast(tensor, src, group[0])
+            req = dist.broadcast(tensor, src, group.group)
             # print('broadcast end', dist.get_rank(), src)
             # if dist.get_rank() == 5:
             #     end_time = time.time()
             #     print('broadcast', end_time-start_time)
             return req
         else:
-            perform_normal_func(dist.broadcast, (tensor, src, group[0]), group[1])
+            perform_normal_func(dist.broadcast, (tensor, src, group.group), group.controller)
         # print('broadcast done')
     elif group is None:
-        group = [_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS]
+        group = construct_virtual_group(_GLOBAL_GROUP, _CONTROLLER_GROUP_RANKS, tag=1)
         # src = get_real_rank(src)
         target = max(_GLOBAL_RANK_INFO[src], 0)
         if get_thread_index() == target:
-            perform_normal_func(dist.broadcast, (tensor, get_real_rank(src), group[0]), group[1])
+            perform_normal_func(dist.broadcast, (tensor, get_real_rank(src), group.group), group.controller)
             result = tensor
         thread_barrier.wait()
             # print(result,get_thread_index())
@@ -1142,7 +1186,7 @@ def broadcast(tensor, src, group=None):
         # with global_condition:
         #     while global_request_func is not None:
         #         global_condition.wait()
-    elif isinstance(group, int):
+    elif group.tag == 2:
         # print('@', src, _GLOBAL_RANK_INFO)
         # start_time = time.time()
         if get_thread_index() == _GLOBAL_RANK_INFO[src]:
@@ -1159,6 +1203,15 @@ def broadcast(tensor, src, group=None):
         src = get_real_rank(src)
         get_real_rank(src)
         # print(group)
-        perform_normal_func(dist.broadcast, (tensor, src, group[0]), group[1])
+        perform_normal_func(dist.broadcast, (tensor, src, group.group), group.controller)
         # end_time = time.time()
         # print(dist.get_rank(),"broadcast @ duration",end_time-start_time)
+
+def print_memory_usage():
+    if torch.cuda.is_available():
+        prefix = dist.get_rank()
+        print(f"{prefix} - Memory Allocated: {torch.cuda.memory_allocated()/1024**3:.2f} GB")
+        print(f"{prefix} - Memory Reserved: {torch.cuda.memory_reserved()/1024**3:.2f} GB")
+        print(f"{prefix} - Max Memory Allocated: {torch.cuda.max_memory_allocated()/1024**3:.2f} GB")
+        print(f"{prefix} - Free Memory: {(torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated())/1024**3:.2f} GB")
+        print("-" * 50)

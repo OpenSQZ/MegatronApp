@@ -13,12 +13,12 @@ from megatron.core.utils import is_torch_min_version
 
 from .utils import split_tensor_along_last_dim
 
-if is_torch_min_version("1.13.0"):
-    dist_all_gather_func = torch.distributed.all_gather_into_tensor
-    dist_reduce_scatter_func = torch.distributed.reduce_scatter_tensor
-else:
-    dist_all_gather_func = dist._all_gather_base
-    dist_reduce_scatter_func = dist._reduce_scatter_base
+# if is_torch_min_version("1.13.0"):
+#     dist_all_gather_func = torch.distributed.all_gather_into_tensor
+#     dist_reduce_scatter_func = torch.distributed.reduce_scatter_tensor
+# else:
+dist_all_gather_func = dist._all_gather_base
+dist_reduce_scatter_func = dist._reduce_scatter_base
 
 
 def _reduce(input_):
