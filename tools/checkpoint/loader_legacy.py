@@ -38,7 +38,7 @@ def _load_checkpoint(queue, args):
 
     try:
         from megatron.training.arguments import parse_args, validate_args
-        from megatron.training.global_vars import set_args, set_global_variables
+        from megatron.training.global_vars import set_args, set_global_variables, unset_global_variables
         from megatron.training.checkpointing import load_args_from_checkpoint, load_checkpoint
         from megatron.legacy.model import module
         from megatron.core import mpu
@@ -71,7 +71,12 @@ def _load_checkpoint(queue, args):
                 ]
 
     margs = parse_args()
-    margs, checkpoint_args = load_args_from_checkpoint(margs)
+    # margs, checkpoint_args = load_args_from_checkpoint(margs)
+    # load_args_from_checkpoint need global margs be set, and then unset it
+    set_args(margs)
+    checkpoint_args = load_args_from_checkpoint(margs)
+    checkpoint_args = checkpoint_args[0]
+    unset_global_variables()
 
     # Arguments do sanity checks on the world size, but we don't care,
     # so trick it into thinking we are plenty of processes
@@ -80,6 +85,11 @@ def _load_checkpoint(queue, args):
     # Explicitly copy data types from checkpoint.
     margs.fp16 = checkpoint_args.fp16
     margs.bf16 = checkpoint_args.bf16
+
+    # added
+    if getattr(margs, 'seq_length', None) is None:
+        margs.seq_length = margs.max_position_embeddings
+    # end added
 
     # Validate margs.
     margs = validate_args(margs)

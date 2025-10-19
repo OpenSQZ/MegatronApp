@@ -316,6 +316,27 @@ class _BertWordPieceTokenizer(MegatronTokenizer):
         self._additional_special_tokens = value
 
 
+from collections.abc import Mapping
+
+class _LazyReadableDecoder(Mapping):
+    def __init__(self, parent):
+        self._parent = parent
+        self._raw = parent.tokenizer.decoder       #  {id: piece}
+
+    def __getitem__(self, k):
+        try:
+            return self._parent.detokenize([int(k)])
+        except Exception:
+            return self._raw.get(k, str(k))
+
+    def __len__(self):  return len(self._raw)
+    def __iter__(self): return iter(self._raw)
+    def get(self, k, default=None):
+        try:
+            return self.__getitem__(k)
+        except Exception:
+            return default
+    
 class _GPT2BPETokenizer(MegatronTokenizer):
     """Original GPT2 BPE tokenizer."""
 
@@ -326,6 +347,10 @@ class _GPT2BPETokenizer(MegatronTokenizer):
             vocab_file, merge_file, errors='replace', special_tokens=[], max_len=None
         )
         self.eod_id = self.tokenizer.encoder['<|endoftext|>']
+
+        self._encoder = self.tokenizer.encoder
+        self._inv_vocab_raw = self.tokenizer.decoder  # byte-level
+        self._readable_decoder = _LazyReadableDecoder(self)
 
     @property
     def vocab_size(self):
@@ -349,6 +374,21 @@ class _GPT2BPETokenizer(MegatronTokenizer):
     def eod(self):
         return self.eod_id
 
+    @property
+    def decoder(self):
+        return self._readable_decoder
+
+    @property
+    def encoder(self):
+        return self._encoder
+
+    def offsets(self, ids: list[int], text: str) -> list[int]:
+        starts, cur = [], 0
+        for tid in ids:
+            starts.append(cur)
+            piece = self.detokenize([int(tid)])
+            cur += len(piece)
+        return starts
 
 class _SentencePieceTokenizer(MegatronTokenizer):
     """SentencePieceTokenizer-Megatron wrapper"""
