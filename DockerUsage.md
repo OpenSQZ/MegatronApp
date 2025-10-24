@@ -23,7 +23,21 @@ Install any additional Python packages:
 pip install -r requirements.txt
 ```
 
-We plan to publish a prebuilt MegatronApp image to a public registry (e.g., Docker Hub) soon.
+For `MegaFBD` and `MegaDPP`, the RDMA C++ extentions `shm_tensor_new_rdma` and `shm_tensor_new_rdma_pre_alloc` must be installed:
+
+```
+cd megatron/shm_tensor_new_rdma
+pip install -e .
+```
+
+and
+
+```
+cd megatron/shm_tensor_new_rdma_pre_alloc
+pip install -e .
+```
+
+More details could be found from provided [Dockerfile](./Dockerfile). We plan to publish a prebuilt MegatronApp image to a public registry (e.g., Docker Hub) soon.
 
 Note: 
 
@@ -251,8 +265,57 @@ The similar support for visualization during training process are provided as we
 
 ### MegaDPP
 
-TBD
+#### Single Node Distributed Training
+
+```
+bash run_single_gpt.sh
+```
+
+This script (see `run_single_gpt.sh`) automatically rewrites the parallel configuration and `MASTER_ADDR` inside `examples/gpt3/train_gpt3_175b_distributed.sh` and keeps `--use-dpp` enabled so `MegaDPP` stays active.
+
+If your GPU count or InfiniBand IPs differ from the defaults, edit `examples/gpt3/train_gpt3_175b_distributed.sh` (lines 12–34) and adjust `GPUS_PER_NODE`, `--node-ips`, and related fields. On a single node, repeat the IP returned by `hostname -i` in `--node-ips`, matching the number of GPUs.
+
+Training logs and any generated benchmark directories are written to the mounted repository path. Aggregate profiling traces when needed by running 
+
+```python
+python aggregate.py --benchmark_dir benchmark/<your-directory>.
+``` 
+
+Once the single-node run succeeds, consider (1) experimenting with different parallel settings in `examples/gpt3/train_gpt3_175b_distributed.sh`, and (2) validating the multi-node workflow described in the README using `run_master_gpt.sh` and `run_worker_gpt.sh`.
+
+#### Multinode Distributed Training
+
+Please refer to [./README.md](https://github.com/OpenSQZ/MegatronApp?tab=readme-ov-file#multinode-distributed-training) for more details.
 
 ### MegaFBD
 
-TBD
+$\quad$ To run distributed training on a single node, go to the project root directory and run
+
+```bash
+bash DockerUsage_MegaFBD.sh $RANK
+```
+
+Here `DockerUsage_MegaFBD.sh` is an example bash script of pretrain, designed for a single node:
+
+- `GPUS_PER_NODE`=<actual number of GPUs> (no longer incremented);
+
+- `NNODES`=1;
+
+- `WORLD_SIZE`=$((`$GPUS_PER_NODE` * `$NNODES`));
+
+- Delete the line `if [ "$NODE_RANK" -eq 0 ]; then ((GPUS_PER_NODE++)); fi`;
+
+- `MASTER_ADDR=$(hostname -I | awk '{print $1}')` or simply `127.0.0.1`. In this way, `torchrun` only expects workers on this local machine.
+
+There are two extra options: `--forward-backward-disaggregating` and `--ignore-forward-tensor-parallel` in `TRAINING_ARGS`.
+
+- `--forward-backward-disaggregating`
+
+
+  Splits each rank into two: one for forward pass and one for backward pass. After doing this, your DP will be halved. Make sure your DP is even before adding this option.
+
+- `--ignore-forward-tensor-parallel`
+
+  Enables merging forward ranks within the same TP group. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the correct number of ranks.
+
+Currently Context Parallel and Expert parallel are not supported. `--tranformer-impl` should be `local`.
