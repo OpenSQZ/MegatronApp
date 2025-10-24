@@ -15,6 +15,14 @@ Extension for performance tuning, slow-node detection, and training-process visu
 
 </div>
 
+# News <!-- omit in toc -->
+
+### 📌 Pinned
+* [2025.10.17] 🔥🔥🔥 We provide user-friendly [docker guidance](./DockerUsage.md) for all four features of MegatronApp. Please try it out!
+* [2025.07.27] 📢📢📢 MegatronApp technical report is released! See [here](https://arxiv.org/pdf/2507.19845).
+* [2025.07.04] 🔥🔥🔥 MegatronApp is officially launched at WAIC 2025! Our code is available [here](https://github.com/OpenSQZ/MegatronApp). Come and try it out!
+
+
 # 🔥 Demo
 **MegaScan**
 
@@ -445,18 +453,12 @@ in the root dir to produce an aggregated trace file.
 ## MegaFBD
 ## Install
 
-- Install infiniband prerequisites
+- Install infiniband prerequisites. 
 
-```bash
-bash prerequisite.sh
-```
+- Build the RDMA C++ extention modules: `shm_tensor_new_rdma` (for multinode) and `shm_tensor_new_rdma_pre_alloc` module. 
 
-- Build the `shm_tensor_new_rdma` module.
+Just follow above installation instructions.
 
-```bash
-cd megatron
-python setup.py install
-```
 
 ## Run example
 
