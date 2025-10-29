@@ -1,4 +1,4 @@
 Optimizer CPU offload package
 ==============================
 
-.. mdinclude :: ../../../megatron/core/optimizer/cpu_offloading/README.md
+.. mdinclude :: ../../../src/megatron/core/optimizer/cpu_offloading/README.md

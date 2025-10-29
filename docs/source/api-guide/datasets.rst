@@ -1,7 +1,7 @@
 datasets package
 ================
 
-.. mdinclude :: ../../../megatron/core/datasets/readme.md
+.. mdinclude :: ../../../src/megatron/core/datasets/readme.md
 
 Submodules
 ----------

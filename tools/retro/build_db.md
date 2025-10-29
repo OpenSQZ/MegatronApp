@@ -22,7 +22,7 @@ Key files:
 
 - `main.py` : Entry point for processing.
 - `examples/preprocess_data.sh` : Example preprocessing launch (calls `main.py`).
-- `examples/pretrain_data.sh` : Example pretraining launch (calls `pretrain_retro.py`).
+- `examples/pretrain_data.sh` : Example pretraining launch (calls `scripts/training/pretrain_retro.py`).
 
 Use `--retro-tasks` to move through the preprocessing pipeline.
 
@@ -393,7 +393,7 @@ The second axis is the type of embedding model to use, controlled by the argumen
 
 ### Pretraining
 
-- **`pretrain_retro.py`** : Launch script for pretraining Retro. Similar to `pretrain_gpt.py`, except this script handles loading neighbor tokens and setting up the neighbor attention mask.
+- **`scripts/training/pretrain_retro.py`** : Launch script for pretraining Retro. Similar to `scripts/training/pretrain_gpt.py`, except this script handles loading neighbor tokens and setting up the neighbor attention mask.
 <!-- - `megatron/data/gpt_dataset.py` : ? -->
 - **`megatron/model/retro_transformer.py`** : Implementation of Retro model, including the main transformer, the retrieval encoder, and chunked cross-attention layers. Note that currently, `retro_transformer.py` contains several classes that are nearly identical to `transformer.py`, except for 1 or 2 lines, due to code changes that are yet to be integrated.
 - **`tools/retro/pretraining/retro_dataset.py`** : The Retro dataset used for pretraining (not used in preprocessing). Each sample returns the sample tokens, along with neighbor tokens for each chunk within the sample.

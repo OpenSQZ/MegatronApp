@@ -18,7 +18,7 @@ An extension for performance tuning, slow-node detection, and training-process v
 # News <!-- omit in toc -->
 
 ### 📌 Pinned
-* [2025.10.17] 🔥🔥🔥 We provide user-friendly [docker guidance](./DockerUsage.md) for all four features of MegatronApp. Please try it out!
+* [2025.10.17] 🔥🔥🔥 We provide user-friendly [docker guidance](./docker/DockerUsage.md) for all four features of MegatronApp. Please try it out!
 * [2025.07.27] 📢📢📢 The MegatronApp technical report has been released! See [here](https://arxiv.org/pdf/2507.19845).
 * [2025.07.04] 🔥🔥🔥 MegatronApp is officially launched at WAIC 2025! Our code is available [here](https://github.com/OpenSQZ/MegatronApp). Come and try it out!
 
@@ -51,7 +51,17 @@ The project currently offers four core modules:
 
 The four modules are fully isolated and integrated into the Megatron-LM codebase as plugins; users can flexibly enable or disable any of them at launch via control flags.
 
-The technical report of MegatronApp can be seen [here](./MegatronApp.pdf).
+The technical report of MegatronApp can be seen [here](./docs/MegatronApp.pdf).
+
+## Repository Layout
+
+- `src/` &rarr; Python source tree adopting a src/ layout; includes the upstream `megatron` package and the MegatronApp extensions under `megatron_app/`.
+- `scripts/` &rarr; Operational entry points grouped by purpose (`training/`, `launchers/`, `maintenance/`). `sitecustomize.py` automatically adds `src/` to `PYTHONPATH` when invoking these scripts directly.
+- `datasets/` &rarr; Sample dataset assets split into `bert/` and `gpt/`, plus workspace for preprocessed binaries.
+- `docker/` &rarr; Container recipes (`Dockerfile*`), usage docs, and helper scripts collected in `docker/scripts/`.
+- `docs/` &rarr; User and API documentation with static media stored under `docs/static/`.
+- `tools/` &rarr; Utilities including benchmark aggregation (`aggregate_benchmarks.py`) and preprocessing helpers.
+
 
 # ✨ Core Features
 <!-- List 3~5 core features of the project.
@@ -110,7 +120,7 @@ Through the UI, users can precisely control the location, activation, type and e
 - Concurrent asynchronous send/recv operations
 - Dynamically track the completion status of operations
 
-For more details, see [README_Megatron.md](README_Megatron.md)
+For more details, see [README_Megatron.md](docs/README_Megatron.md)
 
 ### MegaFBD
 📊 Instance-Level Decoupled Scheduling: The forward and backward phases are split into two logical processes, each assigned a different rank and bound to separate resources to reduce coupling.
@@ -176,7 +186,7 @@ We provide a basic repro for you to quickly get started with MegaScan.
 
 0. Data preparation:
 
-Please refer to [README_Megatron.md](README_Megatron.md) section "Dataset Preparation" and Nvidia's [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) for more details.
+Please refer to [README_Megatron.md](docs/README_Megatron.md) section "Dataset Preparation" and Nvidia's [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) for more details.
 
 1. Run NVIDIA’s Megatron-LM training with MegaScan enabled by adding the following command line arguments:
 
@@ -197,14 +207,14 @@ Alternatively, you can use elastic training. See [torchrun](https://docs.pytorch
 2. After training, you will find separated trace files in the current directory. The trace files are named as `benchmark-data-{}-pipeline-{}-tensor-{}.json`, where `{}` is the rank number. Now we should aggregate the trace files into a single trace file:
 
 ```bash
-python scripts/aggregate.py --b trace_output --output benchmark.json
+python tools/aggregate_benchmarks.py --b trace_output --output benchmark.json
 ```
 
 3. You can visualize the trace file using Chrome Tracing (or Perfetto UI). Open the trace file in Chrome Tracing by navigating to `chrome://tracing` in your browser (or https://ui.perfetto.dev/). Now you can explore the trace data, zoom in on specific events, and analyze the performance characteristics of your distributed training run.
 
-![](images/trace1.png)
+![](docs/static/images/trace1.png)
 
-![](images/trace2.png)
+![](docs/static/images/trace2.png)
 
 4. To illustrate the detection algorithm, we can manually inject a fault into the training process. We provide a script `scripts/gpu_control.sh` to simulate a GPU downclocking.
 
@@ -218,13 +228,13 @@ python scripts/aggregate.py --b trace_output --output benchmark.json
     2. Run the training script. Then aggregate the trace files as described above, but with an additional command line argument to enable the detection algorithm:
     
     ```bash
-    python scripts/aggregate.py \
+    python tools/aggregate_benchmarks.py \
         -b . \ # Equivalent to --bench-dir
         -d # Enable the detection algorithm, Equivalent to --detect
     ```
     We can see output indicating that GPU 0 may be abnormal.
 
-    ![1](images/result.png)
+    ![1](docs/static/images/result.png)
 
 ## MegaScope
 
@@ -245,7 +255,7 @@ bash a_pretrain_script.sh $RANK
 ```
 For example
 ```bash
-bash pretrain_gpt.sh 0
+bash scripts/launchers/pretrain_gpt.sh 0
 ```
 
 **Frontend (Vue)**: Navigate to the frontend directory and start the development server.
@@ -257,19 +267,19 @@ After launching both, open your browser to the specified address (usually http:/
 
 ### 2. Generating Text and Visualizing Intermediate States
 In the input prompts area, enter one or more prompts. Each text box represents a separate batch, allowing for parallel processing and comparison.
-![](images/prompts.jpg)
+![](docs/static/images/prompts.jpg)
 
 In the control panel, set the desired number of tokens to generate. Also enable or disable the real-time display of specific internal states, such as QKV vectors and MLP outputs. This helps manage performance and focus on relevant data. The filter expressions of vectors can be customized by the input box below.
-![](images/controls.jpg)
+![](docs/static/images/controls.jpg)
 
 After starting generation, the visualization results will update token-by-token. In the first tab, the intermediate vector heatmaps are displayed and the output probabilities are shown in the expandable sections.
-![](images/visualization.jpg)
+![](docs/static/images/visualization.jpg)
 
 The second tab contains attention matrices. Use the dropdown menus to select the layer and attention head you wish to inspect.
-![](images/attention.jpg)
+![](docs/static/images/attention.jpg)
 
 The third tab is the PCA dimensionality reduction feature where you can visually inspect the clustering of tokens and understand how the model groups similar concepts. The displayed layer can also be selected.
-![](images/pca.jpg)
+![](docs/static/images/pca.jpg)
 
 ### 3. Injecting Model Perturbations
 The expandable perturbation control panel can introduce controlled noise into the model's forward pass. Each kind of perturbation has an independent switch, controlling the noise type and intensity.
@@ -277,11 +287,11 @@ The expandable perturbation control panel can introduce controlled noise into th
 The currently supported noise types include:
 - Additive Gaussian Noise (noise1): output = input + N(0, coef²), where N is a random value from a Gaussian (normal) distribution with mean 0.
 - Multiplicative Uniform Noise (noise2): output = input * U(1 - val, 1 + val), where U is a random value from a uniform distribution.
-![](images/perturbation.jpg)
+![](docs/static/images/perturbation.jpg)
 
 ### 4. Support for Training Process
 Similar visualization support is provided during the training process. The overall control is the same, and the training process will be controlled on the frontend page. Critical intermediate results and perturbations are supported in training.
-![](images/training.jpg)
+![](docs/static/images/training.jpg)
 
 ## MegaDPP
 
@@ -313,18 +323,18 @@ pip install -r requirements.txt
 - Install infiniband prerequisites
 
 ```bash
-bash prerequisite.sh
+bash scripts/maintenance/prerequisite.sh
 ```
 
 - Build the `shm_tensor_new_rdma` (for multinode) and `shm_tensor_new_rdma_pre_alloc` modules.
 
 ```bash
-cd megatron/shm_tensor_new_rdma
+cd src/megatron/shm_tensor_new_rdma
 pip install -e .
 ```
 
 ```bash
-cd megatron/shm_tensor_new_rdma_pre_alloc
+cd src/megatron/shm_tensor_new_rdma_pre_alloc
 pip install -e .
 ```
 
@@ -341,7 +351,7 @@ First, prepare your dataset in the following `.json` format with one sample per 
 {"src": "bloomberg", "text": "Var Energi agrees to buy Exxonmobil's Norway assets for $4.5 bln. MILAN, Sept 26 (Reuters) - Var Energi AS, the Norwegian oil and gas group 69.6% owned by Italian major Eni, has agreed to buy the Norwegian upstream assets of ExxonMobil for $4.5 billion. The deal is expected to be completed in the final quarter of this year, Var Energi said on Thursday. Reporting by Stephen Jewkes; editing by Francesca Landini MILAN, Sept 26 (Reuters) - Var Energi AS, the Norwegian oil and gas group 69.6% owned by Italian major Eni, has agreed to buy the Norwegian upstream assets of ExxonMobil for $4.5 billion. The deal is expected to be completed in the final quarter of this year, Var Energi said on Thursday. Reporting by Stephen Jewkes; editing by Francesca Landini", "type": "Eng", "id": "1", "title": "Var Energi agrees to buy Exxonmobil's Norway assets for $4.5 bln. "}
 {"src": "bloomberg", "text": "Trump says 'incorrect' he is willing to meet Iran with 'no conditions'. WASHINGTON (Reuters) - U.S. President Donald Trump on Sunday appeared to play down the chances that he might be willing to meet with Iranian officials, saying reports that he would do so without conditions were not accurate. \u201cThe Fake News is saying that I am willing to meet with Iran, \u2018No Conditions.\u2019 That is an incorrect statement (as usual!),\u201d Trump said on Twitter. In fact, as recently as on Sept. 10, U.S. Secretary of State Mike Pompeo said \u201cHe (Trump) is prepared to meet with no preconditions.\u201d Reporting By Arshad Mohammed; Editing by Shri Navaratnam WASHINGTON (Reuters) - U.S. President Donald Trump on Sunday appeared to play down the chances that he might be willing to meet with Iranian officials, saying reports that he would do so without conditions were not accurate. \u201cThe Fake News is saying that I am willing to meet with Iran, \u2018No Conditions.\u2019 That is an incorrect statement (as usual!),\u201d Trump said on Twitter. In fact, as recently as on Sept. 10, U.S. Secretary of State Mike Pompeo said \u201cHe (Trump) is prepared to meet with no preconditions.\u201d Reporting By Arshad Mohammed; Editing by Shri Navaratnam", "type": "Eng", "id": "2", "title": "Trump says 'incorrect' he is willing to meet Iran with 'no conditions'. "}
 ```
-note that we have provided a sample dataset under `datasets_gpt/` and `datasets_bert/`.
+note that we have provided a sample dataset under `datasets/gpt/` and `datasets/bert/`.
 
 Then, prepare the vocab file (gpt and bert) and the merges file (gpt-only). We have provided it in the respective directories.
 
@@ -349,9 +359,9 @@ For bert, run the following
 ```bash
 cd datasets
 python ../tools/preprocess_data.py \
-       --input ../datasets_bert/dataset.json \
+       --input bert/dataset.json \
        --output-prefix bert \
-       --vocab-file ../datasets_bert/vocab.txt \
+       --vocab-file bert/vocab.txt \
        --tokenizer-type BertWordPieceLowerCase \
        --split-sentences \
        --workers $(nproc)
@@ -362,11 +372,11 @@ For GPT, run the following
 ```bash
 cd datasets
 python ../tools/preprocess_data.py \
-       --input ../datasets_gpt/dataset.json \
+       --input gpt/dataset.json \
        --output-prefix gpt \
-       --vocab-file ../datasets_gpt/vocab.json \
+       --vocab-file gpt/vocab.json \
        --tokenizer-type GPT2BPETokenizer \
-       --merge-file ../datasets_gpt/merges.txt \
+       --merge-file gpt/merges.txt \
        --append-eod \
        --workers $(nproc)
 ```
@@ -377,18 +387,18 @@ For other models, please refer to `nvidia/megatron` for the corresponding datase
 To run distributed training on a single node, go to the project root directory and run
 
 ```bash
-bash run_single_gpt.sh
+bash scripts/launchers/run_single_gpt.sh
 ```
 
 for GPT and
 
 ```bash
-bash run_single_bert.sh
+bash scripts/launchers/run_single_bert.sh
 ```
 
 for bert.
 
-The `run_single_<model>.sh` files have the following structure:
+The `scripts/launchers/run_single_<model>.sh` files have the following structure:
 
 - Parameters include `pipeline_parallel`, `model_chunks` and `tensor_parallel`
 - The `virtual_stage_layer` parameter specifies how many layers there are in a single virtual pipeline stage. It is calculated as
@@ -405,7 +415,7 @@ There are also several critical parameters in `examples/gpt3/train_gpt3_175b_dis
 - `--workload` specifies the workload of each single thread, and hence determines the number of threads used in P2P communication
 - `--num-gpus` specifies the number of GPUs on the current node (single node training)
 - Other critical parameters include the number of layers of the model, the global batch size and the sequence length
-- Note that currently the global batch size value is 16 and is static in `run_single_<model>.sh`. It needs to simultaneously modify `run_single_<model>.sh` if adjusting the layers.
+- Note that currently the global batch size value is 16 and is static in `scripts/launchers/run_single_<model>.sh`. It needs to simultaneously modify the launcher script if adjusting the layers.
 
 For the remaining models, you can either directly run
 ```bash
@@ -417,23 +427,23 @@ or write a file similar to `run_{single,master,worker}_<model>.sh` that sets up 
 To run distributed training on multiple nodes, go to the root directory. First run
 
 ```bash
-bash run_master_<model>.sh
+bash scripts/launchers/run_master_<model>.sh
 ```
 
 and then start another pod and run
 
 ```bash
-bash run_worker_<model>.sh
+bash scripts/launchers/run_worker_<model>.sh
 ```
 
-The `run_master_<model>.sh` has the following parameters
+The `scripts/launchers/run_master_<model>.sh` script has the following parameters
 
-- Similar to `run_single_<model>.sh`, we have `pipeline_parallel`, `model_chunks` and `tensor_parallel`
+- Similar to `scripts/launchers/run_single_<model>.sh`, we have `pipeline_parallel`, `model_chunks` and `tensor_parallel`
 - It writes the master pod IP to `examples/gpt3/train_gpt3_175b_distributed_master.sh` and to `train_gpt3_175b_distributed_worker.sh` (bert in the corresponding directory)
 - Set the number of nodes to be 2 and master node has rank 0
 - Starts the shell under `examples`
 
-and `run_worker_<model>.sh` does the following
+and `scripts/launchers/run_worker_<model>.sh` does the following
 - Set the number of nodes to be 2 and the worker node has rank 1
 - Starts the shell under `examples`
 
@@ -444,7 +454,7 @@ The `examples/gpt3/train_gpt3_175b_distributed_master.sh` and `examples/gpt3/tra
 Each run will generate a trace dir in `benchmark`. Go to the `profiling` directory and run
 
 ```
-python aggregate.py --benchmark_dir benchmark/your-benchmark-dir
+python tools/aggregate_benchmarks.py --benchmark_dir benchmark/your-benchmark-dir
 ```
 
 in the root dir to produce an aggregated trace file.
@@ -464,10 +474,10 @@ Just follow above installation instructions.
 $\quad$ To run distributed training on a single node, go to the project root directory and run
 
 ```bash
-bash pretrain_gpt.sh $RANK
+bash scripts/launchers/pretrain_gpt.sh $RANK
 ```
 
-Here `pretrain_gpt.sh` is an example pretraining `Bash` script. 
+Here `scripts/launchers/pretrain_gpt.sh` is an example pretraining `Bash` script. 
 
 There are two extra options: `--forward-backward-disaggregating` and `--ignore-forward-tensor-parallel` in `TRAINING_ARGS`.
 
@@ -505,4 +515,4 @@ This project is licensed under the Apache 2.0 License, see the LICENSE file for 
 # 🌐 Community and Support
 Use WeChat to scan below QR code.
 
-![](images/code.png)
+![](docs/static/images/code.png)

@@ -51,7 +51,7 @@ NOTE: We create a simple gpt model
 ```
 
 ***STEP 3 - Instantiate the TRTLLM Helper***
-We instantiate the [TRTLLM Helper](../../../megatron/core/export/trtllm/trtllm_helper.py)  For the GPT model we instantiate trtllm_helper as shown below.
+We instantiate the [TRTLLM Helper](../../../src/megatron/core/export/trtllm/trtllm_helper.py)  For the GPT model we instantiate trtllm_helper as shown below.
 ```python
     if hasattr(gpt_model, "rotary_pos_emb"):
         seq_len_interpolation_factor =  gpt_model.rotary_pos_emb.seq_len_interpolation_factor
@@ -72,7 +72,7 @@ We instantiate the [TRTLLM Helper](../../../megatron/core/export/trtllm/trtllm_h
 ```
 
 ***STEP 4 - Get the TRTLLM Weights and configs***
-To convert model weights to trtllm weights and configs, we use the [single_device_converter](../../../megatron/core/export/trtllm/trtllm_weights_converter/single_device_trtllm_model_weights_converter.py). We pass as inputs the model state dict, and export config. In this example we use inference tp size as 2 for the export. 
+To convert model weights to trtllm weights and configs, we use the [single_device_converter](../../../src/megatron/core/export/trtllm/trtllm_weights_converter/single_device_trtllm_model_weights_converter.py). We pass as inputs the model state dict, and export config. In this example we use inference tp size as 2 for the export. 
 
 ```python
     model_state_dict={}
@@ -142,7 +142,7 @@ CUDA_VISIBLE_DEVICES=0 torchrun --nproc-per-node 1  examples/export/trtllm_expor
 <br>
 
 #### 2. GPU Export
-You can use the [gpt_distributed_gpu_export.py](./distributed_export/gpt_distributed_gpu_export.py) to run a more optimized on device distributed. version of trtllm export. Internally this uses the [distributed_converter](../../../megatron/core/export/trtllm/trtllm_weights_converter/distributed_trtllm_model_weights_converter.py) to convert model weights on device. 
+You can use the [gpt_distributed_gpu_export.py](./distributed_export/gpt_distributed_gpu_export.py) to run a more optimized on device distributed. version of trtllm export. Internally this uses the [distributed_converter](../../../src/megatron/core/export/trtllm/trtllm_weights_converter/distributed_trtllm_model_weights_converter.py) to convert model weights on device. 
 In the single device version you collect all the model weights on CPU/GPU, convert it to trtllm format, and then store the engine back on disk. In the GPU version you load each individual state dict on the gpus, convert it on the device itself and store the engine on disk. 
 
 To run the gpu version 

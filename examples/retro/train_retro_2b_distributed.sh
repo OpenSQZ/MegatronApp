@@ -90,7 +90,7 @@ fi
 
 ######## Command. ########
 
-torchrun ${DISTRIBUTED_ARGS[@]} pretrain_retro.py \
+torchrun ${DISTRIBUTED_ARGS[@]} scripts/training/pretrain_retro.py \
     ${RETRO_MODEL_ARGS[@]} \
     ${TRAINING_ARGS} \
     ${MODEL_PARALLEL_ARGS[@]} \

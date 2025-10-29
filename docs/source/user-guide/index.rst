@@ -1,4 +1,4 @@
 User Guide 
 ============
 
-.. mdinclude:: ../../../megatron/core/QuickStart.md
+.. mdinclude:: ../../../src/megatron/core/QuickStart.md

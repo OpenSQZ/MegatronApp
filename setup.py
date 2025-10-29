@@ -6,7 +6,7 @@ import os
 import setuptools
 from setuptools import Extension
 
-spec = importlib.util.spec_from_file_location('package_info', 'megatron/core/package_info.py')
+spec = importlib.util.spec_from_file_location('package_info', 'src/megatron/core/package_info.py')
 package_info = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package_info)
 
@@ -23,7 +23,7 @@ __repository_url__ = package_info.__repository_url__
 __version__ = package_info.__version__
 
 
-with open("megatron/core/README.md", "r", encoding='utf-8') as fh:
+with open("src/megatron/core/README.md", "r", encoding='utf-8') as fh:
     long_description = fh.read()
 long_description_content_type = "text/markdown"
 
@@ -35,7 +35,7 @@ def req_file(filename, folder="requirements"):
     with open(os.path.join(folder, environment, filename), encoding='utf-8') as f:
         content += f.readlines()
 
-    with open(os.path.join("megatron", "core", "requirements.txt"), encoding='utf-8') as f:
+    with open(os.path.join("src", "megatron", "core", "requirements.txt"), encoding='utf-8') as f:
         content += f.readlines()
 
     # you may also want to remove whitespace characters
@@ -104,11 +104,14 @@ setuptools.setup(
         'Natural Language :: English',
         'Operating System :: OS Independent',
     ],
-    packages=setuptools.find_namespace_packages(include=["megatron.core", "megatron.core.*"]),
+    packages=setuptools.find_namespace_packages(
+        where="src", include=["megatron.core", "megatron.core.*", "megatron_app", "megatron_app.*"]
+    ),
+    package_dir={"": "src"},
     ext_modules=[
         Extension(
             "megatron.core.datasets.helpers_cpp",
-            sources=["megatron/core/datasets/helpers.cpp"],
+            sources=["src/megatron/core/datasets/helpers.cpp"],
             language="c++",
             extra_compile_args=(
                 subprocess.check_output(["python3", "-m", "pybind11", "--includes"])

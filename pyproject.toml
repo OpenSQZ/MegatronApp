@@ -53,11 +53,15 @@ classifiers = [
 Download = "https://github.com/NVIDIA/Megatron-LM/releases"
 Homepage = "https://github.com/NVIDIA/Megatron-LM/megatron/core"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["megatron*", "megatron_app*"]
+
 [tool.isort]
 profile = "black"  # black-compatible
 line_length = 100  # should match black parameters
 py_version = 310  # python 3.8 as a target version
-known_first_party = ["megatron"]  # FIRSTPARTY section
+known_first_party = ["megatron", "megatron_app"]  # FIRSTPARTY section
 known_third_party = ["transformer_engine"]  # THIRDPARTY section
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 default_section = "THIRDPARTY"

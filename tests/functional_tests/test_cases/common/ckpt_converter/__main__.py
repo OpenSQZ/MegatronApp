@@ -304,7 +304,7 @@ class Pipeline:
                 attention_mask = None
 
         # Other PP ranks.
-        # (Note: mimics pretrain_gpt.py:get_batch().)
+        # (Note: mimics scripts/training/pretrain_gpt.py:get_batch().)
         else:
             input_ids = None
             position_ids = None

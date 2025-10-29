@@ -41,7 +41,7 @@ NOTE: The model provider function supports both MCore and Legacy models.
 ```
 
 ***STEP 3 - Choose an engine***
-Text generation requires an inference engine, which includes a scheduler. The default engine is the [Megatron Core engine](../../megatron/core/inference/engine/mcore_engine.py) with a simple [text generation controller](../../megatron/core/inference/text_generation_controllers/text_generation_controller.py). TRTLLMEngine will be supported in the future.
+Text generation requires an inference engine, which includes a scheduler. The default engine is the [Megatron Core engine](../../src/megatron/core/inference/engine/mcore_engine.py) with a simple [text generation controller](../../src/megatron/core/inference/text_generation_controllers/text_generation_controller.py). TRTLLMEngine will be supported in the future.
 ```python
     inference_wrapped_model = GPTInferenceWrapper(model, args)
     text_generation_controller = TextGenerationController(
@@ -54,8 +54,8 @@ Text generation requires an inference engine, which includes a scheduler. The de
 ```
 
 ***STEP 4 - Run text generation***
-The [SamplingParams](../../megatron/core/inference/sampling_params.py) contains suggested defaults. Customize this to change top_p, top_k, number of tokens to generate etc. 
-*Note: The result is returned as a list of [InferenceRequests](../../megatron/core/inference/inference_request.py)*
+The [SamplingParams](../../src/megatron/core/inference/sampling_params.py) contains suggested defaults. Customize this to change top_p, top_k, number of tokens to generate etc. 
+*Note: The result is returned as a list of [InferenceRequests](../../src/megatron/core/inference/inference_request.py)*
 ```python
     results: List[InferenceRequest] = inference_engine.generate(
         prompts=args.prompts, sampling_params=sampling_params
@@ -144,11 +144,11 @@ NOTE: Other parameters which can be customized for inference are :-
 
 #### 2. Control Flow in the MCore Backend
 An example of inference with static batching is provided in [gpt_batch_inference.py](./gpt/gpt_batch_inference.py).
-* [mcore_engine](../../megatron/core/inference/engines/mcore_engine.py) **generate()** function is called with the input prompts.
-* The `Scheduler` in the engine will add these prompts to the [active requests] pool (../../megatron/core/inference/inference_request.py) until max batch size is hit. Remaining requests will be added to the waiting requests pool. 
+* [mcore_engine](../../src/megatron/core/inference/engines/mcore_engine.py) **generate()** function is called with the input prompts.
+* The `Scheduler` in the engine will add these prompts to the [active requests] pool (../../src/megatron/core/inference/inference_request.py) until max batch size is hit. Remaining requests will be added to the waiting requests pool. 
 * The engine will run until all requests (waiting + active) are completed. 
     * The active requests are passed into  **generate_all_output_tokens_static_batch()** of the text generation controller . 
-    * This function uses the **prep_model_for_inference()** method of the [model_inference_wrappers](../../megatron/core/inference/model_inference_wrappers/abstract_model_inference_wrapper.py) and runs an autoregressive sampling loop
+    * This function uses the **prep_model_for_inference()** method of the [model_inference_wrappers](../../src/megatron/core/inference/model_inference_wrappers/abstract_model_inference_wrapper.py) and runs an autoregressive sampling loop
     * In the autoregressive loop, the **get_batch_for_context_window()** method of the inference wrapper is called to slice out the input tokens and masks
     * Input tokens and masks are passed it into the **run_one_forward_step()** method, which calls the model `.forward()` method to get the output logits
     * Output logits are synchronized across all pipeline parallel ranks
@@ -172,7 +172,7 @@ The inference pipeline supports three levels of customization:
 <br>
 
 ##### 3.1. Create Your Own Inference Backend 
-The  [abstract_engine.py](./../../megatron/core/inference/engine/abstract_engine.py) file contains a `generate` method that can be extended to support a new backend. 
+The  [abstract_engine.py](./../../src/megatron/core/inference/engine/abstract_engine.py) file contains a `generate` method that can be extended to support a new backend. 
 
 ```python
 class AbstractEngine(ABC):
@@ -187,7 +187,7 @@ class AbstractEngine(ABC):
 
 ##### 3.2. Implement a new Sampling Loop 
 
-The [TextGenerationController](../../megatron/core/inference/text_generation_controllers/text_generation_controller.py) contains the main sampling loop and can be modified to support new tokenization, detokenization, or sampling strategies.
+The [TextGenerationController](../../src/megatron/core/inference/text_generation_controllers/text_generation_controller.py) contains the main sampling loop and can be modified to support new tokenization, detokenization, or sampling strategies.
 
 ``` python
 class TextGenerationController:
@@ -237,7 +237,7 @@ class TextGenerationController:
 <br>
 
 ##### 3.3. Support Other Models
-Extend [abstract_model_inference_wrapper.py](./../../megatron/core/inference/model_inference_wrappers/abstract_model_inference_wrapper.py) to support other models. The abstract model wrapper implements: 
+Extend [abstract_model_inference_wrapper.py](./../../src/megatron/core/inference/model_inference_wrappers/abstract_model_inference_wrapper.py) to support other models. The abstract model wrapper implements: 
 * Forward method which calls the model `forward` method depending on model parallel settings
 * Initializes the model and puts it in `.eval()` mode
 * Setup for the input parameters (max batch size, max seq length) 
@@ -258,12 +258,12 @@ class AbstractModelInferenceWrapper:
         This function gets called iteratively in the inference loop. It can be used to extract relevant input from the prompt tokens, attention mask etc. required for each step in inference.
 ```
 
-Refer to [gpt_inference_wrapper.py](../../megatron/core/inference/model_inference_wrappers/gpt/gpt_inference_wrapper.py) for an example of implementing this for GPTModel.
+Refer to [gpt_inference_wrapper.py](../../src/megatron/core/inference/model_inference_wrappers/gpt/gpt_inference_wrapper.py) for an example of implementing this for GPTModel.
 
 <br>
 
 ##### 3.3. Modify Inference Parameters
-We use  [common inference params](../../megatron/core/inference/sampling_params.py) for text generation. Customize this if you want to change top_p, top_k, number of tokens to generate etc. If you want to add other attributes that you would use in the inference loop, you can do that as shown below
+We use  [common inference params](../../src/megatron/core/inference/sampling_params.py) for text generation. Customize this if you want to change top_p, top_k, number of tokens to generate etc. If you want to add other attributes that you would use in the inference loop, you can do that as shown below
 
 ```
 from megatron.core.inference.sampling_params import SamplingParams
