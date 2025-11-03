@@ -1,11 +1,11 @@
 <div align="center">
 
-**MegatronApp: toolchain built around the Megatron-LM for Distributed Training**
+**MegatronApp: Toolchain built around Megatron-LM for Distributed Training**
 <!-- > Sample: AI Health Assistant | Powered by Your Data -->
 
-Extension for performance tuning, slow-node detection, and training-process visualization.
+An extension for performance tuning, slow-node detection, and training-process visualization.
 
-<!-- **📢 Annoncements**  
+<!-- **📢 Announcements**  
 
 > List 2~3 important annoncements, including milestones, major releases... -->
 
@@ -14,6 +14,14 @@ Extension for performance tuning, slow-node detection, and training-process visu
 [English](README.md)  | [中文](cn/README.md)  -->
 
 </div>
+
+# News <!-- omit in toc -->
+
+### 📌 Pinned
+* [2025.10.17] 🔥🔥🔥 We provide user-friendly [docker guidance](./DockerUsage.md) for all four features of MegatronApp. Please try it out!
+* [2025.07.27] 📢📢📢 The MegatronApp technical report has been released! See [here](https://arxiv.org/pdf/2507.19845).
+* [2025.07.04] 🔥🔥🔥 MegatronApp is officially launched at WAIC 2025! Our code is available [here](https://github.com/OpenSQZ/MegatronApp). Come and try it out!
+
 
 # 🔥 Demo
 **MegaScan**
@@ -39,7 +47,7 @@ The project currently offers four core modules:
 - MegaScan is a low-overhead tracing and anomaly detection system designed on Megatron-LM for large-scale distributed training. Detecting and locating hardware performance anomalies, such as GPU downclocking, is extremely challenging in large distributed environments. A single slow GPU can cause a cascading delay, degrading the performance of the entire cluster and making it difficult to pinpoint the source. This module aims to solve this problem by capturing and analyzing runtime trace data. By providing a global, high-precision view of all operations across all GPUs, MegaScan can identify specific patterns caused by hardware anomalies, allowing for accurate detection and root cause localization.
 - MegaFBD (Forward-Backward Decoupling) – Automatically splits the forward and backward phases onto different devices to resolve imbalances in compute, communication, and memory usage between the two stages, optimizing resource allocation and boosting overall utilization.
 - MegaDPP (Dynamic Pipeline Planning) – Dynamically optimizes pipeline-parallel scheduling during training, allowing each device to adjust its schedule in real time according to progress, deferring selected compute or transfer steps to alleviate network pressure.
-- MegaScope – Dynamically captures, processes, and caches intermediate results during training according to user-defined metrics, then displays them through an interactive visualization interface. MegaScope aims to make the "black box" of Large Language Models transparent. With this tool, user can observe and analyze things that happen inside a model as it processes text, such as how attention scores and output probabilities are distributed, how the vector representations change among different tokens and prompts.
+- MegaScope – Dynamically captures, processes, and caches intermediate results during training according to user-defined metrics, then displays them through an interactive visualization interface. MegaScope aims to make the "black box" of Large Language Models transparent. With this tool, users can observe and analyze things that happen inside a model as it processes text, such as how attention scores and output probabilities are distributed, how the vector representations change among different tokens and prompts.
 
 The four modules are fully isolated and integrated into the Megatron-LM codebase as plugins; users can flexibly enable or disable any of them at launch via control flags.
 
@@ -71,9 +79,9 @@ The technical report of MegatronApp can be seen [here](./MegatronApp.pdf).
 
 ## MegaScope
 
-📊Real-time generation and visualization: Input any prompt and watch the model generate text token by token, with its internal states displayed in sync.
+📊 Real-time generation and visualization: Input any prompt and watch the model generate text token by token, with its internal states displayed in sync.
 
-🛠️Intermediate result visualization: 
+🛠️ Intermediate result visualization: 
 
 -  Display key intermediate variables like QKV vectors and MLP layer outputs as heatmaps.
 -  Attention matrix analysis: Freely select any layer and attention head to view its dynamic attention weight distribution.
@@ -88,28 +96,28 @@ The technical report of MegatronApp can be seen [here](./MegatronApp.pdf).
 - Storage perturbation: Inject noise into critical model parameters to simulate the error in storage devices.
 - Calculation perturbation: Inject noise during the model's forward pass (e.g. at the output of MLP layer).
 - System perturbation: Simulate a constant error between each transformer layer.
-Through UI, users can precisely control the location, activation, type and extent of the perturbations.
+Through the UI, users can precisely control the location, activation, type and extent of the perturbations.
 
 ### MegaDPP
 
-📊 A dynamic pipeline-parallel scheduling algorithm: selects the next microbatch to compute via a customized greedy rule based on user requirements:
+📊 A dynamic pipeline-parallel scheduling algorithm: It selects the next microbatch to compute via a customized greedy rule based on user requirements:
 
-- Depth first computation: give priority to computing the same data on different model chunks for lower GPU memory usage
-- Breadth first computation: give priority to computing different data on the same model chunks for lower communication contention
+- Depth-first computation: give priority to computing the same data on different model chunks for lower GPU memory usage
+- Breadth-first computation: give priority to computing different data on the same model chunks for lower communication contention
 
-🛠️ An efficient  shared-memory based communication library:
+🛠️ An efficient shared-memory based communication library:
 
 - Concurrent asynchronous send/recv operations
 - Dynamically track the completion status of operations
 
-For more details see [README_Megatron.md](README_Megatron.md)
+For more details, see [README_Megatron.md](README_Megatron.md)
 
 ### MegaFBD
-📊 Instance-Level Decoupled Scheduling: The forward and backward phases are split into two logical processes, each assigned a different rank and bound to separate resources to reduce coupling;
+📊 Instance-Level Decoupled Scheduling: The forward and backward phases are split into two logical processes, each assigned a different rank and bound to separate resources to reduce coupling.
 
-🛠️ Heterogeneous Resource Mapping Optimization: The forward phase can be deployed on lightly loaded devices or CPUs, alleviating GPU pressure;
+🛠️ Heterogeneous Resource Mapping Optimization: The forward phase can be deployed on lightly loaded devices or CPUs, alleviating GPU pressure.
 
-🧠 Differentiated Parallelism Configuration: Considering factors like activation reuse and communication volume, the forward phase is assigned a lower degree of parallelism to reduce communication overhead;
+🧠 Differentiated Parallelism Configuration: Considering factors like activation reuse and communication volume, the forward phase is assigned a lower degree of parallelism to reduce communication overhead.
 
 🖥️ Thread-Level Coordination Mechanism: A communication coordinator ensures necessary data synchronization between forward and backward phases, avoiding deadlocks and redundant communication.
 
@@ -145,7 +153,6 @@ MegatronApp uses a decoupled frontend-backend architecture with WebSockets to en
 
 We strongly recommend using the release of [PyTorch NGC Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch) for installation. This container comes with all dependencies pre-installed with compatible versions and optimized configurations for NVIDIA GPUs.
 
-~~~shell
 ```bash
 # Run container with mounted directories
 docker run --runtime --nvidia --gpus all -it --rm \
@@ -154,7 +161,6 @@ docker run --runtime --nvidia --gpus all -it --rm \
   -v /path/to/checkpoints:/workspace/checkpoints \
   nvcr.io/nvidia/pytorch:25.04-py3
 ```
-~~~
 
 
 
@@ -172,7 +178,7 @@ We provide a basic repro for you to quickly get started with MegaScan.
 
 Please refer to [README_Megatron.md](README_Megatron.md) section "Dataset Preparation" and Nvidia's [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) for more details.
 
-1. Run Megatron-LM training with MegaScan enabled by adding the following command line arguments:
+1. Run NVIDIA’s Megatron-LM training with MegaScan enabled by adding the following command line arguments:
 
 ```bash
 --trace
@@ -180,13 +186,13 @@ Please refer to [README_Megatron.md](README_Megatron.md) section "Dataset Prepar
 --trace-interval 5 # optional, default is 5 iterations
 --continuous-trace-iterations 2 # optional, default is 2 iterations
 --trace-granularity full # optional, default is full
---transformer-impl local # currently only support local transformer implementation
+--transformer-impl local # currently only supports local transformer implementation
 ```
 
 `examples/gpt3/train_gpt3_345m_distributed.sh` is an example script. You can modify the script to suit your needs.
 
 If you want to train on multiple nodes, change the `GPU_PER_NODE`, `NUM_NODES`, `MASTER_ADDR`, `MASTER_PORT`, `NODE_RANK`, `WORLD_SIZE` in the script accordingly.
-Alternatively you can use elastic training. See [torchrun](https://docs.pytorch.org/docs/stable/elastic/run.html) for more details.
+Alternatively, you can use elastic training. See [torchrun](https://docs.pytorch.org/docs/stable/elastic/run.html) for more details.
 
 2. After training, you will find separated trace files in the current directory. The trace files are named as `benchmark-data-{}-pipeline-{}-tensor-{}.json`, where `{}` is the rank number. Now we should aggregate the trace files into a single trace file:
 
@@ -216,7 +222,7 @@ python scripts/aggregate.py --b trace_output --output benchmark.json
         -b . \ # Equivalent to --bench-dir
         -d # Enable the detection algorithm, Equivalent to --detect
     ```
-    We can see some output that indicated that the GPU 0 may be abnormal:
+    We can see output indicating that GPU 0 may be abnormal.
 
     ![1](images/result.png)
 
@@ -233,7 +239,7 @@ For example
 ```bash
 bash examples/inference/llama_mistral/run_text_generation_llama3.sh /gfshome/llama3-ckpts/Meta-Llama-3-8B-Instruct-megatron-core-v0.12.0-TP1PP1 /root/llama3-ckpts/Meta-Llama-3-8B-Instruct
 ```
-For training mode, run the training script, **and add `--training-ws-port XXX` (e.g. `--training-ws-port 5000`) to the argument**. The typical command is
+For training mode, run the training script, **and add `--training-ws-port XXX` (e.g. `--training-ws-port 5000`) to the argument**. A typical command is
 ```bash
 bash a_pretrain_script.sh $RANK
 ```
@@ -273,8 +279,8 @@ The currently supported noise types include:
 - Multiplicative Uniform Noise (noise2): output = input * U(1 - val, 1 + val), where U is a random value from a uniform distribution.
 ![](images/perturbation.jpg)
 
-### 4. Support for training process
-The similar support for visualization during training process are provided as well. The overall control is the same, and the training process will be controlled on the frontend page. Critical intermediate results and perturbations are supported in training.
+### 4. Support for Training Process
+Similar visualization support is provided during the training process. The overall control is the same, and the training process will be controlled on the frontend page. Critical intermediate results and perturbations are supported in training.
 ![](images/training.jpg)
 
 ## MegaDPP
@@ -298,7 +304,7 @@ ShmSize: 16Gi
 UseIB: true
 ```
 
-- The python environment in the image automatically includes almost all of the required packages, to install additional required packages, run
+- The Python environment in the image automatically includes almost all of the required packages. To install additional required packages, run
 
 ```bash
 pip install -r requirements.txt
@@ -310,7 +316,7 @@ pip install -r requirements.txt
 bash prerequisite.sh
 ```
 
-- Build the `shm_tensor_new_rdma` (for multinode) and `shm_tensor_new_rdma_pre_alloc` module.
+- Build the `shm_tensor_new_rdma` (for multinode) and `shm_tensor_new_rdma_pre_alloc` modules.
 
 ```bash
 cd megatron/shm_tensor_new_rdma
@@ -385,11 +391,11 @@ for bert.
 The `run_single_<model>.sh` files have the following structure:
 
 - Parameters include `pipeline_parallel`, `model_chunks` and `tensor_parallel`
-- The `virtual_stage_layer` parameter sets how many layers are there in a single virtual pipeline stage. It is calculated as
+- The `virtual_stage_layer` parameter specifies how many layers there are in a single virtual pipeline stage. It is calculated as
 $$
 \frac{\text{total layer of model}}{\text{pipeline parallel}\times\text{model chunks}}
 $$
-where total layer is set under `examples/` under the corresponding model.
+where total layer is set under `examples/` the corresponding model.
 - It gets the IP address of the pod and writes it to the shell script.
 - Finally it runs the shell script under the corresponding model under `examples/`
 
@@ -397,8 +403,9 @@ There are also several critical parameters in `examples/gpt3/train_gpt3_175b_dis
 
 - `--use-dpp` switches to DPP algorithm
 - `--workload` specifies the workload of each single thread, and hence determines the number of threads used in P2P communication
-- `--num-gpus` specify the number of GPUs on the current node (single node training)
-- Other critical parameters include the number of layers of the model (note that currently the value is 16 and is static in `run_single_<model>.sh`, needs to simultaneously modify `run_single_<model>.sh` if adjusting the layers), the global batch size and the sequence length
+- `--num-gpus` specifies the number of GPUs on the current node (single node training)
+- Other critical parameters include the number of layers of the model, the global batch size and the sequence length
+- Note that currently the global batch size value is 16 and is static in `run_single_<model>.sh`. It needs to simultaneously modify `run_single_<model>.sh` if adjusting the layers.
 
 For the remaining models, you can either directly run
 ```bash
@@ -430,35 +437,29 @@ and `run_worker_<model>.sh` does the following
 - Set the number of nodes to be 2 and the worker node has rank 1
 - Starts the shell under `examples`
 
-The `examples/gpt3/train_gpt3_175b_distributed_master.sh` and `examples/gpt3/train_gpt3_175b_distributed_worker.sh` is similar to the single node version, except that the `--node-ips` is mandatory, which is the infiniband IPs of the pods in the order of their GPU ranks. And also the `--multi-node` flag should be turned on.
+The `examples/gpt3/train_gpt3_175b_distributed_master.sh` and `examples/gpt3/train_gpt3_175b_distributed_worker.sh` are similar to the single node version, except that the `--node-ips` is mandatory, which is the infiniband IPs of the pods in the order of their GPU ranks. And also the `--multi-node` flag should be turned on.
 
 ### Profiling
 
 Each run will generate a trace dir in `benchmark`. Go to the `profiling` directory and run
 
-```python
+```
 python aggregate.py --benchmark_dir benchmark/your-benchmark-dir
 ```
 
 in the root dir to produce an aggregated trace file.
 
 ## MegaFBD
-## Install
+### Install
 
-- Install infiniband prerequisites
+- Install infiniband prerequisites. 
 
-```bash
-bash prerequisite.sh
-```
+- Build the RDMA C++ extension modules: `shm_tensor_new_rdma` (for multinode) and `shm_tensor_new_rdma_pre_alloc` module. 
 
-- Build the `shm_tensor_new_rdma` module.
+Just follow above installation instructions.
 
-```bash
-cd megatron
-python setup.py install
-```
 
-## Run example
+### Run example
 
 $\quad$ To run distributed training on a single node, go to the project root directory and run
 
@@ -466,7 +467,7 @@ $\quad$ To run distributed training on a single node, go to the project root dir
 bash pretrain_gpt.sh $RANK
 ```
 
-Here pretrain_gpt.sh is an example bash script of pretrain. 
+Here `pretrain_gpt.sh` is an example pretraining `Bash` script. 
 
 There are two extra options: `--forward-backward-disaggregating` and `--ignore-forward-tensor-parallel` in `TRAINING_ARGS`.
 
@@ -479,7 +480,7 @@ There are two extra options: `--forward-backward-disaggregating` and `--ignore-f
 
   Enables merging forward ranks within the same TP group. After doing this, your number of ranks will be multiplied by $\frac{TP+1}{2TP}$. Be sure you are using the correct number of ranks.
 
-Currently Context Parallel and Expert parallel are not supported. `--tranformer-impl` should be `local`.
+Currently Context Parallel and Expert parallel are not supported. `--transformer-impl` should be `local`.
 
 # 🛠️ Security Policy
 
@@ -496,12 +497,12 @@ An overview of the vulnerability handling process is:
 - The project publicly announces the vulnerability and describes how to apply the fix.
 
 # Contributing
-Contributions and collaborations are welcome and highly appreciated. Check out the [contributor guide]() and get involved.
+Contributions and collaborations are welcome and highly appreciated. Check out the [Contributor Guide](https://github.com/OpenSQZ/MegatronApp/blob/main/CONTRIBUTING.md) and get involved.
 
 # 💡 License
 This project is licensed under the Apache 2.0 License, see the LICENSE file for details. 
 
 # 🌐 Community and Support
-Use WeChat to scan blow QR code.
+Use WeChat to scan below QR code.
 
 ![](images/code.png)
