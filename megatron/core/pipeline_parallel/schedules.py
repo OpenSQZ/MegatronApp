@@ -433,6 +433,7 @@ def forward_step_no_grad(
         Tensor or list[Tensor]: The output object(s) from the forward step.
         Tensor: The number of tokens.
     """
+    import megatron.virtual_tensor_parallel_communication as dist
     with torch.no_grad():
         if config.timers is not None:
             config.timers('forward-compute', log_level=2).start()
@@ -2330,6 +2331,7 @@ def forward_or_backward_pipelining_without_interleaving(
     # print('?')
     ACTS.init_sets()
     dist.barrier()
+    dist.print_memory_usage()
     
     if forward_only or parallel_state.is_forward_stage():
         # Run warmup forward passes.
@@ -2512,9 +2514,10 @@ def forward_or_backward_pipelining_without_interleaving(
 
 
     # Launch any remaining grad reductions
+
     if no_sync_context is not None:
         enable_grad_sync()
-        if config.grad_sync_func is not None:
+        if config.grad_sync_func is not None and not parallel_state.is_forward_stage():
             config.grad_sync_func(model.parameters())
 
     # Finalize model grads (perform full grad all-reduce / reduce-scatter for
@@ -2522,11 +2525,19 @@ def forward_or_backward_pipelining_without_interleaving(
     # embedding all-reduce for pipeline parallelism).
     # import megatron.virtual_tensor_parallel_communication as dist
     # print('#', dist.get_rank())
-    if config.finalize_model_grads_func is not None and not forward_only:
+
+    if config.finalize_model_grads_func is not None and not forward_only and not parallel_state.is_forward_stage():
         config.finalize_model_grads_func(
             [model], total_num_tokens if config.calculate_per_token_loss else None
         )
+
         # distrib_grad.finalize_model_grads([model])
+
+    # print('#',dist.get_rank(),config.param_copy_func)
+
+    # if not forward_only:
+    #     config.param_copy_func(model.parameters())
+
     dist.print_memory_usage()
 
     return forward_data_store

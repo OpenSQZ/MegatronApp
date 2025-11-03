@@ -143,14 +143,20 @@ def _allreduce_word_embedding_grads(model: List[torch.nn.Module], config: Transf
         # embedding weights in post processing stage. If use Multi-Token Prediction (MTP),
         # we also need to maintain duplicated embedding weights in mtp process stage.
         # So we need to allreduce grads of embedding in the embedding group in these cases.
+        # print('#####', dist.get_rank())
         if model_module.share_embeddings_and_output_weights or getattr(config, 'mtp_num_layers', 0):
             weight = model_module.shared_embedding_or_output_weight()
             grad_attr = _get_main_grad_attr(weight, ddp_config.use_custom_fsdp)
             orig_grad = getattr(weight, grad_attr)
             grad = _unshard_if_dtensor(orig_grad)
-            dist.all_reduce(grad, group=parallel_state.get_embedding_group())
-            setattr(weight, grad_attr, _reshard_if_dtensor(grad, orig_grad))
-
+            if grad is not None:
+                # print(dist.get_rank(),grad.shape)
+                dist.all_reduce(grad, group=parallel_state.get_embedding_group())
+                setattr(weight, grad_attr, _reshard_if_dtensor(grad, orig_grad))
+            else:
+                grad = torch.zeros_like(weight.data)
+                # print(dist.get_rank(),grad.shape)
+                dist.all_reduce(grad, group=parallel_state.get_embedding_group())
 
 def _allreduce_position_embedding_grads(model: List[torch.nn.Module], config: TransformerConfig):
     """
@@ -264,12 +270,14 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
     config = get_model_config(model[0])
 
     # All-reduce / reduce-scatter across DP replicas.
+    # print('#',dist.get_rank())
     if config.timers is not None:
         config.timers('all-grads-sync', log_level=1).start(barrier=config.barrier_with_L1_time)
     for model_chunk in model:
         model_chunk.finish_grad_sync()
     if config.timers is not None:
         config.timers('all-grads-sync').stop()
+    # print('@',dist.get_rank())
 
     # All-reduce t_embedder grads (for pp & vpp of DiT).
     if config.timers is not None:
@@ -279,6 +287,8 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
     _allreduce_conditional_embedding_grads(model, config)
     if config.timers is not None:
         config.timers('conditional-embedder-grads-all-reduce').stop()
+    
+    # print('$',dist.get_rank())
 
     # All-reduce layer-norm grads (for sequence parallelism).
     if config.timers is not None:
@@ -289,6 +299,8 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
     if config.timers is not None:
         config.timers('layernorm-grads-all-reduce').stop()
 
+    # print('%',dist.get_rank())
+
     # All-reduce embedding grads (for pipeline parallelism).
     if config.timers is not None:
         config.timers('embedding-grads-all-reduce', log_level=1).start(
@@ -297,6 +309,8 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
     _allreduce_embedding_grads(model, config)
     if config.timers is not None:
         config.timers('embedding-grads-all-reduce').stop()
+    
+    # print('^',dist.get_rank())
 
     if config.moe_router_enable_expert_bias:
         _update_router_expert_bias(model, config)

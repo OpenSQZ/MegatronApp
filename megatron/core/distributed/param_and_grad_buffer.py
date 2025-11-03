@@ -339,6 +339,7 @@ class _ParamAndGradBucketGroup:
         else:
             communication_group = self.data_parallel_group
 
+        # print('######', dist.get_rank(), self.data_parallel_group.controller)
         # Coalesce communication kernels across buckets in the bucket group.
         # if isinstance(communication_group, list):
         #     communication_group = communication_group[0]
@@ -397,6 +398,28 @@ class _ParamAndGradBucketGroup:
             # maintain consistency with prior code, we need to manually set communication handle to
             # None.
             self.grad_reduce_handle = None
+    
+    def start_param_copy(self):
+        from megatron.core import parallel_state
+
+        reqs = []
+        print(dist.get_rank(), ':', len(self.buckets))
+        for bucket in self.buckets:
+            if bucket.param_data is not None:
+                if parallel_state.is_forward_stage():
+                    reqs.append(dist.irecv(bucket.param_data, src = parallel_state.get_forward_backward_parallel_dual_rank()))
+                else:
+                    reqs.append(dist.isend(bucket.param_data, dst = parallel_state.get_forward_backward_parallel_dual_rank()))
+            else:
+                # print(len(bucket.params_list))
+                for param in bucket.params_list:
+                    if parallel_state.is_forward_stage():
+                        reqs.append(dist.irecv(param.data, src=parallel_state.get_forward_backward_parallel_dual_rank()))
+                    else:
+                        reqs.append(dist.isend(param.data, dst=parallel_state.get_forward_backward_parallel_dual_rank()))
+        
+        for req in reqs:
+            req.wait()
 
     def finish_grad_sync(self):
         """

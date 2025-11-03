@@ -2154,19 +2154,20 @@ def get_data_parallel_group(with_context_parallel=False, partial_data_parallel=F
         ), 'data parallel group with context parallel combined is not initialized'
         from megatron.training import get_args
         args = get_args()
+        #TODO: with context parallel
         if not (args.forward_backward_disaggregating and is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _DATA_PARALLEL_GROUP_WITH_CP
+            return _HALF_DATA_PARALLEL_GROUP
         else:
-            return _DATA_PARALLEL_GROUP_WITH_CP_LIST[get_thread_index()]
+            return _HALF_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
     else:
         assert _DATA_PARALLEL_GROUP is not None or len(_DATA_PARALLEL_GROUP_LIST) > 0, 'data parallel group is not initialized'
         from megatron.training import get_args
         args = get_args()
         # print('??', get_thread_index(), _DATA_PARALLEL_GROUP_LIST[get_thread_index()])
         if not (args.forward_backward_disaggregating and is_forward_stage() and args.ignore_forward_tensor_parallel):
-            return _DATA_PARALLEL_GROUP
+            return _HALF_DATA_PARALLEL_GROUP
         else:
-            return _DATA_PARALLEL_GROUP_LIST[get_thread_index()]
+            return _HALF_DATA_PARALLEL_GROUP_LIST[get_thread_index()]
 
 # def get_data_parallel_group(with_context_parallel=False, partial_data_parallel=False):
 #     """Get the data-parallel group the caller rank belongs to."""

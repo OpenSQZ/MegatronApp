@@ -718,6 +718,12 @@ def batch_isend_irecv(p2p_op_list, bypass_controller = False):
     # lock.release()
     return reqs
 
+def irecv_with_virtual_rank(tensor, src):
+    return dist.irecv(tensor, src=get_real_rank(src))
+
+def isend_with_virtual_rank(tensor, dst):
+    return dist.isend(tensor, dst=get_real_rank(dst))
+
 def all_reduce(tensor, op=ReduceOp.SUM, group=None, async_op=False):
     if normal_communication:
         return dist.all_reduce(tensor, op, group, async_op)

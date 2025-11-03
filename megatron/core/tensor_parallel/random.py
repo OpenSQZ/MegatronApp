@@ -477,8 +477,13 @@ class CheckpointFunctionWithSavedActivation(torch.autograd.Function):
         # Copy the rng states.
         ctx.rng_states = _get_all_rng_states()
 
+        # import megatron.virtual_tensor_parallel_communication as dist
+        # if dist.get_rank() == 0:
+        #     dist.print_memory_usage()
         with torch.no_grad():
             outputs = run_function(*args)
+        # if dist.get_rank() == 0:
+        #     dist.print_memory_usage()
 
         # Divide hidden states across model parallel group and only keep
         # the chunk corresponding to the current rank.
@@ -573,6 +578,9 @@ class NoRecomputeCheckpointFunction(torch.autograd.Function):
                 inputs[0], gather_split_1d_tensor(inputs[0].data).view(ctx.input_0_shape)
             )
 
+        # import megatron.virtual_tensor_parallel_communication as dist
+        # if dist.get_rank() == 2:
+        #     dist.print_memory_usage()
         with _fork_rng():
             # Set the states to what it used to be before the forward pass.
             _set_all_rng_states(*ctx.rng_states)
@@ -581,6 +589,9 @@ class NoRecomputeCheckpointFunction(torch.autograd.Function):
             detached_inputs = detach_variable(inputs)
             with torch.enable_grad():
                 outputs = ctx.run_function(*detached_inputs)
+        # if dist.get_rank() == 2:
+        #     dist.print_memory_usage()
+
 
         if isinstance(outputs, torch.Tensor):
             outputs = (outputs,)

@@ -72,6 +72,7 @@ from megatron.core.parallel_state import (
     destroy_model_parallel,
     get_amax_reduction_group,
     model_parallel_is_initialized,
+    is_forward_stage,
 )
 from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.core.pipeline_parallel.schedules import (
@@ -1056,6 +1057,10 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     for model_module in model:
         for param in model_module.parameters():
             tensor_parallel.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
+    
+    if is_forward_stage():
+        for param in model_module.parameters():
+            param.requires_grad = False
 
     # Print number of parameters.
     num_parameters = sum(
@@ -1147,6 +1152,8 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
         if args.data_parallel_random_init:
             for model_module in model:
                 model_module.broadcast_params()
+
+    dist.print_memory_usage()
 
     return model
 
@@ -1356,7 +1363,6 @@ def train_step(forward_step_func, data_iterator,
             micro_batch_size=args.micro_batch_size,
             decoder_seq_length=args.decoder_seq_length,
             forward_only=False)
-    # print('#',dist.get_rank())
     should_checkpoint, should_exit, exit_code = rerun_state_machine.should_checkpoint_and_exit()
     if should_exit:
         return {}, True, should_checkpoint, should_exit, exit_code, None, None
@@ -1391,6 +1397,7 @@ def train_step(forward_step_func, data_iterator,
         unwrapped_model.update_momentum(args.curr_iteration)
 
     # Update learning rate.
+    # print('#',dist.get_rank(), update_successful, optimizer)
     if update_successful:
         increment = get_num_microbatches() * \
                     args.micro_batch_size * \
@@ -1399,6 +1406,9 @@ def train_step(forward_step_func, data_iterator,
         skipped_iter = 0
     else:
         skipped_iter = 1
+
+    for model_chunk in model:
+        model_chunk.start_param_copy()
 
     # Empty unused memory.
     if args.empty_unused_memory_level >= 2:
@@ -1509,6 +1519,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
                        total_loss_dict[skipped_iters_key]
 
     # learning rate will be None on ranks without trainable params, so we must gather across mp ranks
+    print(dist.get_rank(), learning_rate)
     learning_rate = reduce_max_stat_across_model_parallel_group(learning_rate)
     # Tensorboard values.
     # Timer requires all the ranks to call.
@@ -1658,6 +1669,9 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
                 if wandb_writer:
                     wandb_writer.log({'throughput': throughput}, iteration)
         # Decoupled_learning_rate should be not None only on first and last pipeline stage.
+        if learning_rate is None:
+            learning_rate = 0.0
+
         log_string += f' learning rate: {learning_rate:.6E} |'
         if args.decoupled_lr is not None and (mpu.is_pipeline_first_stage(ignore_virtual=True) or
                                               mpu.is_pipeline_last_stage(ignore_virtual=True)):
@@ -1974,6 +1988,11 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         config.param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
         if len(model) == 1:
             config.param_sync_func = config.param_sync_func[0]
+
+    config.param_copy_func = [model_chunk.start_param_copy for model_chunk in model]
+    if len(model) == 1:
+        config.param_copy_func = config.param_copy_func[0]
+
     config.finalize_model_grads_func = finalize_model_grads
 
     timers('interval-time', log_level=0).start(barrier=True)
