@@ -14,9 +14,9 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 
 CHECKPOINT_PATH=checkpoints/gpt3_345m_distributed
 TENSORBOARD_LOGS_PATH=checkpoints/tb_logs/gpt3_345m_distributed
-VOCAB_FILE=datasets_gpt/vocab.json
-MERGE_FILE=datasets_gpt/merges.txt
-DATA_PATH=datasets_gpt/gpt_text_document # modify this to your dataset path
+VOCAB_FILE=datasets/gpt/vocab.json
+MERGE_FILE=datasets/gpt/merges.txt
+DATA_PATH=datasets/gpt/gpt_text_document # modify this to your dataset path
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE 

@@ -47,6 +47,6 @@ megatron/core/inference/
 .gitlab/
 .github/
 .gitlab-ci.yml
-Dockerfile.ci.lts
-Dockerfile.ci.dev
+docker/Dockerfile.ci.lts
+docker/Dockerfile.ci.dev
 tests/

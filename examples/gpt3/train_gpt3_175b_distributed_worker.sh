@@ -17,8 +17,8 @@ TENSOR_PARALLEL=4
 
 CHECKPOINT_PATH=ngc_models_gpt                                   #<Specify path>
 TENSORBOARD_LOGS_PATH=tensor_board_gpt                           #<Specify path>
-VOCAB_FILE=datasets_gpt/vocab.json                               #<Specify path to file>/gpt2-vocab.json
-MERGE_FILE=datasets_gpt/merges.txt                               #<Specify path to file>/gpt2-merges.txt
+VOCAB_FILE=datasets/gpt/vocab.json                               #<Specify path to file>/gpt2-vocab.json
+MERGE_FILE=datasets/gpt/merges.txt                               #<Specify path to file>/gpt2-merges.txt
 DATA_PATH=datasets/gpt_text_document #<Specify path and file prefix>_text_document
 
 DISTRIBUTED_ARGS=(

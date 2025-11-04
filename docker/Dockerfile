@@ -20,14 +20,14 @@ WORKDIR /workspace/MegatronApp
 COPY . .
 
 # Project pre-dependencies and two RDMA C++ extensions compilation
-RUN bash prerequisite.sh
+RUN bash scripts/prerequisite.sh
 WORKDIR /workspace/MegatronApp/megatron/shm_tensor_new_rdma
 RUN pip install -e .
 WORKDIR /workspace/MegatronApp/megatron/shm_tensor_new_rdma_pre_alloc
 RUN pip install -e .
 
 WORKDIR /workspace/MegatronApp
-RUN pip install -r requirements.txt
+RUN pip install -r requirements/requirements.txt
 RUN python - <<'PY'
 import importlib
 for m in ['shm_tensor_new_rdma_pre_alloc','shm_tensor_new_rdma']:

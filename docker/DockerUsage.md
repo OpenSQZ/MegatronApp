@@ -20,7 +20,7 @@ docker run --runtime --nvidia --gpus all -it --rm \
 Install any additional Python packages:
 
 ```
-pip install -r requirements.txt
+pip install -r requirements/requirements.txt
 ```
 
 For `MegaFBD` and `MegaDPP`, the RDMA C++ extentions `shm_tensor_new_rdma` and `shm_tensor_new_rdma_pre_alloc` must be installed:
@@ -63,14 +63,14 @@ mkdir -p /workspace/shared/datasets /workspace/shared/outputs /workspace/shared/
 # Preprocessed binaries from Megatron’s scripts will be produced here
 mkdir -p datasets
 
-# Example: preprocess GPT sample data (datasets_gpt/ and datasets_bert/ provided)
+# Example: preprocess GPT sample data (datasets/gpt/ and datasets/bert/ provided)
 cd /workspace/megatronapp/datasets
 python ../tools/preprocess_data.py \
-  --input ../datasets_gpt/dataset.json \
+  --input ../datasets/gpt/dataset.json \
   --output-prefix gpt \
-  --vocab-file ../datasets_gpt/vocab.json \
+  --vocab-file ../datasets/gpt/vocab.json \
   --tokenizer-type GPT2BPETokenizer \
-  --merge-file ../datasets_gpt/merges.txt \
+  --merge-file ../datasets/gpt/merges.txt \
   --append-eod \
   --workers "$(nproc)"
 ```
@@ -95,13 +95,13 @@ TRACE_FLAGS="\
  --trace-granularity full \
  --transformer-impl local"
 
-bash ./DockerUsage_MegaScan.sh
+bash docker/DockerUsage_MegaScan.sh
 ```
 
 Note: 
 - **Single machine, multi-GPU**: If your node has multiple A40s, the script will detect GPU count automatically. To force a value, set `--num-gpus` inside the script to your machine’s GPU count.
 
-- **Multi-node**: Use `run_master_<model>.sh` / `run_worker_<model>.sh` and set `--multi-node` and `--node-ips` (in InfiniBand order) in `examples/.../train_*_master/worker.sh`.
+- **Multi-node**: Use `scripts/run_master_<model>.sh` / `scripts/run_worker_<model>.sh` and set `--multi-node` and `--node-ips` (in InfiniBand order) in `examples/.../train_*_master/worker.sh`.
 
 You can also consider **elastic training** (see `torchrun` documentation).
 
@@ -114,7 +114,7 @@ benchmark-data-{}-pipeline-{}-tensor-{}.json
 Aggregate them into one file:
 
 ```bash
-python scripts/aggregate.py --b trace_output --output benchmark.json
+python tools/aggregate.py --b trace_output --output benchmark.json
 ```
 
 To visualize, open the JSON trace with Chrome Tracing (chrome://tracing) or [Perfetto UI](https://ui.perfetto.dev/). You can zoom, filter, and inspect timelines token-by-token to analyze distributed performance.
@@ -136,7 +136,7 @@ bash scripts/gpu_control.sh limit 0 900
 Re-run training, then aggregate with detection enabled:
     
 ```bash
-python scripts/aggregate.py \
+python tools/aggregate.py \
   -b . \  # Equivalent to --bench-dir
   -d      # Enable detection (equivalent to --detect)
 ```
@@ -148,14 +148,14 @@ You should see output indicating a potential anomaly on GPU 0:
 
 ## MegaScope
 
-First, we use existed data to launch this example. You need to move `/workspace/megatronapp/datasets` 下的 `gpt_text_document.bin` and `gpt_text_document.idx` to  `/workspace/megatronapp/datasets_gpt`.
+First, we use existed data to launch this example. You need to move `/workspace/megatronapp/datasets` 下的 `gpt_text_document.bin` and `gpt_text_document.idx` to  `/workspace/megatronapp/datasets/gpt`.
 
 MegaScope requires a backend (Megatron) and a frontend (Vue) service.
 
 ### Backend(Megatron) Training Mode
 
 ```bash
-TP=1 PP=2 NNODES=1 NCCL_DEBUG=INFO MASTER_ADDR=127.0.0.1 MASTER_PORT=29500 bash DockerUsage_MegaScope.sh
+TP=1 PP=2 NNODES=1 NCCL_DEBUG=INFO MASTER_ADDR=127.0.0.1 MASTER_PORT=29500 bash docker/DockerUsage_MegaScope.sh
 ```
 
 Important: The tutorial defaults to 1 node × 4 GPUs. On your server, set a consistent combination of `TP` (tensor parallel size), `PP` (pipeline parallel size), and `world size`.
@@ -230,7 +230,7 @@ When the terminal shows **“MegatronServer started”** and a listening **PORT*
 ### Frontend (Vue): Navigate to the frontend directory and start the development server.
 
 ```bash
-cd transformer-visualize
+cd tools/visualization/transformer-visualize
 npm run dev
 ```
 After launching both, open your browser to the specified address (usually http://localhost:5173). You will see the main interface.
@@ -268,20 +268,20 @@ The similar support for visualization during training process are provided as we
 #### Single Node Distributed Training
 
 ```
-bash run_single_gpt.sh
+bash scripts/run_single_gpt.sh
 ```
 
-This script (see `run_single_gpt.sh`) automatically rewrites the parallel configuration and `MASTER_ADDR` inside `examples/gpt3/train_gpt3_175b_distributed.sh` and keeps `--use-dpp` enabled so `MegaDPP` stays active.
+This script (see `scripts/run_single_gpt.sh`) automatically rewrites the parallel configuration and `MASTER_ADDR` inside `examples/gpt3/train_gpt3_175b_distributed.sh` and keeps `--use-dpp` enabled so `MegaDPP` stays active.
 
 If your GPU count or InfiniBand IPs differ from the defaults, edit `examples/gpt3/train_gpt3_175b_distributed.sh` (lines 12–34) and adjust `GPUS_PER_NODE`, `--node-ips`, and related fields. On a single node, repeat the IP returned by `hostname -i` in `--node-ips`, matching the number of GPUs.
 
 Training logs and any generated benchmark directories are written to the mounted repository path. Aggregate profiling traces when needed by running 
 
 ```python
-python aggregate.py --benchmark_dir benchmark/<your-directory>.
+python tools/aggregate.py --benchmark_dir benchmark/<your-directory>.
 ``` 
 
-Once the single-node run succeeds, consider (1) experimenting with different parallel settings in `examples/gpt3/train_gpt3_175b_distributed.sh`, and (2) validating the multi-node workflow described in the README using `run_master_gpt.sh` and `run_worker_gpt.sh`.
+Once the single-node run succeeds, consider (1) experimenting with different parallel settings in `examples/gpt3/train_gpt3_175b_distributed.sh`, and (2) validating the multi-node workflow described in the README using `scripts/run_master_gpt.sh` and `scripts/run_worker_gpt.sh`.
 
 #### Multinode Distributed Training
 
@@ -292,10 +292,10 @@ Please refer to [./README.md](https://github.com/OpenSQZ/MegatronApp?tab=readme-
 $\quad$ To run distributed training on a single node, go to the project root directory and run
 
 ```bash
-bash DockerUsage_MegaFBD.sh $RANK
+bash docker/DockerUsage_MegaFBD.sh $RANK
 ```
 
-Here `DockerUsage_MegaFBD.sh` is an example bash script of pretrain, designed for a single node:
+Here `docker/DockerUsage_MegaFBD.sh` is an example bash script of pretrain, designed for a single node:
 
 - `GPUS_PER_NODE`=<actual number of GPUs> (no longer incremented);
 

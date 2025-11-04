@@ -16,9 +16,9 @@ PIPELINE_MP_SIZE="${PP:-2}"           # PP=2
 
 # ---------- Path ----------
 CHECKPOINT_PATH="ngc_models/release_gpt_base"
-VOCAB_FILE="datasets_gpt/vocab.json"
-MERGE_FILE="datasets_gpt/merges.txt"
-DATA_PATH="datasets_gpt/gpt_text_document"
+VOCAB_FILE="datasets/gpt/vocab.json"
+MERGE_FILE="datasets/gpt/merges.txt"
+DATA_PATH="datasets/gpt/gpt_text_document"
 
 # ---------- Hyperparameters ----------
 NUM_LAYERS=16

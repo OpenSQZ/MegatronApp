@@ -21,9 +21,9 @@ PIPELINE_MP_SIZE=2
 VIRTUAL_STAGE_LAYER=1
 
 CHECKPOINT_PATH=/cephfs/shared/liangdahao/megatronapp_ckpt/mcore/gpt_distributed_fbd_ckpt
-VOCAB_FILE=datasets_gpt/vocab.json
-MERGE_FILE=datasets_gpt/merges.txt
-DATA_PATH=/cephfs/shared/liangdahao/megatronapp_ckpt/mcore/datasets_gpt/bloomberg_text_document
+VOCAB_FILE=datasets/gpt/vocab.json
+MERGE_FILE=datasets/gpt/merges.txt
+DATA_PATH=/cephfs/shared/liangdahao/megatronapp_ckpt/mcore/datasets/gpt/bloomberg_text_document
 
 DISTRIBUTED_ARGS="
     --nproc_per_node $GPUS_PER_NODE \
