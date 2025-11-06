@@ -17,7 +17,7 @@ TENSOR_PARALLEL=1
 
 CHECKPOINT_PATH=ngc_models_bert #<Specify path>
 TENSORBOARD_LOGS_PATH=tensor_board_bert  #<Specify path>
-VOCAB_FILE=datasets_bert/vocab.txt #<Specify path to file>/bert-vocab.json
+VOCAB_FILE=datasets/bert/vocab.txt #<Specify path to file>/bert-vocab.json
 DATA_PATH=datasets/bert_text_sentence #<Specify path and file prefix>_text_document
 
 DISTRIBUTED_ARGS=(

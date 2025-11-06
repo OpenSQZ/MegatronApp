@@ -12,9 +12,9 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 
 CHECKPOINT_PATH=/path/to/mcore_ckpt/gpt_single_trace_ckpt
 TENSORBOARD_LOGS_PATH=/path/to/mcore_ckpt/tb_logs
-VOCAB_FILE=datasets_gpt/vocab.json
-MERGE_FILE=datasets_gpt/merges.txt
-DATA_PATH=/path/to/datasets_gpt/bloomberg_text_document # modify this to your dataset path
+VOCAB_FILE=datasets/gpt/vocab.json
+MERGE_FILE=datasets/gpt/merges.txt
+DATA_PATH=/path/to/datasets/gpt/bloomberg_text_document # modify this to your dataset path
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE 

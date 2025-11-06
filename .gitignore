@@ -22,3 +22,5 @@ datasets/
 abnormal.txt
 gpu-rank-map.txt
 .specstory
+!datasets/
+!datasets/**

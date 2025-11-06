@@ -54,7 +54,7 @@ bash test_scripts/test_text_generation_server_gpt2.sh
 ### Launch MegaScope frontend
 
 ```bash
-cd transformer-visualize
+cd tools/visualization/transformer-visualize
 
 # Optional: if your Node.js environment changed
 # rm -rf ./node_modules
@@ -95,7 +95,7 @@ MegatronApp/trace_output/benchmark-data-0-pipeline-0-tensor-0.json
 ### Aggregate trace
 
 ```bash
-python scripts/aggregate.py --b trace_output --output test_scripts/trace_output.json
+python tools/aggregate.py --b trace_output --output test_scripts/trace_output.json
 # or
 bash test_scripts/aggregate_trace.sh
 ```

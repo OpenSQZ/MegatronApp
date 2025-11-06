@@ -30,8 +30,8 @@ torchrun --standalone --nproc_per_node=4 pretrain_gpt.py \
   --untie-embeddings-and-output-weights \
   --no-ckpt-fully-parallel-save \
   --tokenizer-type GPT2BPETokenizer \
-  --vocab-file datasets_gpt/vocab.json \
-  --merge-file datasets_gpt/merges.txt \
+  --vocab-file datasets/gpt/vocab.json \
+  --merge-file datasets/gpt/merges.txt \
   --data-path datasets/gpt_text_document \
   --split 949,50,1 \
   --fp16 \

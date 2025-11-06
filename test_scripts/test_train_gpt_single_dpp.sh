@@ -15,9 +15,9 @@ TENSOR_PARALLEL=2
 
 CHECKPOINT_PATH=/path/to/mcore_ckpt/gpt_single_dpp_ckpt                                   #<Specify path>
 TENSORBOARD_LOGS_PATH=/path/to/mcore_ckpt/tb_logs                           #<Specify path>
-VOCAB_FILE=datasets_gpt/vocab.json                               #<Specify path to file>/gpt2-vocab.json
-MERGE_FILE=datasets_gpt/merges.txt                               #<Specify path to file>/gpt2-merges.txt
-DATA_PATH=/path/to/datasets_gpt/bloomberg_text_document #<Specify path and file prefix>_text_document
+VOCAB_FILE=datasets/gpt/vocab.json                               #<Specify path to file>/gpt2-vocab.json
+MERGE_FILE=datasets/gpt/merges.txt                               #<Specify path to file>/gpt2-merges.txt
+DATA_PATH=/path/to/datasets/gpt/bloomberg_text_document #<Specify path and file prefix>_text_document
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE

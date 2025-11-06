@@ -60,7 +60,7 @@ RUN \
 RUN \
         git clone https://github.com/OpenSQZ/MegatronApp.git && \
         cd MegatronApp  && \
-        bash prerequisite.sh  && \
+        bash scripts/prerequisite.sh  && \
         cd megatron/shm_tensor_new_rdma  && \
         pip install -e . && \
         cd ../.. && \
