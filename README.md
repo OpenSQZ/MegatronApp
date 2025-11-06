@@ -1,9 +1,18 @@
 <div align="center">
+  <img src="images/megatronapp.png" alt="MegatronApp logo" height="96">
+</div>
+<h1 align="center">MegatronApp: Toolchain Built around Megatron-LM for Distributed Training</h1>
 
-**MegatronApp: Toolchain Built around Megatron-LM for Distributed Training**
-<!-- > Sample: AI Health Assistant | Powered by Your Data -->
+<p align="center">
+  An extension for performance tuning, slow-node detection, and training-process visualization.
+</p>
 
-An extension for performance tuning, slow-node detection, and training-process visualization.
+<p align="center">
+  <a href="https://github.com/OpenSQZ/MegatronApp/blob/main/docker/DockerUsage.md">🍳 Cookbook</a> |
+  <a href="https://arxiv.org/pdf/2507.19845">📄 Technical Report</a>
+</p>
+
+</div>
 
 <!-- **📢 Announcements**  
 
