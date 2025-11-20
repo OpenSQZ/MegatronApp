@@ -320,12 +320,12 @@ bash prerequisite.sh
 
 ```bash
 cd megatron/shm_tensor_new_rdma
-pip install -e .
+pip install -e . --no-build-isolation
 ```
 
 ```bash
 cd megatron/shm_tensor_new_rdma_pre_alloc
-pip install -e .
+pip install -e . --no-build-isolation
 ```
 
 ### Run
