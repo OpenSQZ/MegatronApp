@@ -4,6 +4,7 @@
 # repo: https://github.com/pytorch/pytorch
 
 import os
+import time
 import warnings
 from functools import partial
 from typing import Any, Callable, List, Optional, Tuple
@@ -37,6 +38,7 @@ from .mappings import (
 )
 from .random import get_cuda_rng_tracker, get_expert_parallel_rng_tracker_name
 from .utils import VocabUtility, divide
+import megatron.core.activation_store as ACTS
 
 _grad_accum_fusion_available = True
 try:
@@ -50,6 +52,181 @@ _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS = {
     'partition_stride': 1,
 }
 
+_LINEAR_BWD_TIMING_ENABLED = None
+_LINEAR_RECOMPUTE_TIMING_ENABLED = None
+_LINEAR_SP_AG_TIMING_ENABLED = None
+_LINEAR_SP_AG_TRACE_ENABLED = None
+_LINEAR_BWD_TIMING_STATE = {
+    "LinearWithGradAccumulationAndAsyncCommunication": {
+        "count": 0,
+        "dgrad_ms": 0.0,
+        "wgrad_ms": 0.0,
+        "total_ms": 0.0,
+        "wgrad_compute_count": 0,
+    },
+    "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation": {
+        "count": 0,
+        "dgrad_ms": 0.0,
+        "wgrad_ms": 0.0,
+        "total_ms": 0.0,
+        "wgrad_compute_count": 0,
+    },
+}
+_LINEAR_RECOMPUTE_TIMING_STATE = {
+    "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation": {
+        "count": 0,
+        "load_ms": 0.0,
+    },
+}
+_LINEAR_SP_AG_TIMING_STATE = {
+    "LinearWithGradAccumulationAndAsyncCommunication": {
+        "count": 0,
+        "all_gather_ms": 0.0,
+    },
+    "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation": {
+        "count": 0,
+        "all_gather_ms": 0.0,
+    },
+}
+_LINEAR_SP_AG_TRACE_COUNTER = {
+    "LinearWithGradAccumulationAndAsyncCommunication": 0,
+    "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation": 0,
+}
+
+
+def _is_linear_bwd_timing_enabled() -> bool:
+    global _LINEAR_BWD_TIMING_ENABLED
+    if _LINEAR_BWD_TIMING_ENABLED is None:
+        _LINEAR_BWD_TIMING_ENABLED = os.getenv("LINEAR_BWD_TIMING", "0") == "1"
+    return _LINEAR_BWD_TIMING_ENABLED
+
+
+def _is_linear_recompute_timing_enabled() -> bool:
+    global _LINEAR_RECOMPUTE_TIMING_ENABLED
+    if _LINEAR_RECOMPUTE_TIMING_ENABLED is None:
+        _LINEAR_RECOMPUTE_TIMING_ENABLED = os.getenv("LINEAR_RECOMPUTE_TIMING", "0") == "1"
+    return _LINEAR_RECOMPUTE_TIMING_ENABLED
+
+
+def _is_linear_sp_ag_timing_enabled() -> bool:
+    global _LINEAR_SP_AG_TIMING_ENABLED
+    if _LINEAR_SP_AG_TIMING_ENABLED is None:
+        _LINEAR_SP_AG_TIMING_ENABLED = os.getenv("LINEAR_SP_AG_TIMING", "0") == "1"
+    return _LINEAR_SP_AG_TIMING_ENABLED
+
+
+def _is_linear_sp_ag_trace_enabled() -> bool:
+    global _LINEAR_SP_AG_TRACE_ENABLED
+    if _LINEAR_SP_AG_TRACE_ENABLED is None:
+        _LINEAR_SP_AG_TRACE_ENABLED = os.getenv("LINEAR_SP_AG_TRACE", "0") == "1"
+    return _LINEAR_SP_AG_TRACE_ENABLED
+
+
+def _linear_bwd_elapsed_ms(start_event: Optional[torch.cuda.Event], end_event: Optional[torch.cuda.Event]) -> float:
+    if start_event is None or end_event is None:
+        return 0.0
+    end_event.synchronize()
+    return float(start_event.elapsed_time(end_event))
+
+
+def _log_linear_bwd_timing(
+    kind: str,
+    dgrad_ms: float,
+    wgrad_ms: float,
+    total_ms: float,
+    wgrad_compute: bool,
+):
+    if not _is_linear_bwd_timing_enabled():
+        return
+    state = _LINEAR_BWD_TIMING_STATE[kind]
+    state["count"] += 1
+    state["dgrad_ms"] += dgrad_ms
+    state["wgrad_ms"] += wgrad_ms
+    state["total_ms"] += total_ms
+    if wgrad_compute:
+        state["wgrad_compute_count"] += 1
+
+    # Aggregate to keep log volume manageable.
+    if state["count"] % 128 != 0:
+        return
+    count = state["count"]
+    try:
+        dist.write_into_log(
+            "linear_bwd_timing "
+            f"kind={kind} "
+            f"count={count} "
+            f"avg_dgrad_ms={state['dgrad_ms']/count:.6f} "
+            f"avg_wgrad_ms={state['wgrad_ms']/count:.6f} "
+            f"avg_total_ms={state['total_ms']/count:.6f} "
+            f"wgrad_compute_ratio={state['wgrad_compute_count']/count:.6f}"
+        )
+    except Exception:
+        pass
+
+
+def _log_linear_recompute_timing(kind: str, load_ms: float):
+    if not _is_linear_recompute_timing_enabled():
+        return
+    state = _LINEAR_RECOMPUTE_TIMING_STATE[kind]
+    state["count"] += 1
+    state["load_ms"] += load_ms
+
+    # Aggregate to keep log volume manageable.
+    if state["count"] % 128 != 0:
+        return
+    count = state["count"]
+    try:
+        dist.write_into_log(
+            "linear_recompute_timing "
+            f"kind={kind} "
+            f"count={count} "
+            f"avg_load_ms={state['load_ms']/count:.6f} "
+            f"total_load_ms={state['load_ms']:.6f}"
+        )
+    except Exception:
+        pass
+
+
+def _log_linear_sp_ag_timing(kind: str, all_gather_ms: float):
+    if not _is_linear_sp_ag_timing_enabled():
+        return
+    state = _LINEAR_SP_AG_TIMING_STATE[kind]
+    state["count"] += 1
+    state["all_gather_ms"] += all_gather_ms
+
+    if state["count"] % 128 != 0:
+        return
+    count = state["count"]
+    try:
+        dist.write_into_log(
+            "linear_sp_all_gather_timing "
+            f"kind={kind} "
+            f"count={count} "
+            f"avg_all_gather_ms={state['all_gather_ms']/count:.6f} "
+            f"total_all_gather_ms={state['all_gather_ms']:.6f} "
+            f"last_all_gather_ms={all_gather_ms:.6f}"
+        )
+    except Exception:
+        pass
+
+
+def _log_linear_sp_ag_trace(kind: str, phase: str):
+    if not _is_linear_sp_ag_trace_enabled():
+        return
+    if phase == "start":
+        _LINEAR_SP_AG_TRACE_COUNTER[kind] += 1
+    call_idx = _LINEAR_SP_AG_TRACE_COUNTER[kind]
+    try:
+        dist.write_into_log(
+            "linear_sp_ag_trace "
+            f"kind={kind} "
+            f"phase={phase} "
+            f"call_idx={call_idx} "
+            f"ts={time.time():.6f}"
+        )
+    except Exception:
+        pass
+
 
 if is_torch_min_version("2.4.0a0"):
     custom_fwd = partial(torch.amp.custom_fwd, device_type="cuda")
@@ -59,12 +236,12 @@ else:
     custom_bwd = torch.cuda.amp.custom_bwd
 
 
-if is_torch_min_version("1.13.0"):
-    dist_all_gather_func = torch.distributed.all_gather_into_tensor
-    dist_reduce_scatter_func = torch.distributed.reduce_scatter_tensor
-else:
-    dist_all_gather_func = dist._all_gather_base
-    dist_reduce_scatter_func = dist._reduce_scatter_base
+# if is_torch_min_version("1.13.0"):
+#     dist_all_gather_func = torch.distributed.all_gather_into_tensor
+#     dist_reduce_scatter_func = torch.distributed.reduce_scatter_tensor
+# else:
+dist_all_gather_func = dist._all_gather_base
+dist_reduce_scatter_func = dist._reduce_scatter_base
 
 
 def param_is_not_tensor_parallel_duplicate(param):
@@ -401,7 +578,7 @@ def linear_with_frozen_weight(
     return LinearWithFrozenWeight.apply(*args)
 
 
-class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
+class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function): ### Modified
     """See linear_with_grad_accumulation_and_async_allreduce"""
 
     @staticmethod
@@ -419,6 +596,10 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
     ):
         """Forward."""
         ctx.save_for_backward(input, weight)
+        # ctx.input = input
+        # print('Input type', type(input))
+        # ctx.weight = weight
+
         ctx.use_bias = bias is not None
         ctx.gradient_accumulation_fusion = gradient_accumulation_fusion
         ctx.allreduce_dgrad = allreduce_dgrad
@@ -432,7 +613,18 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             dim_size[0] = dim_size[0] * world_size
 
             all_gather_buffer = get_global_memory_buffer().get_tensor(dim_size, input.dtype, "mpu")
+            ag_start = time.time()
+            _log_linear_sp_ag_trace(
+                "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation", "start"
+            )
             dist_all_gather_func(all_gather_buffer, input, group=get_tensor_model_parallel_group())
+            _log_linear_sp_ag_trace(
+                "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation", "end"
+            )
+            _log_linear_sp_ag_timing(
+                "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation",
+                (time.time() - ag_start) * 1000.0,
+            )
             total_input = all_gather_buffer
         else:
             total_input = input
@@ -447,10 +639,22 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
     def backward(ctx, grad_output):
         """Backward."""
         input, weight = ctx.saved_tensors
+        # print(type(output), output)
+        # input = ctx.input
+        # weight = ctx.weight
+
         use_bias = ctx.use_bias
         grad_output_buffer = ctx.grad_output_buffer
         wgrad_deferral_limit = ctx.wgrad_deferral_limit
-
+        timing_enabled = _is_linear_bwd_timing_enabled()
+        total_start = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        total_end = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        dgrad_start = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        dgrad_end = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        wgrad_start = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        wgrad_end = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        if total_start is not None:
+            total_start.record()
         wgrad_compute = True
         if grad_output_buffer is not None:
             if wgrad_deferral_limit == 0 or len(grad_output_buffer) < wgrad_deferral_limit:
@@ -475,7 +679,11 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 total_input = all_gather_buffer
             else:
                 total_input = input
+        if dgrad_start is not None:
+            dgrad_start.record()
         grad_input = grad_output.matmul(weight)
+        if dgrad_end is not None:
+            dgrad_end.record()
 
         if ctx.sequence_parallel and wgrad_compute:
             handle.wait()
@@ -508,6 +716,8 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
 
         if ctx.gradient_accumulation_fusion:
             if wgrad_compute:
+                if wgrad_start is not None:
+                    wgrad_start.record()
                 if weight.main_grad.dtype == torch.float32:
                     fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(
                         total_input, grad_output, weight.main_grad
@@ -518,6 +728,8 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                     )
                 else:
                     raise RuntimeError("Unsupported gradient type for gradient accumulation fusion")
+                if wgrad_end is not None:
+                    wgrad_end.record()
 
             if hasattr(weight, 'grad_added_to_main_grad'):
                 # When overlap_grad_reduce is True, need to ensure that backward hooks
@@ -542,11 +754,27 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             else:
                 grad_weight = None
         else:
+            if wgrad_start is not None:
+                wgrad_start.record()
             grad_weight = grad_output.t().matmul(total_input)
+            if wgrad_end is not None:
+                wgrad_end.record()
         grad_bias = grad_output.sum(dim=0) if use_bias else None
 
         if ctx.sequence_parallel:
             handle.wait()
+            if total_end is not None:
+                total_end.record()
+                total_ms = _linear_bwd_elapsed_ms(total_start, total_end)
+                dgrad_ms = _linear_bwd_elapsed_ms(dgrad_start, dgrad_end)
+                wgrad_ms = _linear_bwd_elapsed_ms(wgrad_start, wgrad_end)
+                _log_linear_bwd_timing(
+                    "LinearWithGradAccumulationAndAsyncCommunication",
+                    dgrad_ms,
+                    wgrad_ms,
+                    total_ms,
+                    bool(wgrad_compute),
+                )
             # Need to return None's as gradient has to flow for all the input arguments
             # provided during forward
             return sub_grad_input, grad_weight, grad_bias, None, None, None, None, None
@@ -554,6 +782,262 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         if ctx.allreduce_dgrad:
             handle.wait()
 
+        if total_end is not None:
+            total_end.record()
+            total_ms = _linear_bwd_elapsed_ms(total_start, total_end)
+            dgrad_ms = _linear_bwd_elapsed_ms(dgrad_start, dgrad_end)
+            wgrad_ms = _linear_bwd_elapsed_ms(wgrad_start, wgrad_end)
+            _log_linear_bwd_timing(
+                "LinearWithGradAccumulationAndAsyncCommunication",
+                dgrad_ms,
+                wgrad_ms,
+                total_ms,
+                bool(wgrad_compute),
+            )
+        return grad_input, grad_weight, grad_bias, None, None, None, None, None
+
+class LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation(torch.autograd.Function): ### Modified
+    """See linear_with_grad_accumulation_and_async_allreduce"""
+
+    @staticmethod
+    @custom_fwd
+    def forward(
+        ctx,
+        input,
+        weight,
+        bias,
+        gradient_accumulation_fusion,
+        allreduce_dgrad,
+        sequence_parallel,
+        grad_output_buffer,
+        wgrad_deferral_limit,
+    ):
+        """Forward."""
+        ctx.save_for_backward(input, weight)
+        # ctx.input = input
+        # print('Input type', type(input))
+        # ctx.weight = weight
+
+        ctx.use_bias = bias is not None
+        ctx.gradient_accumulation_fusion = gradient_accumulation_fusion
+        ctx.allreduce_dgrad = allreduce_dgrad
+        ctx.sequence_parallel = sequence_parallel
+        ctx.wgrad_deferral_limit = wgrad_deferral_limit
+        ctx.grad_output_buffer = grad_output_buffer
+
+        if sequence_parallel:
+            world_size = get_tensor_model_parallel_world_size()
+            dim_size = list(input.size())
+            dim_size[0] = dim_size[0] * world_size
+
+            all_gather_buffer = get_global_memory_buffer().get_tensor(dim_size, input.dtype, "mpu")
+            ag_start = time.time()
+            _log_linear_sp_ag_trace("LinearWithGradAccumulationAndAsyncCommunication", "start")
+            dist_all_gather_func(all_gather_buffer, input, group=get_tensor_model_parallel_group())
+            _log_linear_sp_ag_trace("LinearWithGradAccumulationAndAsyncCommunication", "end")
+            _log_linear_sp_ag_timing(
+                "LinearWithGradAccumulationAndAsyncCommunication",
+                (time.time() - ag_start) * 1000.0,
+            )
+            total_input = all_gather_buffer
+        else:
+            total_input = input
+
+        from megatron.core import parallel_state
+
+        if parallel_state.is_forward_stage():
+            # import time
+            # start_time = time.time()
+            output = torch.matmul(total_input, weight.t())
+            if bias is not None:
+                output = output + bias
+            # end_time = time.time()
+            # torch.cuda.synchronize()
+            # print(end_time-start_time)
+            ACTS.store_activation(output, channel=ACTS.ACTIVATION_CHANNEL_LINEAR)
+        else:
+            # output = torch.matmul(total_input, weight.t())
+            # if bias is not None:
+            #     output = output + bias
+            load_start = time.time()
+            output = ACTS.load_activation(
+                channel=ACTS.ACTIVATION_CHANNEL_LINEAR,
+                expected_last_dim=weight.shape[0],
+            )
+            load_dt_s = time.time() - load_start
+            ACTS.write_transport_profile(
+                "linear_load_forward",
+                dt_s=load_dt_s,
+                expected_last_dim=weight.shape[0],
+            )
+            _log_linear_recompute_timing(
+                "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation",
+                load_dt_s * 1000.0,
+            )
+
+        return output
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, grad_output):
+        """Backward."""
+        input, weight = ctx.saved_tensors
+        # print(type(output), output)
+        # input = ctx.input
+        # weight = ctx.weight
+
+        use_bias = ctx.use_bias
+        grad_output_buffer = ctx.grad_output_buffer
+        wgrad_deferral_limit = ctx.wgrad_deferral_limit
+        timing_enabled = _is_linear_bwd_timing_enabled()
+        total_start = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        total_end = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        dgrad_start = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        dgrad_end = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        wgrad_start = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        wgrad_end = torch.cuda.Event(enable_timing=True) if timing_enabled else None
+        if total_start is not None:
+            total_start.record()
+
+        wgrad_compute = True
+        if grad_output_buffer is not None:
+            if wgrad_deferral_limit == 0 or len(grad_output_buffer) < wgrad_deferral_limit:
+                grad_output_buffer.append(grad_output)
+                wgrad_compute = False
+
+        if wgrad_compute:
+            if ctx.sequence_parallel:
+                world_size = get_tensor_model_parallel_world_size()
+                dim_size = list(input.size())
+                dim_size[0] = dim_size[0] * world_size
+
+                all_gather_buffer = get_global_memory_buffer().get_tensor(
+                    dim_size, input.dtype, "mpu"
+                )
+                handle = dist_all_gather_func(
+                    all_gather_buffer, input, group=get_tensor_model_parallel_group(), async_op=True
+                )
+
+                # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
+                # gather is scheduled before the input gradient computation
+                total_input = all_gather_buffer
+            else:
+                total_input = input
+        if dgrad_start is not None:
+            dgrad_start.record()
+        grad_input = grad_output.matmul(weight)
+        if dgrad_end is not None:
+            dgrad_end.record()
+
+        if ctx.sequence_parallel and wgrad_compute:
+            handle.wait()
+
+        if wgrad_compute:
+            grad_output, total_input = prepare_input_tensors_for_wgrad_compute(
+                grad_output, total_input
+            )
+
+        if ctx.allreduce_dgrad:
+            # Asynchronous all-reduce
+            handle = dist.all_reduce(
+                grad_input, group=get_tensor_model_parallel_group(), async_op=True
+            )
+            # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
+            # all-reduce is scheduled before the weight gradient computation
+
+        if ctx.sequence_parallel:
+            assert not ctx.allreduce_dgrad
+            dim_size = list(input.size())
+            sub_grad_input = torch.empty(
+                dim_size, dtype=input.dtype, device=torch.cuda.current_device(), requires_grad=False
+            )
+            # reduce_scatter
+            handle = dist_reduce_scatter_func(
+                sub_grad_input, grad_input, group=get_tensor_model_parallel_group(), async_op=True
+            )
+            # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
+            # reduce scatter is scheduled before the weight gradient computation
+
+        if ctx.gradient_accumulation_fusion:
+            if wgrad_compute:
+                if wgrad_start is not None:
+                    wgrad_start.record()
+                if weight.main_grad.dtype == torch.float32:
+                    fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(
+                        total_input, grad_output, weight.main_grad
+                    )
+                elif weight.main_grad.dtype in (torch.float16, torch.bfloat16):
+                    fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp16(
+                        total_input, grad_output, weight.main_grad
+                    )
+                else:
+                    raise RuntimeError("Unsupported gradient type for gradient accumulation fusion")
+                if wgrad_end is not None:
+                    wgrad_end.record()
+
+            if hasattr(weight, 'grad_added_to_main_grad'):
+                # When overlap_grad_reduce is True, need to ensure that backward hooks
+                # are all run on the main backprop thread to prevent deadlocks. Setup
+                # dummy grad_weight tensor to prevent backward hooks from being run
+                # in a background thread.
+                if getattr(weight, 'zero_out_wgrad', False):
+                    grad_weight = torch.zeros(
+                        weight.main_grad.shape,
+                        dtype=input.dtype,
+                        device=torch.cuda.current_device(),
+                        requires_grad=False,
+                    )
+                else:
+                    grad_weight = torch.empty(
+                        weight.main_grad.shape,
+                        dtype=input.dtype,
+                        device=torch.cuda.current_device(),
+                        requires_grad=False,
+                    )
+                weight.grad_added_to_main_grad = True
+            else:
+                grad_weight = None
+        else:
+            if wgrad_start is not None:
+                wgrad_start.record()
+            grad_weight = grad_output.t().matmul(total_input)
+            if wgrad_end is not None:
+                wgrad_end.record()
+        grad_bias = grad_output.sum(dim=0) if use_bias else None
+
+        if ctx.sequence_parallel:
+            handle.wait()
+            if total_end is not None:
+                total_end.record()
+                total_ms = _linear_bwd_elapsed_ms(total_start, total_end)
+                dgrad_ms = _linear_bwd_elapsed_ms(dgrad_start, dgrad_end)
+                wgrad_ms = _linear_bwd_elapsed_ms(wgrad_start, wgrad_end)
+                _log_linear_bwd_timing(
+                    "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation",
+                    dgrad_ms,
+                    wgrad_ms,
+                    total_ms,
+                    bool(wgrad_compute),
+                )
+            # Need to return None's as gradient has to flow for all the input arguments
+            # provided during forward
+            return sub_grad_input, grad_weight, grad_bias, None, None, None, None, None
+
+        if ctx.allreduce_dgrad:
+            handle.wait()
+
+        if total_end is not None:
+            total_end.record()
+            total_ms = _linear_bwd_elapsed_ms(total_start, total_end)
+            dgrad_ms = _linear_bwd_elapsed_ms(dgrad_start, dgrad_end)
+            wgrad_ms = _linear_bwd_elapsed_ms(wgrad_start, wgrad_end)
+            _log_linear_bwd_timing(
+                "LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation",
+                dgrad_ms,
+                wgrad_ms,
+                total_ms,
+                bool(wgrad_compute),
+            )
         return grad_input, grad_weight, grad_bias, None, None, None, None, None
 
 
@@ -666,7 +1150,20 @@ def linear_with_grad_accumulation_and_async_allreduce(
                 )
                 linear_with_grad_accumulation_and_async_allreduce.warned = True
 
-    return LinearWithGradAccumulationAndAsyncCommunication.apply(*args)
+    from megatron.training import get_args
+    megatron_args = get_args()
+    disaggregated_recompute_modules = set(
+        module.lower()
+        for module in (getattr(megatron_args, 'disaggregated_recompute_modules', []) or [])
+    )
+    use_saved_activation = (
+        megatron_args.ignore_forward_tensor_parallel
+        and 'linear' not in disaggregated_recompute_modules
+    )
+    if use_saved_activation:
+        return LinearWithGradAccumulationAndAsyncCommunicationAndSavedActivation.apply(*args)
+    else:
+        return LinearWithGradAccumulationAndAsyncCommunication.apply(*args)
 
 
 linear_with_grad_accumulation_and_async_allreduce.warned = False

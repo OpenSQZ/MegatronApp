@@ -543,6 +543,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
             hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
                 mlp_output_with_bias, residual, self.hidden_dropout
             )
+        # print('hidden_states', hidden_states.requires_grad)
 
         # Jit compiled function creates 'view' tensor. This tensor
         # potentially gets saved in the MPU checkpoint function context,

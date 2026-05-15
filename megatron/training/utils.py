@@ -218,9 +218,9 @@ def average_losses_across_data_parallel_group(losses):
     args = get_args()
     if args.forward_backward_disaggregating:
         dist.all_reduce(averaged_losses,
-                                    group=mpu.get_half_data_parallel_group())
+                                    group=mpu.get_data_parallel_group())
         averaged_losses = averaged_losses / \
-            dist.get_world_size(group=mpu.get_half_data_parallel_group())
+            dist.get_world_size(group=mpu.get_data_parallel_group())
     else:
         dist.all_reduce(averaged_losses,
                                     group=mpu.get_data_parallel_group())
@@ -400,6 +400,7 @@ def print_rank_last(message):
     if dist.is_initialized():
         if is_last_rank():
             print(message, flush=True)
+            dist.write_into_log(message)
     else:
         print(message, flush=True)
 

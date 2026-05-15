@@ -5,7 +5,10 @@
 
 import contextlib
 import logging
+import os
+import time
 from typing import Union
+from itertools import count
 
 import torch
 from torch import _C
@@ -19,7 +22,13 @@ from megatron.core.parallel_state import (
     get_tensor_model_parallel_rank,
 )
 from megatron.core.utils import is_te_min_version, safely_set_viewless_tensor_data
-from megatron.core.activation_store import store_activation, load_activation
+from megatron.core.activation_store import (
+    store_activation,
+    load_activation,
+    ACTIVATION_CHANNEL_CHECKPOINT,
+    linear_activation_reverse_loading,
+    write_transport_profile,
+)
 
 from .utils import gather_split_1d_tensor, split_tensor_into_1d_equal_chunks
 
@@ -35,6 +44,51 @@ except ModuleNotFoundError:
 _MODEL_PARALLEL_RNG_TRACKER_NAME = 'model-parallel-rng'
 _EXPERT_PARALLEL_RNG_TRACKER_NAME = 'expert-parallel-rng'
 _DATA_PARALLEL_RNG_TRACKER_NAME = 'data-parallel-rng'
+_CHECKPOINT_REPLAY_SEQ = count()
+
+
+def _run_with_leaf_module_timing(run_function, detached_inputs):
+    """Run a callable and collect CUDA timing for leaf nn.Modules."""
+    original_call_impl = torch.nn.Module._call_impl
+    event_records = []
+    cpu_records = []
+    use_cuda_events = torch.cuda.is_available()
+
+    def timed_call_impl(module, *args, **kwargs):
+        if len(module._modules) != 0:
+            return original_call_impl(module, *args, **kwargs)
+        if use_cuda_events:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
+            output = original_call_impl(module, *args, **kwargs)
+            end.record()
+            event_records.append((module.__class__.__name__, start, end))
+            return output
+        start = time.perf_counter()
+        output = original_call_impl(module, *args, **kwargs)
+        cpu_records.append((module.__class__.__name__, time.perf_counter() - start))
+        return output
+
+    torch.nn.Module._call_impl = timed_call_impl
+    try:
+        outputs = run_function(*detached_inputs)
+    finally:
+        torch.nn.Module._call_impl = original_call_impl
+
+    summary = {}
+    if use_cuda_events and event_records:
+        torch.cuda.current_stream().synchronize()
+        for name, start, end in event_records:
+            elapsed_s = float(start.elapsed_time(end)) / 1000.0
+            total, count, max_dt = summary.get(name, (0.0, 0, 0.0))
+            summary[name] = (total + elapsed_s, count + 1, max(max_dt, elapsed_s))
+    elif cpu_records:
+        for name, elapsed_s in cpu_records:
+            total, count, max_dt = summary.get(name, (0.0, 0, 0.0))
+            summary[name] = (total + elapsed_s, count + 1, max(max_dt, elapsed_s))
+
+    return outputs, summary
 
 
 def _get_cuda_rng_state(
@@ -428,6 +482,8 @@ class CheckpointFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *args):
         """Backward pass."""
+        import megatron.virtual_tensor_parallel_communication as dist
+
         if not torch.autograd._is_checkpoint_valid():
             raise RuntimeError(
                 "Checkpointing is not compatible with .grad(), "
@@ -446,7 +502,25 @@ class CheckpointFunction(torch.autograd.Function):
             # Compute the forward pass.
             detached_inputs = detach_variable(inputs)
             with torch.enable_grad():
-                outputs = ctx.run_function(*detached_inputs)
+                replay_start = time.time()
+                if os.environ.get("BASELINE_RECOMPUTE_MODULE_PROFILE", "0") == "1":
+                    outputs, module_summary = _run_with_leaf_module_timing(
+                        ctx.run_function, detached_inputs
+                    )
+                    if module_summary:
+                        top_modules = sorted(
+                            module_summary.items(), key=lambda item: item[1][0], reverse=True
+                        )[:5]
+                        for module_name, (total_s, count, max_s) in top_modules:
+                            dist.write_into_log(
+                                "checkpoint_baseline_recompute_module "
+                                f"{module_name} total_s={total_s} count={count} max_s={max_s}"
+                            )
+                else:
+                    outputs = ctx.run_function(*detached_inputs)
+                dist.write_into_log(
+                    f"checkpoint_baseline_backward_recompute {time.time() - replay_start}"
+                )
 
         if isinstance(outputs, torch.Tensor):
             outputs = (outputs,)
@@ -477,8 +551,13 @@ class CheckpointFunctionWithSavedActivation(torch.autograd.Function):
         # Copy the rng states.
         ctx.rng_states = _get_all_rng_states()
 
+        # import megatron.virtual_tensor_parallel_communication as dist
+        # if dist.get_rank() == 0:
+        #     dist.print_memory_usage()
         with torch.no_grad():
             outputs = run_function(*args)
+        # if dist.get_rank() == 0:
+        #     dist.print_memory_usage()
 
         # Divide hidden states across model parallel group and only keep
         # the chunk corresponding to the current rank.
@@ -490,7 +569,7 @@ class CheckpointFunctionWithSavedActivation(torch.autograd.Function):
 
         # Store everything.
         ctx.save_for_backward(*args)
-        save_activation(outputs)
+        store_activation(outputs, channel=ACTIVATION_CHANNEL_CHECKPOINT)
 
         return outputs
 
@@ -498,11 +577,14 @@ class CheckpointFunctionWithSavedActivation(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *args):
         """Backward pass."""
+        import megatron.virtual_tensor_parallel_communication as dist
+
         if not torch.autograd._is_checkpoint_valid():
             raise RuntimeError(
                 "Checkpointing is not compatible with .grad(), "
                 "please use .backward() if possible"
             )
+        backward_start = time.time()
         inputs = ctx.saved_tensors
         if ctx.distribute_saved_activations:
             safely_set_viewless_tensor_data(
@@ -511,12 +593,30 @@ class CheckpointFunctionWithSavedActivation(torch.autograd.Function):
 
         with _fork_rng():
             # Set the states to what it used to be before the forward pass.
+            rng_restore_start = time.time()
             _set_all_rng_states(*ctx.rng_states)
+            rng_restore_dt = time.time() - rng_restore_start
 
             # Compute the forward pass.
+            detach_start = time.time()
             detached_inputs = detach_variable(inputs)
+            detach_dt = time.time() - detach_start
             with torch.enable_grad():
-                outputs = ctx.run_function(*detached_inputs)
+                # Backward traverses checkpoint nodes in reverse topological order.
+                # Consume linear saved activations in reverse for this recompute.
+                replay_start = time.time()
+                with linear_activation_reverse_loading(True):
+                    outputs = ctx.run_function(*detached_inputs)
+                replay_dt = time.time() - replay_start
+                dist.write_into_log(
+                    f"checkpoint_saved_activation_backward_recompute {replay_dt}"
+                )
+                dist.write_into_log(
+                    "checkpoint_saved_activation_breakdown "
+                    f"rng_restore_s={rng_restore_dt:.6f} "
+                    f"detach_s={detach_dt:.6f} "
+                    f"replay_s={replay_dt:.6f}"
+                )
 
         if isinstance(outputs, torch.Tensor):
             outputs = (outputs,)
@@ -525,7 +625,14 @@ class CheckpointFunctionWithSavedActivation(torch.autograd.Function):
         outputs, args = zip(
             *filter(lambda x: torch.is_tensor(x[0]) and x[0].requires_grad, zip(outputs, args))
         )
+        autograd_start = time.time()
         torch.autograd.backward(outputs, args)
+        autograd_dt = time.time() - autograd_start
+        dist.write_into_log(
+            "checkpoint_saved_activation_backward_total "
+            f"total_s={time.time()-backward_start:.6f} "
+            f"autograd_s={autograd_dt:.6f}"
+        )
         grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp for inp in detached_inputs)
         return (None, None) + grads
 
@@ -535,15 +642,36 @@ class NoRecomputeCheckpointFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, run_function, distribute_saved_activations, *args):
         """Forward pass."""
+        import megatron.virtual_tensor_parallel_communication as dist
+
         ctx.run_function = run_function
         ctx.distribute_saved_activations = distribute_saved_activations
 
         # Copy the rng states.
         ctx.rng_states = _get_all_rng_states()
 
+        replay_seq = next(_CHECKPOINT_REPLAY_SEQ)
+        ctx._checkpoint_replay_seq = replay_seq
+        if os.getenv("ACTS_CHECKPOINT_SEQ_DEBUG", "0") == "1":
+            dist.write_into_log(
+                f"checkpoint_seq forward_enter seq={replay_seq} fn={type(run_function).__name__}"
+            )
         # with torch.no_grad():
         #     outputs = run_function(*args)
-        outputs = load_activation()
+        load_start = time.time()
+        outputs = load_activation(channel=ACTIVATION_CHANNEL_CHECKPOINT)
+        load_dt = time.time() - load_start
+        write_transport_profile(
+            "checkpoint_load_forward",
+            dt_s=load_dt,
+        )
+        dist.write_into_log(
+            f"checkpoint_no_recompute_forward_load_activation {load_dt}"
+        )
+        if os.getenv("ACTS_CHECKPOINT_SEQ_DEBUG", "0") == "1":
+            dist.write_into_log(
+                f"checkpoint_seq forward_loaded seq={replay_seq} load_s={load_dt:.6f}"
+            )
 
         # Divide hidden states across model parallel group and only keep
         # the chunk corresponding to the current rank.
@@ -562,25 +690,64 @@ class NoRecomputeCheckpointFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *args):
         """Backward pass."""
+        import megatron.virtual_tensor_parallel_communication as dist
+
         if not torch.autograd._is_checkpoint_valid():
             raise RuntimeError(
                 "Checkpointing is not compatible with .grad(), "
                 "please use .backward() if possible"
             )
+        backward_start = time.time()
+        replay_seq = getattr(ctx, "_checkpoint_replay_seq", -1)
+        if os.getenv("ACTS_CHECKPOINT_SEQ_DEBUG", "0") == "1":
+            dist.write_into_log(f"checkpoint_seq backward_begin seq={replay_seq}")
         inputs = ctx.saved_tensors
         if ctx.distribute_saved_activations:
             safely_set_viewless_tensor_data(
                 inputs[0], gather_split_1d_tensor(inputs[0].data).view(ctx.input_0_shape)
             )
 
+        # import megatron.virtual_tensor_parallel_communication as dist
+        # if dist.get_rank() == 2:
+        #     dist.print_memory_usage()
         with _fork_rng():
             # Set the states to what it used to be before the forward pass.
+            rng_restore_start = time.time()
             _set_all_rng_states(*ctx.rng_states)
+            rng_restore_dt = time.time() - rng_restore_start
 
             # Compute the forward pass.
+            detach_start = time.time()
             detached_inputs = detach_variable(inputs)
+            detach_dt = time.time() - detach_start
             with torch.enable_grad():
-                outputs = ctx.run_function(*detached_inputs)
+                replay_start = time.time()
+                dist.set_replay_context(True)
+                try:
+                    outputs = ctx.run_function(*detached_inputs)
+                finally:
+                    dist.set_replay_context(False)
+                replay_dt = time.time() - replay_start
+                dist.write_into_log(
+                    f"checkpoint_no_recompute_backward_replay {replay_dt}"
+                )
+                write_transport_profile(
+                    "no_recompute_backward_replay",
+                    dt_s=replay_dt,
+                )
+                dist.write_into_log(
+                    "checkpoint_no_recompute_breakdown "
+                    f"rng_restore_s={rng_restore_dt:.6f} "
+                    f"detach_s={detach_dt:.6f} "
+                    f"replay_s={replay_dt:.6f}"
+                )
+                if os.getenv("ACTS_CHECKPOINT_SEQ_DEBUG", "0") == "1":
+                    dist.write_into_log(
+                        f"checkpoint_seq backward_replay_done seq={replay_seq} replay_s={replay_dt:.6f}"
+                    )
+        # if dist.get_rank() == 2:
+        #     dist.print_memory_usage()
+
 
         if isinstance(outputs, torch.Tensor):
             outputs = (outputs,)
@@ -589,7 +756,18 @@ class NoRecomputeCheckpointFunction(torch.autograd.Function):
         outputs, args = zip(
             *filter(lambda x: torch.is_tensor(x[0]) and x[0].requires_grad, zip(outputs, args))
         )
+        autograd_start = time.time()
         torch.autograd.backward(outputs, args)
+        autograd_dt = time.time() - autograd_start
+        dist.write_into_log(
+            "checkpoint_no_recompute_backward_total "
+            f"total_s={time.time()-backward_start:.6f} "
+            f"autograd_s={autograd_dt:.6f}"
+        )
+        if os.getenv("ACTS_CHECKPOINT_SEQ_DEBUG", "0") == "1":
+            dist.write_into_log(
+                f"checkpoint_seq backward_done seq={replay_seq} autograd_s={autograd_dt:.6f}"
+            )
         grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp for inp in detached_inputs)
         return (None, None) + grads
 
@@ -598,10 +776,10 @@ def checkpoint(function, distribute_saved_activations, *args):
     """Checkpoint a model or part of the model.
     This has been directly copied from torch.utils.checkpoint."""
     from megatron.training import get_args
-    args = get_args()
-    if args.ignore_forward_tensor_parallel:
-        from megatron.core.parallel_state import is_forward_rank
-        if is_forward_rank():
+    megatron_args = get_args()
+    if megatron_args.ignore_forward_tensor_parallel:
+        from megatron.core.parallel_state import is_forward_stage
+        if is_forward_stage():
             return CheckpointFunctionWithSavedActivation.apply(function, distribute_saved_activations, *args)
         else:
             return NoRecomputeCheckpointFunction.apply(function, distribute_saved_activations, *args)

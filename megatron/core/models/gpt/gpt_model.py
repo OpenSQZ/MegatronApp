@@ -271,6 +271,8 @@ class GPTModel(LanguageModule):
             # intermediate stage of pipeline
             # decoder will get hidden_states from encoder.input_tensor
             decoder_input = None
+        
+        # print('decoder_input', decoder_input.requires_grad)
 
         # Rotary positional embeddings (embedding is None for PP intermediate devices)
         rotary_pos_emb = None
@@ -331,6 +333,7 @@ class GPTModel(LanguageModule):
             decoder_input = WrappedTensor(decoder_input)
 
         # Run decoder.
+        # print(f"Gradient enabled: {torch.is_grad_enabled()}")
         hidden_states = self.decoder(
             hidden_states=decoder_input,
             attention_mask=attention_mask,
@@ -342,6 +345,7 @@ class GPTModel(LanguageModule):
             sequence_len_offset=sequence_len_offset,
             **(extra_block_kwargs or {}),
         )
+        # print(f"### Gradient enabled: {hidden_states.requires_grad}")
 
         # Process inference output.
         if inference_context and not inference_context.is_static_batching():
@@ -389,6 +393,7 @@ class GPTModel(LanguageModule):
         logits, _ = self.output_layer(
             hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
         )
+
 
         if has_config_logger_enabled(self.config):
             payload = OrderedDict(

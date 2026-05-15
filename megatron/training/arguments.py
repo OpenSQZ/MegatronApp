@@ -324,6 +324,14 @@ def validate_args(args, defaults={}):
 
     args.data_parallel_size = args.world_size // total_model_size
 
+    if args.dual_micro_batch_size is None:
+        args.dual_micro_batch_size = args.micro_batch_size
+
+    if args.forward_backward_disaggregating:
+        if args.ignore_forward_tensor_parallel:
+            num_backward_ranks = (args.world_size - 1) * args.dual_micro_batch_size * args.tensor_model_parallel_size // (args.dual_micro_batch_size * args.tensor_model_parallel_size + args.micro_batch_size)
+            args.data_parallel_size = num_backward_ranks // total_model_size
+
     if args.rank == 0:
         print('using world size: {}, data-parallel size: {}, '
               'context-parallel size: {}, '
@@ -379,6 +387,25 @@ def validate_args(args, defaults={}):
     if args.recompute_activations:
         args.recompute_granularity = 'selective'
     del args.recompute_activations
+
+    if args.disaggregated_recompute_modules is None:
+        args.disaggregated_recompute_modules = []
+    else:
+        args.disaggregated_recompute_modules = list(
+            dict.fromkeys(module.lower() for module in args.disaggregated_recompute_modules)
+        )
+        known_modules = {"linear"}
+        unknown_modules = [
+            module for module in args.disaggregated_recompute_modules if module not in known_modules
+        ]
+        if len(unknown_modules) > 0 and args.rank == 0:
+            print(
+                "WARNING: unsupported disaggregated recompute modules {}. "
+                "These are reserved for future module implementations and are currently ignored.".format(
+                    unknown_modules
+                ),
+                flush=True,
+            )
 
     # Set input defaults.
     for key in defaults:
@@ -1508,6 +1535,10 @@ def _add_training_args(parser):
                        'use micro-batch-size * data-parallel-size as the '
                        'global batch size. This choice will result in 1 for '
                        'number of micro-batches.')
+    group.add_argument('--dual-micro-batch-size', type=int, default=None,
+                       help='Batch size for forward model instance (local batch size). '
+                       'Global batch size is local batch size times data '
+                       'parallel size times number of micro batches.')
     group.add_argument('--rampup-batch-size', nargs='*', default=None,
                        help='Batch size ramp up with the following values:'
                        '  --rampup-batch-size <start batch size> '
@@ -2186,6 +2217,31 @@ def _add_distributed_args(parser):
                         help='If ranks should be forward or backward only')
     group.add_argument('--ignore-forward-tensor-parallel', action='store_true',
                        help='If forward ranks need to do tensor parallel when forward-backward-disaggregating')
+    group.add_argument(
+        '--disaggregated-recompute-modules',
+        nargs='*',
+        type=str,
+        default=None,
+        help='Module-level recompute controls for forward-backward disaggregated execution when '
+        '--ignore-forward-tensor-parallel is enabled. '
+        'If "linear" is included, linear layers are recomputed on backward ranks. '
+        'If "linear" is omitted, linear outputs are provided from forward ranks. '
+        'Additional module names are accepted for future module implementations.',
+    )
+    group.add_argument(
+        '--activation-store-debug',
+        action='store_true',
+        default=False,
+        help='Enable detailed activation-store debug logging for disaggregated execution. '
+        'This adds high-frequency logging and can significantly reduce performance.',
+    )
+    group.add_argument(
+        '--activation-transport-profile',
+        action='store_true',
+        default=False,
+        help='Enable low-overhead activation transport profiling logs '
+        '(pack/enqueue/recv/load/queue transitions) for disaggregated execution.',
+    )
     return parser
 
 

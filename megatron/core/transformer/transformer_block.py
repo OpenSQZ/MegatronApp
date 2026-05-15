@@ -380,8 +380,6 @@ class TransformerBlock(MegatronModule):
                 hidden_states, context = checkpoint_handler(
                     custom(layer_idx, layer_idx + self.config.recompute_num_layers)
                 )
-                if args.ignore_forward_tensor_parallel:
-                    store_activation(hidden_states)
 
                 layer_idx += self.config.recompute_num_layers
 
@@ -475,6 +473,8 @@ class TransformerBlock(MegatronModule):
             # See set_input_tensor()
             hidden_states = self.input_tensor
 
+        # print(f"### Gradient enabled: {hidden_states.requires_grad}")
+
         # Update the inference parameters with the current batch size in case it is variable
         if inference_context and not self.training:
             inference_context.current_batch_size = hidden_states.size(1)
@@ -523,6 +523,7 @@ class TransformerBlock(MegatronModule):
                     packed_seq_params=packed_seq_params,
                 )
             else:
+                # print(f"Gradient enabled: {torch.is_grad_enabled()}")
                 for l_no, layer in enumerate(self.layers):
                     inner_fp8_context = (
                         get_fp8_context(self.config, layer.layer_number - 1)
@@ -543,6 +544,7 @@ class TransformerBlock(MegatronModule):
                             packed_seq_params=packed_seq_params,
                             sequence_len_offset=sequence_len_offset,
                         )
+                    # print('layer.params', layer.mlp.params.requires_grad)
 
                     if (
                         torch.is_grad_enabled()
@@ -550,6 +552,7 @@ class TransformerBlock(MegatronModule):
                         and self.group_prefetch_offload_commit_async is not None
                     ):
                         hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
+                # print(f"Gradient enabled: {torch.is_grad_enabled()}")
 
         # Final layer norm.
         if self.final_layernorm is not None:
@@ -560,6 +563,7 @@ class TransformerBlock(MegatronModule):
             hidden_states = make_viewless_tensor(
                 inp=hidden_states, requires_grad=True, keep_graph=True
             )
+        # print(f"Gradient enabled: {torch.is_grad_enabled()}")
 
         return hidden_states
 

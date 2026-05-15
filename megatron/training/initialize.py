@@ -314,6 +314,7 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
         # Manually set the device ids.
         if device_count > 0:
             torch.cuda.set_device(args.local_rank)
+            # print('###', args.rank, args.local_rank)
             device_id = torch.device(f'cuda:{args.local_rank}')
         else:
             device_id = None
@@ -333,8 +334,15 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
 
         torch.distributed.init_process_group(**init_process_group_kwargs)
 
-    _ = torch.empty(0,device="cuda")
+    # print(torch.distributed.get_rank())
+
+    # torch.distributed.barrier()
+    # print(f"Rank {dist.get_rank()} passed barrier")
+
+    _ = torch.tensor([1.0],device="cuda")
     torch.distributed.all_reduce(_)
+
+    # print(_)
     # torch.distributed.barrier()
     # if torch.distributed.get_rank() in [0,3]:
     #     torch.distributed.new_group([0,3], backend="gloo")

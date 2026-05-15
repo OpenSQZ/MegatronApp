@@ -45,8 +45,9 @@ def p2p_comm_check(p2p_comm_t, rank, virtual_world_size):
     return res
 
 def wait_and_callback(i, req):
-    if not req.is_completed():
-        req.wait()
+    # Avoid polling is_completed(); some backends can crash in completion
+    # checks under communicator teardown. A blocking wait is safer here.
+    req.wait()
     # print(i, 'getting')
 
 def start_server(virtual_world_size, _GLOBAL_GROUP_GLOO, REAL_RANK, _GLOBAL_RANK_INFO):
@@ -61,6 +62,8 @@ def start_server(virtual_world_size, _GLOBAL_GROUP_GLOO, REAL_RANK, _GLOBAL_RANK
     # }
     for i in range(len(_GLOBAL_RANK_INFO)):
         _GLOBAL_RANK_INFO[i] += virtual_world_size
+
+    # print('%', _GLOBAL_RANK_INFO)
 
     recv_buffers  = [torch.zeros(virtual_world_size * 2 + 1, dtype = int) for i in range(0, virtual_world_size)]
     total = torch.zeros(virtual_world_size, virtual_world_size * 2, dtype = int)
@@ -102,6 +105,7 @@ def start_server(virtual_world_size, _GLOBAL_GROUP_GLOO, REAL_RANK, _GLOBAL_RANK
 
                 # print(p2p_comm_t)
                 # print('getting', i)
+                # print(total)
                 # print(recv_buffers[i])
                 # print(p2p_comm_t)
 
@@ -120,7 +124,7 @@ def start_server(virtual_world_size, _GLOBAL_GROUP_GLOO, REAL_RANK, _GLOBAL_RANK
                 threads[i] = None
                 for rank in ranks:
                     req = dist.irecv(tensor=recv_buffers[rank], src = REAL_RANK[rank], tag = _GLOBAL_RANK_INFO[rank], group = _GLOBAL_GROUP_GLOO)
-                    t = threading.Thread(target=wait_and_callback, args=(i, req))
+                    t = threading.Thread(target=wait_and_callback, args=(rank, req))
                     t.start()
                     threads[rank] = t
                 # print(f"[Server] Current aggregated sum: {total.tolist()}")

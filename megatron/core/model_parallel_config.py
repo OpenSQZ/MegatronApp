@@ -98,6 +98,8 @@ class ModelParallelConfig:
        dimensions.
     """
 
+    param_copy_func: Optional[Callable] = None
+
     grad_scale_func: Optional[Callable] = None
     """If using loss scaling, this function should take the loss and return the scaled loss. If
        None, no function is called on the loss.

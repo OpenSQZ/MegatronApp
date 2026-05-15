@@ -105,7 +105,7 @@ class ScaledSoftmax(torch.autograd.Function):
     @staticmethod
     def backward(ctx, output_grads):
         try:
-            import scaled_softmax_cudaa
+            import scaled_softmax_cuda
         except (ImportError, ModuleNotFoundError):
             print(f'Please install Apex to use fused_softmax')
 

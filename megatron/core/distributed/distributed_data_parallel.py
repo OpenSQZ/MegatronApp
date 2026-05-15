@@ -472,6 +472,27 @@ class DistributedDataParallel(_BaseDataParallel):
         for bucket_group in self.bucket_groups + self.expert_parallel_bucket_groups:
             bucket_group.start_grad_sync()
 
+    def start_param_copy(self, *unused):
+        from megatron.core import parallel_state
+        reqs = []
+        for param in self.module.parameters():
+            # print(dist.get_rank(),':',parallel_state.get_forward_backward_parallel_dual_rank())
+            ranks_list = parallel_state.get_forward_backward_parallel_dual_rank()
+            # print(ranks_list)
+            if parallel_state.is_forward_stage():
+                for ranks in ranks_list:
+                    reqs.append(dist.irecv_with_virtual_rank(param.data, src=ranks[1]))
+            else:
+                for ranks in ranks_list:
+                    reqs.append(dist.isend_with_virtual_rank(param.data, dst=ranks[0]))
+
+        # print(dist.get_rank(),'fi')
+
+        for req in reqs:
+            req.wait()
+        
+
+
     def finish_grad_sync(self):
         """
         Finishes grad sync (all-reduce or reduce-scatter) communication operations

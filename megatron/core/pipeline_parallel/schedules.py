@@ -25,6 +25,20 @@ import megatron.core.activation_store as ACTS
 # Types
 Shape = Union[List[int], torch.Size]
 
+def log_timeline(microbatch_id: int, event: str, phase: str, step_start_time: float):
+    import time
+    import megatron.virtual_tensor_parallel_communication as dist
+
+    now = time.time()
+    dist.write_timeline_log(
+        "timeline "
+        f"mb={microbatch_id} "
+        f"event={event} "
+        f"phase={phase} "
+        f"ts={now:.6f} "
+        f"offset={now - step_start_time:.6f}"
+    )
+
 
 def get_forward_backward_func():
     """Retrieves the appropriate forward_backward function given the
@@ -132,7 +146,7 @@ def deallocate_output_tensor(out, deallocate_pipeline_outputs=False):
     out.data = torch.empty((1,), device=out.device, dtype=out.dtype)
 
 
-def custom_backward(output, grad_output):
+def custom_backward(output, grad_output, retain_graph):
     '''Directly call C++ autograd engine.
 
     To make the 'deallocate_output_tensor' (above) optimization work, the C++
@@ -156,7 +170,7 @@ def custom_backward(output, grad_output):
     Variable._execution_engine.run_backward(
         tensors=(output,),
         grad_tensors=(grad_output,),
-        keep_graph=False,
+        keep_graph=retain_graph,
         create_graph=False,
         inputs=tuple(),
         allow_unreachable=True,
@@ -433,6 +447,7 @@ def forward_step_no_grad(
         Tensor or list[Tensor]: The output object(s) from the forward step.
         Tensor: The number of tokens.
     """
+    import megatron.virtual_tensor_parallel_communication as dist
     with torch.no_grad():
         if config.timers is not None:
             config.timers('forward-compute', log_level=2).start()
@@ -531,7 +546,7 @@ def forward_step_no_grad(
     return [output_tensor], num_tokens
 
 
-def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config):
+def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config, retain_graph = False):
     """Backward step through passed-in output tensor.
 
     If last stage, output_tensor_grad is None, otherwise gradient of loss
@@ -543,6 +558,8 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     # NOTE: This code currently can handle at most one skip connection. It
     # needs to be modified slightly to support arbitrary numbers of skip
     # connections.
+
+    # print('running backward')
 
     if config.timers is not None:
         config.timers('backward-compute', log_level=2).start()
@@ -575,9 +592,9 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     # In such cases, we intentionally skip the backward pass while preserving zero gradients.
     if output_tensor[0].requires_grad:
         if config.deallocate_pipeline_outputs:
-            custom_backward(output_tensor[0], output_tensor_grad[0])
+            custom_backward(output_tensor[0], output_tensor_grad[0], retain_graph=retain_graph)
         else:
-            torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
+            torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0], retain_graph=retain_graph)
 
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]
@@ -656,12 +673,15 @@ def forward_backward_no_pipelining(
         no_sync_func = contextlib.nullcontext
 
     model_type = get_model_type(model)
+    import time
+    import megatron.virtual_tensor_parallel_communication as dist
 
     forward_data_store = []
     input_tensor, output_tensor_grad = None, None
     total_num_tokens = torch.zeros([], dtype=torch.int, device="cuda")
     with no_sync_func():
         for i in range(num_microbatches - 1):
+            mb_start = time.time()
             output_tensor, num_tokens = forward_step(
                 forward_step_func,
                 data_iterator,
@@ -674,12 +694,19 @@ def forward_backward_no_pipelining(
                 is_first_microbatch=check_first_val_step(first_val_step, forward_only, i == 0),
                 current_microbatch=i,
             )
+            dist.write_into_log(
+                f"baseline no_pp forward_step mb={i} {time.time()-mb_start}"
+            )
             total_num_tokens += num_tokens
             if not forward_only:
                 backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
+                dist.write_into_log(
+                    f"baseline no_pp backward_step mb={i} {time.time()-mb_start}"
+                )
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
+    mb_start = time.time()
     output_tensor, num_tokens = forward_step(
         forward_step_func,
         data_iterator,
@@ -694,10 +721,16 @@ def forward_backward_no_pipelining(
         ),
         current_microbatch=num_microbatches - 1,
     )
+    dist.write_into_log(
+        f"baseline no_pp forward_step mb={num_microbatches - 1} {time.time()-mb_start}"
+    )
     total_num_tokens += num_tokens
 
     if not forward_only:
         backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
+        dist.write_into_log(
+            f"baseline no_pp backward_step mb={num_microbatches - 1} {time.time()-mb_start}"
+        )
 
     if config.finalize_model_grads_func is not None and not forward_only:
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for
@@ -939,6 +972,17 @@ def forward_backward_pipelining_with_interleaving(
         if no_sync_context is not None:
             no_sync_context.__exit__(None, None, None)
             no_sync_context = None
+
+    def log_timeline(microbatch_id: int, event: str, phase: str, step_start_time: float):
+        now = time.time()
+        dist.write_timeline_log(
+            "timeline "
+            f"mb={microbatch_id} "
+            f"event={event} "
+            f"phase={phase} "
+            f"ts={now:.6f} "
+            f"offset={now - step_start_time:.6f}"
+        )
 
     disable_grad_sync()
 
@@ -1835,13 +1879,13 @@ def recv_forward(tensor_shapes, config):
             input_tensors.append(p2p_communication.recv_forward(tensor_shape, config))
     return input_tensors
 
-def recv_corresponding_forward(tensor_shapes, config):
+def recv_corresponding_forward(tensor_shapes, config, bypass_controller = False):
     input_tensors = []
     for tensor_shape in tensor_shapes:
         if tensor_shape is None:
             input_tensors.append(None)
         else:
-            input_tensors.append(p2p_communication.recv_corresponding_forward(tensor_shape, config))
+            input_tensors.append(p2p_communication.recv_corresponding_forward_interleave(tensor_shape, config, 1, bypass_controller=bypass_controller))
     return input_tensors
 
 def recv_backward(tensor_shapes, config):
@@ -1864,13 +1908,13 @@ def send_forward(output_tensors, tensor_shapes, config):
             continue
         p2p_communication.send_forward(output_tensor, config)
 
-def send_corresponding_forward(output_tensors, tensor_shapes, config):
+def send_corresponding_forward(output_tensors, tensor_shapes, config, bypass_controller = False):
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
     for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
         if tensor_shape is None:
             continue
-        p2p_communication.send_corresponding_forward(output_tensor, config)
+        p2p_communication.send_corresponding_forward_interleave(output_tensor, config, 1, bypass_controller=bypass_controller)
 
 def send_backward(input_tensor_grads, tensor_shapes, config):
     """Wrapper for p2p_communication.send_backward used with non-interleaving schedule."""
@@ -1914,7 +1958,6 @@ def send_backward_recv_forward(input_tensor_grads, tensor_shapes, config):
         )
         input_tensors.append(input_tensor)
     return input_tensors
-
 
 def forward_backward_pipelining_without_interleaving(
     *,
@@ -2026,6 +2069,8 @@ def forward_backward_pipelining_without_interleaving(
     input_tensors = None
     output_tensors = None
     total_num_tokens = torch.tensor(0, dtype=torch.int).cuda()
+    import time
+    import megatron.virtual_tensor_parallel_communication as dist
 
     if not forward_only:
         input_tensors = []
@@ -2034,6 +2079,7 @@ def forward_backward_pipelining_without_interleaving(
 
     # Run warmup forward passes.
     for i in range(num_warmup_microbatches):
+        warmup_start_time = time.time()
         # Decide to checkpoint all layers' activations of the current micro-batch
         if max_outstanding_backprops is not None:
             checkpoint_activations_microbatch = (
@@ -2044,6 +2090,8 @@ def forward_backward_pipelining_without_interleaving(
             checkpoint_activations_microbatch = None
 
         input_tensor = recv_forward(recv_tensor_shapes, config)
+        recv_done_time = time.time()
+        dist.write_into_log(f"baseline warmup recv_forward {recv_done_time - warmup_start_time}")
         output_tensor, num_tokens = forward_step(
             forward_step_func,
             data_iterator,
@@ -2058,7 +2106,13 @@ def forward_backward_pipelining_without_interleaving(
             current_microbatch=i,
             encoder_decoder_xattn=encoder_decoder_xattn,
         )
+        forward_done_time = time.time()
+        dist.write_into_log(
+            f"baseline warmup forward_step {forward_done_time - warmup_start_time}"
+        )
         send_forward(output_tensor, send_tensor_shapes, config)
+        send_done_time = time.time()
+        dist.write_into_log(f"baseline warmup send_forward {send_done_time - warmup_start_time}")
         total_num_tokens += num_tokens
 
         if not forward_only:
@@ -2073,10 +2127,9 @@ def forward_backward_pipelining_without_interleaving(
         input_tensor = recv_forward(recv_tensor_shapes, config)
 
     # Run 1F1B in steady state.
-    import time
-    import torch.distributed as dist
     for i in range(num_microbatches_remaining):
         last_iteration = i == (num_microbatches_remaining - 1)
+        timeline_mb = i + num_warmup_microbatches
 
         # Decide to checkpoint all layers' activations of the current micro-batch
         if max_outstanding_backprops is not None:
@@ -2087,7 +2140,10 @@ def forward_backward_pipelining_without_interleaving(
             checkpoint_activations_microbatch = None
 
         start_time = time.time()
+        log_timeline(timeline_mb, "baseline_step", "start", start_time)
+        recv_done_time = start_time
 
+        log_timeline(timeline_mb, "forward_step", "start", start_time)
         output_tensor, num_tokens = forward_step(
             forward_step_func,
             data_iterator,
@@ -2105,21 +2161,37 @@ def forward_backward_pipelining_without_interleaving(
             encoder_decoder_xattn=encoder_decoder_xattn,
         )
 
-        if dist.get_rank() == 3:
-            end_time = time.time()
-            print('forward_step',end_time-start_time)
+        end_time = time.time()
+        log_timeline(timeline_mb, "forward_step", "end", start_time)
+        dist.write_into_log(f"baseline after forward finished {end_time-start_time}")
 
         total_num_tokens += num_tokens
 
         if forward_only:
+            log_timeline(timeline_mb, "send_forward", "start", start_time)
             send_forward(output_tensor, send_tensor_shapes, config)
+            send_done_time = time.time()
+            log_timeline(timeline_mb, "send_forward", "end", start_time)
+            dist.write_into_log(f"baseline forward_only send_forward {send_done_time-start_time}")
 
             if not last_iteration:
+                log_timeline(timeline_mb, "recv_forward", "start", start_time)
                 input_tensor = recv_forward(recv_tensor_shapes, config)
+                recv_done_time = time.time()
+                log_timeline(timeline_mb, "recv_forward", "end", start_time)
+                dist.write_into_log(
+                    f"baseline forward_only recv_forward {recv_done_time-start_time}"
+                )
 
         else:
+            log_timeline(timeline_mb, "send_forward_recv_backward", "start", start_time)
             output_tensor_grad = send_forward_recv_backward(
                 output_tensor, send_tensor_shapes, config
+            )
+            comm_done_time = time.time()
+            log_timeline(timeline_mb, "send_forward_recv_backward", "end", start_time)
+            dist.write_into_log(
+                f"baseline send_forward_recv_backward {comm_done_time-start_time}"
             )
 
             # Add input_tensor and output_tensor to end of list.
@@ -2138,26 +2210,41 @@ def forward_backward_pipelining_without_interleaving(
                 if config.grad_sync_func is None or rank == 0:
                     enable_grad_sync()
             
+            log_timeline(timeline_mb, "backward_step", "start", start_time)
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
-            if dist.get_rank() == 3:
-                end_time = time.time()
-                print('backward_step',end_time-start_time)
+            if getattr(config, 'debug_force_cuda_sync', False):
+                torch.cuda.synchronize()
+            end_time = time.time()
+            log_timeline(timeline_mb, "backward_step", "end", start_time)
+            dist.write_into_log(f"baseline after backward finished {end_time-start_time}")
             if last_iteration:
                 input_tensor = None
+                log_timeline(timeline_mb, "send_backward", "start", start_time)
                 send_backward(input_tensor_grad, recv_tensor_shapes, config)
+                send_done_time = time.time()
+                log_timeline(timeline_mb, "send_backward", "end", start_time)
+                dist.write_into_log(
+                    f"baseline last_iteration send_backward {send_done_time-start_time}"
+                )
             else:
+                log_timeline(timeline_mb, "send_backward_recv_forward", "start", start_time)
                 input_tensor = send_backward_recv_forward(
                     input_tensor_grad, recv_tensor_shapes, config
                 )
-            if dist.get_rank() == 3:
-                end_time = time.time()
-                print('send_backward_recv_forward',end_time-start_time)
+                recv_done_time = time.time()
+                log_timeline(timeline_mb, "send_backward_recv_forward", "end", start_time)
+                dist.write_into_log(
+                    f"baseline send_backward_recv_forward {recv_done_time-start_time}"
+                )
+            dist.write_into_log(f"baseline forward_step {time.time()-start_time}")
+        log_timeline(timeline_mb, "baseline_step", "end", start_time)
 
     # Run cooldown backward passes.
     if not forward_only:
         for i in range(num_warmup_microbatches):
+            cooldown_start_time = time.time()
 
             # Enable async grad reduction in the last backward pass
             # Note: If grad sync function is provided, only enable
@@ -2172,12 +2259,24 @@ def forward_backward_pipelining_without_interleaving(
             output_tensor = output_tensors.pop(0)
 
             output_tensor_grad = recv_backward(send_tensor_shapes, config)
+            recv_done_time = time.time()
+            dist.write_into_log(
+                f"baseline cooldown recv_backward {recv_done_time-cooldown_start_time}"
+            )
 
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
+            backward_done_time = time.time()
+            dist.write_into_log(
+                f"baseline cooldown backward_step {backward_done_time-cooldown_start_time}"
+            )
 
             send_backward(input_tensor_grad, recv_tensor_shapes, config)
+            send_done_time = time.time()
+            dist.write_into_log(
+                f"baseline cooldown send_backward {send_done_time-cooldown_start_time}"
+            )
 
         # Launch any remaining grad reductions.
         if no_sync_context is not None:
@@ -2204,6 +2303,9 @@ def forward_backward_pipelining_without_interleaving(
     if hasattr(config, 'enable_cuda_graph') and config.enable_cuda_graph:
         create_cudagraphs()
 
+    import megatron.virtual_tensor_parallel_communication as vt
+    vt.print_memory_usage()
+
     return forward_data_store
 
 def forward_or_backward_pipelining_without_interleaving(
@@ -2218,6 +2320,7 @@ def forward_or_backward_pipelining_without_interleaving(
     forward_only: bool = False,
     collect_non_loss_data: bool = False,
 ):
+    import os
     """Run non-interleaved 1F1B schedule, with communication between pipeline
     stages.
 
@@ -2310,12 +2413,15 @@ def forward_or_backward_pipelining_without_interleaving(
     _ = torch.empty(0,device="cuda")
     torch.distributed.all_reduce(_, group = parallel_state.get_pipeline_model_parallel_group(extracted = True))
 
+    dist.unset()
+
     input_tensors = None
     output_tensors = None
     if not forward_only:
         input_tensors = []
         output_tensors = []
     forward_data_store = []
+    total_num_tokens = torch.tensor(0, dtype=torch.int).cuda()
 
     num_warmup_microbatches = (
         parallel_state.get_pipeline_model_parallel_world_size()
@@ -2324,11 +2430,20 @@ def forward_or_backward_pipelining_without_interleaving(
     )
     num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     # print('?')
+    ACTS.init_sets()
+    dist.barrier()
+    dist.print_memory_usage()
     
     if forward_only or parallel_state.is_forward_stage():
         # Run warmup forward passes.
+        # print('$', dist.get_rank(), num_warmup_microbatches)
         for i in range(num_warmup_microbatches):
+            start_time = time.time()
+            timeline_mb = i
+            log_timeline(timeline_mb, "disagg_forward_step", "start", start_time)
+            log_timeline(timeline_mb, "recv_forward", "start", start_time)
             input_tensor = recv_forward(recv_tensor_shapes, config)
+            log_timeline(timeline_mb, "recv_forward", "end", start_time)
             if not forward_only:
                 input_tensors.append(input_tensor)
             if max_outstanding_backprops is not None:
@@ -2339,6 +2454,7 @@ def forward_or_backward_pipelining_without_interleaving(
                 checkpoint_activations_microbatch = None
             # if dist.get_rank() == 0:
             #     start_time = time.time()
+            log_timeline(timeline_mb, "forward_step_no_grad", "start", start_time)
             output_tensor, num_tokens = forward_step_no_grad(
                 forward_step_func,
                 data_iterator,
@@ -2350,22 +2466,33 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
+            log_timeline(timeline_mb, "forward_step_no_grad", "end", start_time)
+            total_num_tokens += num_tokens
             # if dist.get_rank() == 0:
             #     end_time = time.time()
             #     print('forward_step', i, end_time-start_time)
+            log_timeline(timeline_mb, "send_forward", "start", start_time)
             send_forward(output_tensor, send_tensor_shapes, config)
-            ACTS.send_activations(config)
+            log_timeline(timeline_mb, "send_forward", "end", start_time)
+            if not forward_only:
+                log_timeline(timeline_mb, "send_activations", "start", start_time)
+                ACTS.send_activations(config)
+                log_timeline(timeline_mb, "send_activations", "end", start_time)
+            log_timeline(timeline_mb, "disagg_forward_step", "end", start_time)
+
+        # print('mygo', dist.get_rank())
         
         # Run 1F1B in steady state.
         for i in range(num_warmup_microbatches, num_microbatches):
+            start_time = time.time()
+            timeline_mb = i
+            log_timeline(timeline_mb, "disagg_forward_step", "start", start_time)
+            log_timeline(timeline_mb, "recv_forward", "start", start_time)
             input_tensor = recv_forward(recv_tensor_shapes, config)
+            log_timeline(timeline_mb, "recv_forward", "end", start_time)
             # print('#step', i, input_tensor)
             # if dist.get_rank() == 4:
             #     start_time = time.time()
-            if not parallel_state.is_pipeline_first_stage() and not forward_only:
-                input_tensors.append(input_tensor)
-                input_tensor_to_backward = input_tensors.pop(0)
-                send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config)
             # if dist.get_rank() == 4:
             #     end_time = time.time()
             #     print('forward_step', i, end_time-start_time)
@@ -2379,6 +2506,7 @@ def forward_or_backward_pipelining_without_interleaving(
             # dist.tensor_parallel_barrier()
             # if dist.get_rank() == 0:
             #     start_time = time.time()
+            log_timeline(timeline_mb, "forward_step_no_grad", "start", start_time)
             output_tensor, num_tokens = forward_step_no_grad(
                 forward_step_func,
                 data_iterator,
@@ -2390,18 +2518,58 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
+            log_timeline(timeline_mb, "forward_step_no_grad", "end", start_time)
+            total_num_tokens += num_tokens
+
             # print(output_tensor)
+            # if dist.get_rank() == 1:
+            #     start_time = time.time()
+            log_timeline(timeline_mb, "send_forward", "start", start_time)
             send_forward(output_tensor, send_tensor_shapes, config)
-            ACTS.send_activations(config)
+            log_timeline(timeline_mb, "send_forward", "end", start_time)
+            if not forward_only:
+                log_timeline(timeline_mb, "send_activations", "start", start_time)
+                ACTS.send_activations(config)
+                log_timeline(timeline_mb, "send_activations", "end", start_time)
+            if not parallel_state.is_pipeline_first_stage() and not forward_only:
+                input_tensors.append(input_tensor)
+                input_tensor_to_backward = input_tensors.pop(0)
+                # Keep wire order aligned with backward ranks, which receive
+                # activation transport before recv_corresponding_forward().
+                log_timeline(timeline_mb, "send_corresponding_forward", "start", start_time)
+                send_corresponding_forward(
+                    input_tensor_to_backward,
+                    recv_tensor_shapes,
+                    config,
+                    bypass_controller=True,
+                )
+                log_timeline(timeline_mb, "send_corresponding_forward", "end", start_time)
+            # if dist.get_rank() == 1:
+            #     end_time = time.time()
+            #     print('after send acts', i, end_time-start_time)
+            log_timeline(timeline_mb, "disagg_forward_step", "end", start_time)
         
         for i in range(num_warmup_microbatches):
             if not parallel_state.is_pipeline_first_stage() and not forward_only:
+                start_time = time.time()
+                timeline_mb = num_microbatches + i
+                log_timeline(timeline_mb, "disagg_forward_drain", "start", start_time)
                 input_tensor_to_backward = input_tensors.pop(0)
+                log_timeline(timeline_mb, "send_corresponding_forward", "start", start_time)
                 send_corresponding_forward(input_tensor_to_backward, recv_tensor_shapes, config)
+                log_timeline(timeline_mb, "send_corresponding_forward", "end", start_time)
+                log_timeline(timeline_mb, "disagg_forward_drain", "end", start_time)
 
     elif not forward_only:
         for i in range(num_warmup_microbatches):
             ACTS.recv_activations(config)
+
+        # print('mygo', dist.get_rank())
+        recv_activation_calls = num_warmup_microbatches
+        if recv_activation_calls < num_microbatches:
+            ACTS.recv_activations(config)
+            recv_activation_calls += 1
+
         for i in range(num_microbatches):
             # Enable async grad reduction in the last backward pass
             # Note: If grad sync function is provided, only enable
@@ -2421,18 +2589,23 @@ def forward_or_backward_pipelining_without_interleaving(
 
             # if dist.get_rank() == 7 or dist.get_rank() == 3:
             #     print('receiving forward')
+            start_time = time.time()
+            timeline_mb = i + num_warmup_microbatches
+            log_timeline(timeline_mb, "disagg_step", "start", start_time)
 
             input_tensor = None
             if not parallel_state.is_pipeline_first_stage():
-                input_tensor = recv_corresponding_forward(recv_tensor_shapes, config)
+                log_timeline(timeline_mb, "recv_corresponding_forward", "start", start_time)
+                input_tensor = recv_corresponding_forward(recv_tensor_shapes, config, bypass_controller = True)
+                log_timeline(timeline_mb, "recv_corresponding_forward", "end", start_time)
             # if dist.get_rank() == 6:
             #     start_time = time.time()
-            torch.cuda.synchronize()
-            if dist.get_rank() == 7 or dist.get_rank() == 3:
-                start_time = time.time()
                 # print('before forward start')
-            if i < num_microbatches - num_warmup_microbatches
-                ACTS.recv_activations(config)
+
+            end_time = time.time()
+            dist.write_into_log(f"after recv acts {end_time-start_time}")
+
+            log_timeline(timeline_mb, "forward_step", "start", start_time)
             output_tensor, num_tokens = forward_step(
                 forward_step_func,
                 data_iterator,
@@ -2444,22 +2617,36 @@ def forward_or_backward_pipelining_without_interleaving(
                 collect_non_loss_data,
                 checkpoint_activations_microbatch,
             )
-            ACTS.next_set()
-            torch.cuda.synchronize()
-            if dist.get_rank() == 7 or dist.get_rank() == 3:
-                end_time = time.time()
-                print('after forward finished', i, end_time-start_time)
+            total_num_tokens += num_tokens
+
+            if getattr(config, 'debug_force_cuda_sync', False):
+                torch.cuda.synchronize()
+            end_time = time.time()
+            log_timeline(timeline_mb, "forward_step", "end", start_time)
+            dist.write_into_log(f"after forward finished {end_time-start_time}")
             # if dist.get_rank() == 2:
             #     print('backward_step', i, time.time())
             # if dist.get_rank() == 3:
             #     start_time = time.time()
+            log_timeline(timeline_mb, "recv_backward", "start", start_time)
             output_tensor_grad = recv_backward(
                 send_tensor_shapes, config
             )
-            torch.cuda.synchronize()
-            if dist.get_rank() == 7 or dist.get_rank() == 3:
-                end_time = time.time()
-                print('after recv_backward finished', i, end_time-start_time)
+            log_timeline(timeline_mb, "recv_backward", "end", start_time)
+            if os.getenv("DISAGG_PROVE_STALL", "0") == "1":
+                dist.write_into_log(
+                    f"prove_stall recv_backward_end mb={timeline_mb} ts={time.time():.6f}"
+                )
+
+            # Prefetch next microbatch activations while current microbatch
+            # performs backward compute to overlap transfer and computation.
+            if recv_activation_calls < num_microbatches:
+                ACTS.recv_activations(config)
+                recv_activation_calls += 1
+
+            # if dist.get_rank() == 7 or dist.get_rank() == 3:
+            #     end_time = time.time()
+            #     print('after recv_backward finished', i, end_time-start_time)
             # if dist.get_rank() == 3:
             #     end_time = time.time()
             #     print('forward_step', i, end_time-start_time)
@@ -2469,15 +2656,16 @@ def forward_or_backward_pipelining_without_interleaving(
             #     print('backward_step', i, end_time-start_time)
             # if dist.get_rank() == 6:
             #     start_time = time.time()
+            log_timeline(timeline_mb, "backward_step", "start", start_time)
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
-            torch.cuda.synchronize()
-            if dist.get_rank() == 7 or dist.get_rank() == 3:
-                end_time = time.time()
-                print('after backward finished', i, end_time-start_time)
-                if input_tensor_grad is not None:
-                    print(input_tensor_grad[0].shape)
+
+            if getattr(config, 'debug_force_cuda_sync', False):
+                torch.cuda.synchronize()
+            end_time = time.time()
+            log_timeline(timeline_mb, "backward_step", "end", start_time)
+            dist.write_into_log(f"after backward finished {end_time-start_time}")
             # if dist.get_rank() == 6:
             #     end_time = time.time()
             #     print('backward_step', i, end_time-start_time)
@@ -2485,19 +2673,30 @@ def forward_or_backward_pipelining_without_interleaving(
             #     print('backward_step', i, time.time())
             # if dist.get_rank() == 7:
             #     start_time = time.time()
+            log_timeline(timeline_mb, "send_backward", "start", start_time)
+            if os.getenv("DISAGG_PROVE_STALL", "0") == "1":
+                dist.write_into_log(
+                    f"prove_stall send_backward_start mb={timeline_mb} ts={time.time():.6f}"
+                )
             send_backward(input_tensor_grad, recv_tensor_shapes, config)
-            if dist.get_rank() == 7 or dist.get_rank() == 3:
-                end_time = time.time()
-                print('forward_step', i, end_time-start_time)
+            log_timeline(timeline_mb, "send_backward", "end", start_time)
+
+            end_time = time.time()
+            dist.write_into_log(f"forward_step {end_time-start_time}")
+            log_timeline(timeline_mb, "next_set", "start", start_time)
+            ACTS.next_set()
+            log_timeline(timeline_mb, "next_set", "end", start_time)
+            log_timeline(timeline_mb, "disagg_step", "end", start_time)
             # if dist.get_rank() == 7:
             #     end_time = time.time()
             #     print('forward_step', i, end_time-start_time)
 
 
     # Launch any remaining grad reductions
+
     if no_sync_context is not None:
         enable_grad_sync()
-        if config.grad_sync_func is not None:
+        if config.grad_sync_func is not None and not parallel_state.is_forward_stage():
             config.grad_sync_func(model.parameters())
 
     # Finalize model grads (perform full grad all-reduce / reduce-scatter for
@@ -2505,10 +2704,20 @@ def forward_or_backward_pipelining_without_interleaving(
     # embedding all-reduce for pipeline parallelism).
     # import megatron.virtual_tensor_parallel_communication as dist
     # print('#', dist.get_rank())
-    if config.finalize_model_grads_func is not None and not forward_only:
+
+    if config.finalize_model_grads_func is not None and not forward_only and not parallel_state.is_forward_stage():
         config.finalize_model_grads_func(
             [model], total_num_tokens if config.calculate_per_token_loss else None
         )
+
         # distrib_grad.finalize_model_grads([model])
+
+    # print('#',dist.get_rank(),config.param_copy_func)
+
+    # if not forward_only:
+    #     config.param_copy_func(model.parameters())
+
+    dist.print_memory_usage()
+    dist.print_statistics()
 
     return forward_data_store
