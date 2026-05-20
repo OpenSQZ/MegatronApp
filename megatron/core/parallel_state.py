@@ -928,9 +928,11 @@ def initialize_model_parallel_ignore_forward_tensor_parallel(
     initiallize_list(tensor_model_parallel_size)
 
     # print(rank)
-    if rank != 0:
-        _ = torch.tensor([1.0],device="cuda")
-        torch.distributed.all_reduce(_,group = _GLOBAL_CONTROLLER_GROUP)
+    # Controller-group warmup all-reduce is not required for disaggregated mode
+    # and can trigger NCCL duplicate-GPU checks on asymmetric launches.
+    if rank != 0 and not getattr(args, "forward_backward_disaggregating", False):
+        _ = torch.tensor([1.0], device="cuda")
+        torch.distributed.all_reduce(_, group=_GLOBAL_CONTROLLER_GROUP)
         # print('%%%%%%%%', _)
 
     if rank == 0:

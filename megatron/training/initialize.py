@@ -295,6 +295,8 @@ def _initialize_tp_communicators():
 def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
     """Initialize torch.distributed and core model parallel."""
     args = get_args()
+    is_disagg = bool(getattr(args, "forward_backward_disaggregating", False))
+    is_controller_only_rank = bool(is_disagg and args.rank == 0)
 
     device_count = torch.cuda.device_count()
     if torch.distributed.is_initialized():
@@ -312,15 +314,30 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
         if args.rank == 0:
             print("> initializing torch distributed ...", flush=True)
         # Manually set the device ids.
-        if device_count > 0:
-            torch.cuda.set_device(args.local_rank)
-            # print('###', args.rank, args.local_rank)
-            device_id = torch.device(f'cuda:{args.local_rank}')
+        if device_count > 0 and not is_controller_only_rank:
+            device_local_rank = args.local_rank
+            # In disaggregated mode rank 0 is controller-only and does not use CUDA.
+            # On node 0 this shifts compute local_rank->cuda index by one.
+            import os
+            node_rank_env = int(os.getenv("GROUP_RANK", os.getenv("NODE_RANK", "0")))
+            if is_disagg and node_rank_env == 0 and args.local_rank > 0:
+                device_local_rank = args.local_rank - 1
+
+            if device_local_rank < 0 or device_local_rank >= device_count:
+                raise RuntimeError(
+                    "Invalid CUDA device mapping: "
+                    f"rank={args.rank} node_rank={node_rank_env} "
+                    f"local_rank={args.local_rank} mapped_device={device_local_rank} "
+                    f"visible_device_count={device_count}"
+                )
+
+            torch.cuda.set_device(device_local_rank)
+            device_id = torch.device(f'cuda:{device_local_rank}')
         else:
             device_id = None
 
         # Set to non-default stream for cudagraph capturing.
-        if args.external_cuda_graph:
+        if args.external_cuda_graph and not is_controller_only_rank:
             torch.cuda.set_stream(torch.cuda.Stream())
 
         # Call the init process
@@ -339,8 +356,12 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
     # torch.distributed.barrier()
     # print(f"Rank {dist.get_rank()} passed barrier")
 
-    _ = torch.tensor([1.0],device="cuda")
-    torch.distributed.all_reduce(_)
+    # Important: all ranks must execute the same collectives.
+    # In disaggregated mode, rank 0 is a controller-only process, so skip this
+    # warmup all-reduce for everyone to avoid collective mismatch/hang.
+    if device_count > 0 and not getattr(args, "forward_backward_disaggregating", False):
+        _ = torch.tensor([1.0], device="cuda")
+        torch.distributed.all_reduce(_)
 
     # print(_)
     # torch.distributed.barrier()
