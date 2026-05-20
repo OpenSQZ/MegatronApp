@@ -341,9 +341,21 @@ class ActivationSet:
                 load_id = int(time.time() * 1000000)
             except Exception:
                 load_id = -1
+            _write_trace_into_log(
+                "acts_load_trace "
+                f"phase=enter channel={channel} load_id={load_id} "
+                f"qlen={len(self.activations)} from_end={int(bool(from_end))} "
+                f"expected_last_dim={expected_last_dim} ts={time.time():.6f}"
+            )
         if len(self.activations) == 0:
             raise RuntimeError("Activation queue is empty while trying to load activation.")
 
+        if trace_enabled:
+            _write_trace_into_log(
+                "acts_load_trace "
+                f"phase=pick_start channel={channel} load_id={load_id} "
+                f"qlen={len(self.activations)} ts={time.time():.6f}"
+            )
         chosen_index = None
         if expected_last_dim is None:
             if from_end:
@@ -378,7 +390,7 @@ class ActivationSet:
         if trace_enabled:
             _write_trace_into_log(
                 "acts_load_trace "
-                f"phase=pick channel={channel} load_id={load_id} "
+                f"phase=pick_end channel={channel} load_id={load_id} "
                 f"chosen_index={chosen_index} reqs={len(reqs)} qlen_after_pop={len(self.activations)} "
                 f"from_end={int(bool(from_end))} expected_last_dim={expected_last_dim} ts={time.time():.6f}"
             )

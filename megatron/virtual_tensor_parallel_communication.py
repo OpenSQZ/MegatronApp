@@ -1299,11 +1299,11 @@ def broadcast(tensor, src, group=None):
 
 def write_into_log(s):
     file_name = f"log{get_rank()}.txt"
-    os.makedirs(Logdir, exist_ok=True)
-    file_path = os.path.join(Logdir, file_name)
-    with open(file_path, 'a') as f:
-        f.write(str(s))
-        f.write('\n')
+    # os.makedirs(Logdir, exist_ok=True)
+    # file_path = os.path.join(Logdir, file_name)
+    # with open(file_path, 'a') as f:
+    #     f.write(str(s))
+    #     f.write('\n')
 
 
 def write_timeline_log(s):

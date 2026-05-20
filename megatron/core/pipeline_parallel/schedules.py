@@ -580,6 +580,17 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
         output_tensor_grad = [output_tensor_grad]
 
     # Backward pass.
+    import os
+    import time
+    import megatron.virtual_tensor_parallel_communication as dist
+    if not hasattr(backward_step, "_probe_idx"):
+        backward_step._probe_idx = 0
+    probe_idx = backward_step._probe_idx
+    backward_step._probe_idx += 1
+    probe_enabled = os.getenv("BWD_INNER_PROBE", "0") == "1"
+    probe_interval = int(os.getenv("BWD_INNER_PROBE_INTERVAL", "16"))
+    do_probe = probe_enabled and (probe_interval > 0) and (probe_idx % probe_interval == 0)
+
     # print('?',output_tensor[0])
     # print('?',output_tensor[0])
     if output_tensor_grad[0] is None and config.grad_scale_func is not None:
@@ -591,10 +602,27 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     # This results in a tensor that does not require gradients.
     # In such cases, we intentionally skip the backward pass while preserving zero gradients.
     if output_tensor[0].requires_grad:
+        if do_probe:
+            bwd_inner_t0 = time.time()
+            bwd_evt_start = torch.cuda.Event(enable_timing=True)
+            bwd_evt_end = torch.cuda.Event(enable_timing=True)
+            bwd_evt_start.record()
         if config.deallocate_pipeline_outputs:
             custom_backward(output_tensor[0], output_tensor_grad[0], retain_graph=retain_graph)
         else:
             torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0], retain_graph=retain_graph)
+        if do_probe:
+            bwd_evt_end.record()
+            bwd_evt_end.synchronize()
+            bwd_inner_t1 = time.time()
+            bwd_inner_cuda_ms = bwd_evt_start.elapsed_time(bwd_evt_end)
+            dist.write_timeline_log(
+                "bwd_inner_probe "
+                f"idx={probe_idx} "
+                f"autograd_wall_s={bwd_inner_t1 - bwd_inner_t0:.6f} "
+                f"autograd_cuda_ms={bwd_inner_cuda_ms:.3f} "
+                f"autograd_gap_s={(bwd_inner_t1 - bwd_inner_t0) - (bwd_inner_cuda_ms / 1000.0):.6f}"
+            )
 
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]
@@ -2629,9 +2657,16 @@ def forward_or_backward_pipelining_without_interleaving(
             # if dist.get_rank() == 3:
             #     start_time = time.time()
             log_timeline(timeline_mb, "recv_backward", "start", start_time)
+            probe_enabled = os.getenv("BWD_COMM_COMP_PROBE", "0") == "1"
+            probe_interval = int(os.getenv("BWD_COMM_COMP_PROBE_INTERVAL", "16"))
+            do_probe = probe_enabled and (probe_interval > 0) and (timeline_mb % probe_interval == 0)
+            if do_probe:
+                probe_recv_t0 = time.time()
             output_tensor_grad = recv_backward(
                 send_tensor_shapes, config
             )
+            if do_probe:
+                probe_recv_t1 = time.time()
             log_timeline(timeline_mb, "recv_backward", "end", start_time)
             if os.getenv("DISAGG_PROVE_STALL", "0") == "1":
                 dist.write_into_log(
@@ -2657,9 +2692,19 @@ def forward_or_backward_pipelining_without_interleaving(
             # if dist.get_rank() == 6:
             #     start_time = time.time()
             log_timeline(timeline_mb, "backward_step", "start", start_time)
+            if do_probe:
+                probe_bwd_t0 = time.time()
+                bwd_evt_start = torch.cuda.Event(enable_timing=True)
+                bwd_evt_end = torch.cuda.Event(enable_timing=True)
+                bwd_evt_start.record()
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
+            if do_probe:
+                bwd_evt_end.record()
+                bwd_evt_end.synchronize()
+                probe_bwd_t1 = time.time()
+                probe_bwd_cuda_ms = bwd_evt_start.elapsed_time(bwd_evt_end)
 
             if getattr(config, 'debug_force_cuda_sync', False):
                 torch.cuda.synchronize()
@@ -2678,7 +2723,19 @@ def forward_or_backward_pipelining_without_interleaving(
                 dist.write_into_log(
                     f"prove_stall send_backward_start mb={timeline_mb} ts={time.time():.6f}"
                 )
+            if do_probe:
+                probe_send_t0 = time.time()
             send_backward(input_tensor_grad, recv_tensor_shapes, config)
+            if do_probe:
+                probe_send_t1 = time.time()
+                dist.write_timeline_log(
+                    "bwd_probe "
+                    f"mb={timeline_mb} "
+                    f"recv_backward_s={probe_recv_t1 - probe_recv_t0:.6f} "
+                    f"backward_wall_s={probe_bwd_t1 - probe_bwd_t0:.6f} "
+                    f"backward_cuda_ms={probe_bwd_cuda_ms:.3f} "
+                    f"send_backward_s={probe_send_t1 - probe_send_t0:.6f}"
+                )
             log_timeline(timeline_mb, "send_backward", "end", start_time)
 
             end_time = time.time()
